@@ -208,7 +208,9 @@ export default function Page() {
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
-  const fetchedRef = useRef(false);
+  // Usa sessionStorage para persistir entre navegações na mesma sessão
+  const CACHE_KEY = 'alterdata_fetched';
+  const wasFetched = typeof window !== 'undefined' ? sessionStorage.getItem(CACHE_KEY) === 'true' : false;
 
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -219,14 +221,34 @@ export default function Page() {
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
   useEffect(()=>{
-    // Não recarrega se já tiver dados carregados (evita recarregar ao mudar de página)
-    if (fetchedRef.current) {
-      // Se já tem dados, não recarrega
-      if (rows.length > 0) return;
-      // Se não tem dados mas já tentou carregar, não tenta de novo
-      return;
+    // Se já tem dados carregados, não recarrega
+    if (rows.length > 0) {
+      return; // Já tem dados, não precisa recarregar
     }
-    fetchedRef.current = true;
+    
+    // Se já foi carregado nesta sessão, verifica cache e retorna
+    if (wasFetched) {
+      try {
+        const rawLS = typeof window !== 'undefined'
+          ? window.localStorage.getItem(LS_KEY_ALTERDATA)
+          : null;
+        if (rawLS) {
+          const cached = JSON.parse(rawLS);
+          if (cached && 
+              Array.isArray(cached.rows) && 
+              Array.isArray(cached.columns) &&
+              cached.rows.length > 0) {
+            setColumns(cached.columns);
+            setRows(cached.rows);
+            setUnidKey(cached.unidKey || null);
+            setVotePeek(cached.votePeek || '');
+            setLoading(false);
+            return; // Retorna com cache, não recarrega
+          }
+        }
+      } catch {}
+      return; // Já foi carregado, não recarrega mesmo sem cache
+    }
 
     // Preenche imediatamente a partir do cache local, se existir e válido
     try {
@@ -236,9 +258,9 @@ export default function Page() {
       if (rawLS) {
         const cached = JSON.parse(rawLS);
         const cacheAge = cached.timestamp ? Date.now() - cached.timestamp : Infinity;
-        const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutos
+        const MAX_CACHE_AGE = 30 * 60 * 1000; // 30 minutos (aumentado para persistir entre navegações)
         
-        // Só usa cache se for recente (menos de 5 minutos)
+        // Só usa cache se for recente (menos de 30 minutos)
         if (cached && 
             cacheAge < MAX_CACHE_AGE &&
             Array.isArray(cached.rows) && 
@@ -248,9 +270,18 @@ export default function Page() {
           setRows(cached.rows);
           setUnidKey(cached.unidKey || null);
           setVotePeek(cached.votePeek || '');
+          setLoading(false);
+          // Marca como carregado para não recarregar ao voltar
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(CACHE_KEY, 'true');
+          }
+          return; // Retorna imediatamente com cache válido, não precisa buscar do servidor
         } else {
           // Cache expirado, remove
-          window.localStorage.removeItem(LS_KEY_ALTERDATA);
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem(LS_KEY_ALTERDATA);
+            sessionStorage.removeItem(CACHE_KEY);
+          }
         }
       }
     } catch {}
@@ -270,7 +301,7 @@ export default function Page() {
           if (oldCache) {
             const parsed = JSON.parse(oldCache);
             const cacheAge = parsed.timestamp ? Date.now() - parsed.timestamp : Infinity;
-            const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutos
+            const MAX_CACHE_AGE = 30 * 60 * 1000; // 30 minutos (aumentado para persistir entre navegações)
             
             // Usa cache apenas se:
             // 1. batch_id for o mesmo
@@ -360,7 +391,9 @@ export default function Page() {
               unidKey: uk, 
               votePeek: peek,
               timestamp: Date.now() // Adiciona timestamp para controle de expiração
-            })); 
+            }));
+            // Marca como carregado na sessão
+            sessionStorage.setItem(CACHE_KEY, 'true');
           } catch {}
         }
       }catch(e:any){
