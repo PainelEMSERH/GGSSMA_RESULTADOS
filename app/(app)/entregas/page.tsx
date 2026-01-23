@@ -107,7 +107,6 @@ export default function EntregasPage() {
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
-  const [deliverForm, setDeliverForm] = useState<{ item: string; qtd: number; data: string }>({ item: '', qtd: 1, data: new Date().toISOString().substring(0, 10) });
   const [selectedEpis, setSelectedEpis] = useState<Record<string, { qtd: number; data: string }>>({});
 
 
@@ -288,7 +287,6 @@ async function checkManualCpf(cpfRaw: string) {
   
 async function openDeliver(row: Row) {
     setModal({ open: true, row });
-    setDeliverForm({ item: '', qtd: 1, data: new Date().toISOString().substring(0,10) });
     setSelectedEpis({});
 
     // monta query string com função + unidade
@@ -322,50 +320,8 @@ async function doDeliver() {
     // Verifica se há EPIs selecionados para entrega em massa
     const selectedItems = Object.keys(selectedEpis).filter(item => selectedEpis[item].qtd > 0);
     
-    // Se não há seleção múltipla, usa o formulário antigo (compatibilidade)
     if (selectedItems.length === 0) {
-      if (!deliverForm.item || deliverForm.qtd <= 0) return;
-
-      const body = {
-        cpf: modal.row.id,
-        item: deliverForm.item,
-        qty: deliverForm.qtd,
-        date: deliverForm.data,
-        qty_required: kit.find(k => k.item === deliverForm.item)?.quantidade || 1,
-      };
-
-      try {
-        const { ok, json } = await fetchJSON('/api/entregas/deliver', {
-          method: 'POST',
-          body: JSON.stringify(body),
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (!ok || !json?.ok) {
-          console.error('Erro ao registrar entrega', json);
-          if (json?.error) {
-            alert(`Erro ao registrar entrega: ${json.error}`);
-          }
-          return;
-        }
-
-        const { json: dJ } = await fetchJSON(
-          '/api/entregas/deliver?cpf=' + encodeURIComponent(modal.row.id),
-          { cache: 'no-store' },
-        );
-
-        setDeliv((dJ?.rows || []).map((r: any) => ({
-          item: String(r.item || ''),
-          qty_delivered: Number(r.qty_delivered || 0),
-          qty_required: Number(r.qty_required || 0),
-          deliveries: Array.isArray(r.deliveries) ? r.deliveries : [],
-        })));
-
-        setDeliverForm(prev => ({ ...prev, item: '', qtd: 1 }));
-      } catch (e) {
-        console.error('Erro inesperado ao registrar entrega', e);
-        alert('Erro inesperado ao registrar entrega.');
-      }
+      alert('Selecione pelo menos um EPI para fazer a entrega.');
       return;
     }
 
@@ -415,7 +371,6 @@ async function doDeliver() {
 
       // Limpa seleção
       setSelectedEpis({});
-      setDeliverForm(prev => ({ ...prev, item: '', qtd: 1 }));
       
       alert(`Entregas registradas com sucesso! ${selectedItems.length} EPI(s) entregue(s).`);
     } catch (e) {
@@ -930,13 +885,13 @@ const visibleRows = useMemo(() => {
           )}
 
     {modal.open && modal.row && (
-            <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50" onClick={() => setModal({ open: false })}>
-              <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-3xl shadow-xl" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50 overflow-y-auto" onClick={() => setModal({ open: false })}>
+              <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-3xl shadow-xl my-auto max-h-[90vh] overflow-hidden flex flex-col relative" onClick={e => e.stopPropagation()} style={{ isolation: 'isolate' }}>
+                <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex-shrink-0">
                   <div className="text-lg font-semibold">Entregas de EPI — {modal.row.nome} ({maskCPF(modal.row.id)})</div>
                   <div className="text-xs opacity-70">{modal.row.funcao} • {modal.row.unidade} • {modal.row.regional}</div>
                 </div>
-                <div className="p-4 grid md:grid-cols-2 gap-4">
+                <div className="p-4 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1 min-h-0">
                   <div>
                     <div className="font-medium text-sm mb-2">Kit esperado - Selecione os EPIs para entrega</div>
                     <div className="space-y-2 mt-2 max-h-[400px] overflow-y-auto">
@@ -1030,43 +985,26 @@ const visibleRows = useMemo(() => {
                     )}
                   </div>
 
-                  <div>
+                  <div className="overflow-hidden flex flex-col min-h-0">
                     <div className="font-medium text-sm">Registrar entrega</div>
                     <div className="flex flex-col gap-2 mt-2">
                       <button 
                         onClick={doDeliver} 
-                        disabled={Object.keys(selectedEpis).length === 0 && (!deliverForm.item || deliverForm.qtd <= 0)}
+                        disabled={Object.keys(selectedEpis).length === 0}
                         className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 disabled:bg-neutral-300 dark:disabled:bg-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed font-medium"
                       >
                         {Object.keys(selectedEpis).length > 0 
                           ? `Dar baixa em ${Object.keys(selectedEpis).length} EPI(s)` 
-                          : 'Dar baixa'}
+                          : 'Selecione pelo menos um EPI'}
                       </button>
                       <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                         {Object.keys(selectedEpis).length > 0 
                           ? 'Clique no botão acima para entregar todos os EPIs selecionados de uma vez.'
-                          : 'Selecione os EPIs na lista ao lado ou use o formulário abaixo para entrega individual.'}
-                      </div>
-                      <div className="border-t border-neutral-200 dark:border-neutral-800 pt-3 mt-2">
-                        <div className="text-xs font-medium mb-2 text-neutral-600 dark:text-neutral-400">Ou entrega individual:</div>
-                        <select value={deliverForm.item} onChange={e => setDeliverForm({ ...deliverForm, item: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-sm">
-                          <option value="">Selecione o EPI…</option>
-                          {kit.map((k, i) => {
-                            const obrigatorio = isEpiObrigatorio(k.item);
-                            const label = obrigatorio ? k.item : `${k.item} (não obrigatório SESMT)`;
-                            return (
-                              <option key={i} value={k.item}>
-                                {label}
-                              </option>
-                            );
-                          })}
-                        </select>
-                        <input type="date" value={deliverForm.data} onChange={e => setDeliverForm({ ...deliverForm, data: e.target.value })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-sm mt-2 w-full" />
-                        <input type="number" min={1} value={deliverForm.qtd} onChange={e => setDeliverForm({ ...deliverForm, qtd: Math.max(1, Number(e.target.value)||1) })} className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-sm mt-2 w-full" placeholder="Quantidade" />
+                          : 'Selecione os EPIs na lista ao lado marcando os checkboxes para fazer a entrega.'}
                       </div>
                     </div>
 
-                    <div className="mt-4">
+                    <div className="mt-4 overflow-y-auto flex-1 min-h-0">
                       <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-2 mb-1">
                       Somente EPIs marcados como <strong>OBRIGATÓRIO</strong> contam para a meta do SESMT.
                     </p>
@@ -1083,11 +1021,10 @@ const visibleRows = useMemo(() => {
                     </div>
                   </div>
                 </div>
-                <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end">
+                <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end flex-shrink-0">
                   <button className="px-3 py-2 rounded-xl border" onClick={() => {
                     setModal({ open: false });
                     setSelectedEpis({});
-                    setDeliverForm({ item: '', qtd: 1, data: new Date().toISOString().substring(0, 10) });
                   }}>Fechar</button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 
 import { NextRequest } from 'next/server'
 import { obrigatoriosWhereSql } from '@/data/epiObrigatorio'
+import { canonUnidade, UNID_TO_REGIONAL } from '@/lib/unidReg'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,8 +27,52 @@ function startOfMonth(y:number,m:number){ return new Date(Date.UTC(y, m-1, 1, 0,
 function endOfMonth(y:number,m:number){ return new Date(Date.UTC(y, m, 0, 23,59,59)) }
 function addMonths(d: Date, delta: number){ const n = new Date(d); n.setUTCMonth(n.getUTCMonth()+delta); return n }
 
+// Helper para criar filtro de regional usando stg_unid_reg
+async function buildRegionalFilter(prisma: any, regional: string | null): Promise<string> {
+  if (!regional || !regional.trim()) return ''
+  
+  try {
+    // Tenta buscar unidades da regional na tabela stg_unid_reg
+    const regEscaped = regional.trim().replace(/'/g, "''")
+    const rows: any[] = await prisma.$queryRawUnsafe(`
+      SELECT DISTINCT nmdepartamento AS unidade
+      FROM stg_unid_reg
+      WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regEscaped}'))
+    `)
+    
+    if (rows && rows.length > 0) {
+      const unidades = rows.map((r: any) => {
+        const uni = String(r.unidade || '').trim()
+        return uni ? `'${uni.replace(/'/g, "''")}'` : null
+      }).filter(Boolean)
+      
+      if (unidades.length > 0) {
+        return `AND a.unidade IN (${unidades.join(',')})`
+      }
+    }
+    
+    // Fallback: usa mapeamento UNID_TO_REGIONAL
+    const regUpper = regional.trim().toUpperCase()
+    const unidadesFiltradas: string[] = []
+    
+    for (const [unidade, reg] of Object.entries(UNID_TO_REGIONAL)) {
+      if (reg === regUpper) {
+        unidadesFiltradas.push(`'${unidade.replace(/'/g, "''")}'`)
+      }
+    }
+    
+    if (unidadesFiltradas.length > 0) {
+      return `AND a.unidade IN (${unidadesFiltradas.join(',')})`
+    }
+  } catch {}
+  
+  return ''
+}
+
 export async function GET(req: NextRequest){
   const { prisma } = await import('@/lib/db')
+  const { searchParams } = new URL(req.url)
+  const regional = searchParams.get('regional') || ''
 
   const now = new Date()
   const ano = now.getUTCFullYear()
@@ -50,6 +95,9 @@ export async function GET(req: NextRequest){
   let series: Series = { labels: [], entregas: [], itens: [] }
   let alertas: Alertas = { estoqueAbaixoMinimo: [], pendenciasVencidas: 0 }
 
+  // Helper para filtro de regional
+  const regionalFilter = await buildRegionalFilter(prisma, regional)
+  
   // 1) colaboradores elegíveis no mês (stg_alterdata)
   try{
     const rows:any[] = await prisma.$queryRawUnsafe(`
@@ -57,6 +105,7 @@ export async function GET(req: NextRequest){
       FROM stg_alterdata a
       WHERE a.admissao <= '${fimDate}'::date
         AND (a.demissao IS NULL OR a.demissao >= '${iniDate}'::date)
+        ${regionalFilter}
     `)
     kpis.colaboradoresAtendidos = Number(rows?.[0]?.c || 0)
   }catch{}
@@ -69,6 +118,7 @@ export async function GET(req: NextRequest){
         FROM stg_alterdata a
         WHERE a.admissao <= '${fimDate}'::date
           AND (a.demissao IS NULL OR a.demissao >= '${iniDate}'::date)
+          ${regionalFilter}
       )
     `;
     const obrigPlan = obrigatoriosWhereSql('m.epi_item');
@@ -173,12 +223,15 @@ export async function GET(req: NextRequest){
 
       // planejado (stg_alterdata x stg_epi_map)
       try{
+        // Recalcula filtro de regional para cada mês (pode variar se unidades mudaram)
+        const monthRegionalFilter = await buildRegionalFilter(prisma, regional)
         const elig = `
           WITH elig AS (
             SELECT UPPER(REGEXP_REPLACE(a.funcao,'[^A-Z0-9]+','','g')) AS func_key
             FROM stg_alterdata a
             WHERE a.admissao <= '${eDate}'::date
               AND (a.demissao IS NULL OR a.demissao >= '${sDate}'::date)
+              ${monthRegionalFilter}
           )
         `;
         const obrigPlan = obrigatoriosWhereSql('m.epi_item');
