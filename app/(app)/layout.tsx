@@ -2,7 +2,6 @@ import React from "react";
 import AppShell from "@/components/layout/AppShell";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import { AlterdataProvider } from "@/contexts/AlterdataContext";
 
 async function ensureUsuario() {
   const { userId } = await auth();
@@ -57,8 +56,6 @@ export default async function Layout({
 }) {
   await ensureUsuario();
   return (
-    <AlterdataProvider>
-      <AppShell>{children}</AppShell>
-    </AlterdataProvider>
+    <AppShell>{children}</AppShell>
   );
 }
