@@ -38,7 +38,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Gestão de EPI",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Alterdata (Completa)", href: "/colaboradores/alterdata", icon: Table2 },
       { label: "Entregas", href: "/entregas", icon: PackageCheck },
       { label: "Estoque", href: "/estoque", icon: Boxes },
       { label: "Kits", href: "/kits", icon: ClipboardList },
