@@ -117,22 +117,23 @@ export async function GET(req: Request) {
     let countSql = '';
 
     if (hasV2Raw) {
-      const batchId = await latestBatchId();
-      const batchWhere = batchId ? `WHERE r.batch_id = '${esc(batchId)}'` : '';
-      const andOrWhere = where ? (batchWhere ? `${batchWhere} AND ${where.replace(/^WHERE\\s+/, '')}` : where) : batchWhere;
+      // Mostra todos os batches, não apenas o último
+      // Se quiser apenas o último batch, pode usar: const batchId = await latestBatchId();
+      // Mas vamos mostrar todos para garantir que nada seja perdido
+      const andOrWhere = where ? where.replace(/^WHERE\\s+/, '') : '';
 
       rowsSql = `
         SELECT r.row_no, r.data
         FROM stg_alterdata_v2_raw r
-        ${andOrWhere}
-        ORDER BY r.row_no
+        ${where || 'WHERE 1=1'}
+        ORDER BY r.imported_at DESC, r.row_no
         LIMIT ${limit} OFFSET ${offset}
       `;
 
       countSql = `
         SELECT COUNT(*)::int AS total
         FROM stg_alterdata_v2_raw r
-        ${andOrWhere}
+        ${where || 'WHERE 1=1'}
       `;
     } else {
       const base = `SELECT row_number() over() as row_no, to_jsonb(t) as data FROM stg_alterdata t`;

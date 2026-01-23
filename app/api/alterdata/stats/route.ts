@@ -6,11 +6,26 @@ import prisma from '@/lib/prisma';
 
 export async function GET() {
   try {
-    // Conta colaboradores na base Alterdata
+    // Conta TODOS os registros na tabela raw (todos os importados)
+    const rawTotal: any[] = await prisma.$queryRawUnsafe(`
+      SELECT COUNT(*)::int AS total
+      FROM stg_alterdata_v2_raw
+    `);
+
+    // Conta colaboradores na base Alterdata processada
     const alterdataCount: any[] = await prisma.$queryRawUnsafe(`
       SELECT COUNT(*)::int AS total
       FROM stg_alterdata_v2
       WHERE cpf IS NOT NULL AND cpf != ''
+    `);
+
+    // Conta registros sem CPF válido na tabela raw
+    const rawNoCpf: any[] = await prisma.$queryRawUnsafe(`
+      SELECT COUNT(*)::int AS total
+      FROM stg_alterdata_v2_raw
+      WHERE data->>'CPF' IS NULL 
+         OR data->>'CPF' = ''
+         OR regexp_replace(data->>'CPF', '[^0-9]', '', 'g') = ''
     `);
 
     // Conta colaboradores manuais
@@ -62,10 +77,13 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       stats: {
-        total_alterdata: Number(alterdataCount?.[0]?.total || 0),
+        raw_total: Number(rawTotal?.[0]?.total || 0), // Total importado (todos os batches)
+        total_alterdata: Number(alterdataCount?.[0]?.total || 0), // Total processado
+        raw_no_cpf: Number(rawNoCpf?.[0]?.total || 0), // Registros sem CPF válido
         total_manual: Number(manualCount?.[0]?.total || 0),
         total_unique: Number(uniqueCount?.[0]?.total || 0),
         total_active: Number(activeCount?.[0]?.total || 0),
+        difference: Number(rawTotal?.[0]?.total || 0) - Number(alterdataCount?.[0]?.total || 0), // Diferença entre importado e processado
         last_import: lastImport?.[0] ? {
           batch_id: lastImport[0].batch_id,
           source_file: lastImport[0].source_file,

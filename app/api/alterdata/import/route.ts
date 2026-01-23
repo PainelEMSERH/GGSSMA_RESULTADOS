@@ -75,11 +75,18 @@ async function ensureSetup(){
          cpf, matricula, colaborador, unidade_hospitalar, funcao, admissao, demissao, last_batch_id, updated_at
        )
        SELECT
-         regexp_replace(data->>'CPF', '[^0-9]', '', 'g') as cpf,
-         COALESCE(NULLIF(data->>'Matrícula',''), md5(COALESCE(data->>'Colaborador',''))) as matricula,
-         data->>'Colaborador' as colaborador,
-         data->>'Unidade Hospitalar' as unidade_hospitalar,
-         data->>'Função' as funcao,
+         CASE 
+           WHEN regexp_replace(COALESCE(data->>'CPF', ''), '[^0-9]', '', 'g') != '' 
+           THEN regexp_replace(data->>'CPF', '[^0-9]', '', 'g')
+           ELSE 'SEM_CPF_' || lpad(row_no::text, 10, '0')
+         END as cpf,
+         COALESCE(
+           NULLIF(data->>'Matrícula', ''),
+           md5(COALESCE(data->>'Colaborador', '') || '|' || row_no::text)
+         ) as matricula,
+         COALESCE(data->>'Colaborador', 'SEM_NOME_' || row_no::text) as colaborador,
+         COALESCE(data->>'Unidade Hospitalar', '') as unidade_hospitalar,
+         COALESCE(data->>'Função', '') as funcao,
          data->>'Admissão' as admissao,
          data->>'Demissão' as demissao,
          batch_id,

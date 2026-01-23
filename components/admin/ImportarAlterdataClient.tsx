@@ -2,10 +2,13 @@
 import React, { useState, useEffect } from 'react';
 
 type Stats = {
+  raw_total?: number;
   total_alterdata: number;
+  raw_no_cpf?: number;
   total_manual: number;
   total_unique: number;
   total_active: number;
+  difference?: number;
   last_import: {
     batch_id: string;
     source_file: string;
@@ -179,14 +182,43 @@ export default function ImportarAlterdataClient() {
       <div className="rounded-xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold">📊 Estatísticas da Base</h3>
-          <button
-            type="button"
-            onClick={loadStats}
-            disabled={loadingStats}
-            className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50"
-          >
-            {loadingStats ? 'Atualizando...' : '🔄 Atualizar'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/alterdata/diagnostic', { cache: 'no-store' });
+                  const json = await res.json();
+                  if (json.ok && json.diagnostic) {
+                    const diag = json.diagnostic;
+                    alert(
+                      `Diagnóstico:\n\n` +
+                      `Total importado (raw): ${diag.raw_total.toLocaleString('pt-BR')}\n` +
+                      `Total processado: ${diag.processed_total.toLocaleString('pt-BR')}\n` +
+                      `Diferença: ${diag.difference.toLocaleString('pt-BR')}\n\n` +
+                      `Sem CPF (raw): ${diag.raw_no_cpf.toLocaleString('pt-BR')}\n` +
+                      `Sem CPF (processado): ${diag.processed_no_cpf.toLocaleString('pt-BR')}\n` +
+                      `Duplicatas: ${diag.duplicates.duplicates_count.toLocaleString('pt-BR')}\n` +
+                      `Não processados: ${diag.not_processed.toLocaleString('pt-BR')}`
+                    );
+                  }
+                } catch (e) {
+                  alert('Erro ao buscar diagnóstico');
+                }
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+            >
+              🔍 Diagnóstico
+            </button>
+            <button
+              type="button"
+              onClick={loadStats}
+              disabled={loadingStats}
+              className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50"
+            >
+              {loadingStats ? 'Atualizando...' : '🔄 Atualizar'}
+            </button>
+          </div>
         </div>
 
         {loadingStats && !stats && (
@@ -195,8 +227,19 @@ export default function ImportarAlterdataClient() {
 
         {stats && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {stats.raw_total !== undefined && (
+              <div className="rounded-lg border border-blue-300 bg-blue-50/50 dark:bg-blue-900/20 p-3">
+                <div className="text-xs text-muted mb-1">Total Importado (Raw)</div>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {stats.raw_total.toLocaleString('pt-BR')}
+                </div>
+                <div className="text-[10px] text-muted mt-1">
+                  Registros importados do arquivo
+                </div>
+              </div>
+            )}
             <div className="rounded-lg border border-border bg-card p-3">
-              <div className="text-xs text-muted mb-1">Total Alterdata</div>
+              <div className="text-xs text-muted mb-1">Total Processado</div>
               <div className="text-2xl font-bold text-text">
                 {stats.total_alterdata.toLocaleString('pt-BR')}
               </div>
@@ -204,6 +247,17 @@ export default function ImportarAlterdataClient() {
                 Colaboradores na base oficial
               </div>
             </div>
+            {stats.difference !== undefined && stats.difference > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:bg-amber-900/20 p-3">
+                <div className="text-xs text-muted mb-1">Diferença</div>
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {stats.difference.toLocaleString('pt-BR')}
+                </div>
+                <div className="text-[10px] text-muted mt-1">
+                  Registros não processados
+                </div>
+              </div>
+            )}
 
             <div className="rounded-lg border border-border bg-card p-3">
               <div className="text-xs text-muted mb-1">Total Manual</div>
