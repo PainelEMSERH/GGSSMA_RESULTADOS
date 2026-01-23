@@ -563,7 +563,7 @@ useEffect(() => {
                     {columns
                       .filter(c => !__shouldHide(c))
                       .map((c,i) => (
-                      <td key={i} className={`px-3 py-2.5 text-sm text-text whitespace-nowrap ${getCellAlignment(c)}`}>
+                      <td key={i} className={`px-3 py-2.5 text-[11px] text-text whitespace-nowrap ${getCellAlignment(c)}`}>
                         {renderValue(c, r[c])}
                       </td>
                     ))}
