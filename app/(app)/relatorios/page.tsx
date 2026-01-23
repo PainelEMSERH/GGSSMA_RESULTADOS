@@ -1,623 +1,420 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { REPORT_MODULES, ReportColumn, ReportFilters } from '@/lib/relatorios/config';
 
-type UnidadeResumo = {
-  regional: string;
-  unidade: string;
-  colaboradores: number;
-  itens_entregues: number;
-  media_itens: number;
+type SelectedModule = {
+  id: string;
+  selectedColumns: string[];
 };
-
-type ItemResumo = {
-  item: string;
-  total_itens: number;
-  colaboradores: number;
-  unidades: number;
-};
-
-type RelatorioResponse = {
-  ok: boolean;
-  periodo: { de: string; ate: string };
-  filtros: { regional: string | null; unidade: string | null };
-  porUnidade: UnidadeResumo[];
-  porItem: ItemResumo[];
-};
-
-type EstoqueOptions = {
-  regionais: string[];
-  unidades: { unidade: string; regional: string }[];
-};
-
-function formatDatePtBR(iso: string | null | undefined): string {
-  if (!iso) return '-';
-  const s = iso.slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const [yyyy, mm, dd] = s.split('-');
-  return `${dd}/${mm}/${yyyy}`;
-}
-
-async function fetchJSON<T = any>(url: string): Promise<{ ok: boolean; json: T | any }> {
-  const res = await fetch(url, { cache: 'no-store' });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, json };
-}
 
 export default function RelatoriosPage() {
-  const [tab, setTab] = useState<'resumo' | 'unidade' | 'item'>('resumo');
-
-  const [opts, setOpts] = useState<EstoqueOptions>({ regionais: [], unidades: [] });
+  const [opts, setOpts] = useState<{ regionais: string[]; unidades: { unidade: string; regional: string }[] }>({ 
+    regionais: [], 
+    unidades: [] 
+  });
   const [optsLoading, setOptsLoading] = useState(false);
 
-  const [filters, setFilters] = useState(() => {
+  const [filters, setFilters] = useState<ReportFilters>(() => {
     const now = new Date();
     const ate = now.toISOString().slice(0, 10);
     const deDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     const de = deDate.toISOString().slice(0, 10);
-    return {
-      regional: '',
-      unidade: '',
-      de,
-      ate,
-    };
+    return { regional: '', unidade: '', de, ate };
   });
 
-  const [data, setData] = useState<RelatorioResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedModules, setSelectedModules] = useState<SelectedModule[]>(() => {
+    // Por padrão, seleciona o módulo de Entregas com todas as colunas principais
+    const entregasModule = REPORT_MODULES.find(m => m.id === 'entregas');
+    if (entregasModule) {
+      return [{
+        id: 'entregas',
+        selectedColumns: ['cpf', 'nome', 'funcao', 'unidade', 'regional', 'item', 'quantidade', 'data_entrega']
+      }];
+    }
+    return [];
+  });
+
+  const [expandedModule, setExpandedModule] = useState<string | null>('entregas');
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function loadOpts() {
       setOptsLoading(true);
       try {
-        const { ok, json } = await fetchJSON<EstoqueOptions>('/api/estoque/options');
-        if (!ok) return;
+        const res = await fetch('/api/entregas/options', { cache: 'no-store' });
+        const json = await res.json();
         if (cancelled) return;
-        const regionais = Array.isArray(json?.regionais) ? json.regionais : [];
-        const unidades = Array.isArray(json?.unidades) ? json.unidades : [];
-        setOpts({ regionais, unidades });
+        setOpts({ 
+          regionais: json.regionais || [], 
+          unidades: json.unidades || [] 
+        });
       } finally {
         if (!cancelled) setOptsLoading(false);
       }
     }
     loadOpts();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const unidadesFiltradas = useMemo(() => {
     if (!filters.regional) return opts.unidades || [];
-    return (opts.unidades || []).filter((u) => {
-      return (u.regional || '').toString().toUpperCase() === filters.regional.toUpperCase();
-    });
+    return (opts.unidades || []).filter((u) => 
+      (u.regional || '').toString().toUpperCase() === (filters.regional || '').toUpperCase()
+    );
   }, [opts.unidades, filters.regional]);
 
-  const resumo = useMemo(() => {
-    if (!data) return null;
-    const unidades = data.porUnidade || [];
-    const itens = data.porItem || [];
+  const enabledModules = useMemo(() => {
+    return REPORT_MODULES.filter(m => m.enabled);
+  }, []);
 
-    const totalUnidades = unidades.length;
-    const totalColaboradores = unidades.reduce((acc, u) => acc + (u.colaboradores || 0), 0);
-    const totalItens = unidades.reduce((acc, u) => acc + (u.itens_entregues || 0), 0);
-    const mediaItens =
-      totalColaboradores > 0 ? Number((totalItens / totalColaboradores).toFixed(2)) : 0;
+  function toggleModule(moduleId: string) {
+    setSelectedModules(prev => {
+      const exists = prev.find(m => m.id === moduleId);
+      if (exists) {
+        return prev.filter(m => m.id !== moduleId);
+      } else {
+        const module = REPORT_MODULES.find(m => m.id === moduleId);
+        if (!module) return prev;
+        // Seleciona colunas principais por padrão
+        const mainColumns = module.columns.slice(0, 6).map(c => c.id);
+        return [...prev, { id: moduleId, selectedColumns: mainColumns }];
+      }
+    });
+  }
 
-    const ordenadasUnidades = [...unidades].sort(
-      (a, b) => (b.itens_entregues || 0) - (a.itens_entregues || 0),
-    );
-    const topUnidade = ordenadasUnidades[0] || null;
+  function toggleColumn(moduleId: string, columnId: string) {
+    setSelectedModules(prev => prev.map(m => {
+      if (m.id !== moduleId) return m;
+      const hasColumn = m.selectedColumns.includes(columnId);
+      return {
+        ...m,
+        selectedColumns: hasColumn
+          ? m.selectedColumns.filter(c => c !== columnId)
+          : [...m.selectedColumns, columnId]
+      };
+    }));
+  }
 
-    const ordenadosItens = [...itens].sort(
-      (a, b) => (b.total_itens || 0) - (a.total_itens || 0),
-    );
-    const topItem = ordenadosItens[0] || null;
+  function selectAllColumns(moduleId: string) {
+    const module = REPORT_MODULES.find(m => m.id === moduleId);
+    if (!module) return;
+    setSelectedModules(prev => prev.map(m => 
+      m.id === moduleId 
+        ? { ...m, selectedColumns: module.columns.map(c => c.id) }
+        : m
+    ));
+  }
 
-    return {
-      totalUnidades,
-      totalColaboradores,
-      totalItens,
-      mediaItens,
-      topUnidade,
-      topItem,
-    };
-  }, [data]);
+  function deselectAllColumns(moduleId: string) {
+    setSelectedModules(prev => prev.map(m => 
+      m.id === moduleId 
+        ? { ...m, selectedColumns: [] }
+        : m
+    ));
+  }
 
-  async function handleGerar() {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (filters.regional) params.set('regional', filters.regional);
-      if (filters.unidade) params.set('unidade', filters.unidade);
-      if (filters.de) params.set('de', filters.de);
-      if (filters.ate) params.set('ate', filters.ate);
+  async function handleGenerate() {
+    if (selectedModules.length === 0) {
+      alert('Selecione pelo menos um módulo para gerar o relatório.');
+      return;
+    }
 
-      const url = `/api/relatorios/entregas?${params.toString()}`;
-      const { ok, json } = await fetchJSON<RelatorioResponse>(url);
-      if (!ok || json?.ok === false) {
-        setData(null);
-        setError(json?.error || 'Não foi possível gerar o relatório. Tente novamente.');
+    // Valida se cada módulo tem pelo menos uma coluna selecionada
+    for (const mod of selectedModules) {
+      if (mod.selectedColumns.length === 0) {
+        alert(`O módulo "${REPORT_MODULES.find(m => m.id === mod.id)?.name}" precisa ter pelo menos uma coluna selecionada.`);
         return;
       }
-      setData(json as RelatorioResponse);
-    } catch (e: any) {
-      setData(null);
-      setError(e?.message || 'Erro inesperado ao gerar relatório.');
+    }
+
+    setGenerating(true);
+    try {
+      const response = await fetch('/api/relatorios/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modules: selectedModules,
+          filters,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao gerar relatório');
+      }
+
+      // Download do arquivo
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Relatorio_EMSERH_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      alert(`Erro ao gerar relatório: ${error.message}`);
     } finally {
-      setLoading(false);
+      setGenerating(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="space-y-6">
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Relatórios</h1>
-          <p className="text-xs text-muted">
-            Análises operacionais e gerenciais das entregas de EPI por Regional e Unidade. Filtre o
-            período, gere o relatório e navegue pelas abas para ver os detalhes.
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
+            EPI • Relatórios
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">Relatórios Personalizados</h1>
+          <p className="mt-1 text-xs text-muted">
+            Personalize as colunas e módulos que deseja incluir no relatório Excel. 
+            Selecione exatamente o que precisa ver nos dados.
           </p>
         </div>
       </div>
 
-      <div className="border-b border-border">
-        <nav className="-mb-px flex gap-4 text-xs">
-          <button
-            type="button"
-            onClick={() => setTab('resumo')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'resumo'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Resumo
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('unidade')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'unidade'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Por unidade
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('item')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'item'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Por item
-          </button>
-        </nav>
-      </div>
-
-      {/* Filtros principais do relatório */}
-      <div className="rounded-xl border border-border bg-panel p-4 flex flex-wrap items-end gap-3 text-xs">
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">Regional</span>
-          <select
-            className="w-48 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-            value={filters.regional}
-            onChange={(e) =>
-              setFilters((prev) => ({
-                ...prev,
-                regional: e.target.value,
-                unidade: '',
-              }))
-            }
-          >
-            <option value="">Todas</option>
-            {opts.regionais.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          {optsLoading && (
-            <span className="text-[11px] text-muted">Carregando lista de Regionais...</span>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">Unidade</span>
-          <select
-            className="w-72 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-            value={filters.unidade}
-            onChange={(e) =>
-              setFilters((prev) => ({
-                ...prev,
-                unidade: e.target.value,
-              }))
-            }
-          >
-            <option value="">Todas</option>
-            {unidadesFiltradas.map((u) => (
-              <option key={u.unidade} value={u.unidade}>
-                {u.unidade}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">Data inicial</span>
-          <input
-            type="date"
-            className="w-40 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-            value={filters.de}
-            max={filters.ate || undefined}
-            onChange={(e) =>
-              setFilters((prev) => ({
-                ...prev,
-                de: e.target.value,
-              }))
-            }
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">Data final</span>
-          <input
-            type="date"
-            className="w-40 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-            value={filters.ate}
-            min={filters.de || undefined}
-            onChange={(e) =>
-              setFilters((prev) => ({
-                ...prev,
-                ate: e.target.value,
-              }))
-            }
-          />
-        </div>
-
-        <div className="ml-auto flex flex-col gap-1">
-          <span className="text-[11px] text-muted"> </span>
-          <button
-            type="button"
-            onClick={handleGerar}
-            disabled={loading}
-            className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
-          >
-            {loading ? 'Gerando…' : 'Gerar relatório'}
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="rounded-xl border border-red-500/40 bg-red-500/5 px-4 py-3 text-xs text-red-500">
-          {error}
-        </div>
-      )}
-
-      {/* Conteúdo das abas */}
-      {tab === 'resumo' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold">Resumo do período</h2>
-                <p className="text-[11px] text-muted">
-                  {data
-                    ? `Período de ${formatDatePtBR(data.periodo.de)} a ${formatDatePtBR(
-                        data.periodo.ate,
-                      )}.`
-                    : 'Selecione os filtros acima e clique em "Gerar relatório".'}
-                </p>
-              </div>
-              {data && (
-                <div className="text-[11px] text-muted">
-                  Filtros aplicados:{' '}
-                  <span className="font-medium text-text">
-                    {data.filtros.regional ? data.filtros.regional : 'Todas as Regionais'}
-                  </span>
-                  {' · '}
-                  <span className="font-medium text-text">
-                    {data.filtros.unidade ? data.filtros.unidade : 'Todas as unidades'}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {!data && !loading && (
-            <div className="rounded-xl border border-border bg-panel p-6 text-xs text-muted">
-              Nenhum relatório gerado ainda. Ajuste os filtros e clique em{' '}
-              <span className="font-semibold text-text">Gerar relatório</span> para visualizar os
-              dados.
-            </div>
-          )}
-
-          {loading && (
-            <div className="grid gap-4 md:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-28 animate-pulse rounded-xl border border-border bg-panel/60"
-                />
+      {/* Filtros */}
+      <div className="rounded-xl border border-border bg-panel p-5">
+        <h2 className="text-sm font-semibold mb-4">Filtros do Relatório</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className="text-xs font-medium text-muted block mb-2">
+              Regional
+            </label>
+            <select
+              className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              value={filters.regional || ''}
+              onChange={(e) => setFilters(prev => ({ ...prev, regional: e.target.value, unidade: '' }))}
+            >
+              <option value="">Todas as Regionais</option>
+              {opts.regionais.map((r) => (
+                <option key={r} value={r}>{r}</option>
               ))}
-            </div>
-          )}
-
-          {data && resumo && !loading && (
-            <>
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">Unidades com entrega</p>
-                  <p className="mt-1 text-2xl font-semibold text-emerald-300">
-                    {resumo.totalUnidades}
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted">
-                    Número de unidades que registraram entrega de EPI no período.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">Colaboradores com entrega</p>
-                  <p className="mt-1 text-2xl font-semibold">
-                    {resumo.totalColaboradores.toLocaleString('pt-BR')}
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted">
-                    Soma de colaboradores com pelo menos uma entrega registrada.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">EPIs entregues</p>
-                  <p className="mt-1 text-2xl font-semibold">
-                    {resumo.totalItens.toLocaleString('pt-BR')}
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted">
-                    Quantidade total de itens entregues (todas as unidades filtradas).
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">Média de itens por colaborador</p>
-                  <p className="mt-1 text-2xl font-semibold">
-                    {resumo.mediaItens.toLocaleString('pt-BR', {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted">
-                    Indicador médio de consumo de EPI por colaborador no período.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-                  <p className="text-[11px] font-semibold">Unidade com maior volume de entrega</p>
-                  {resumo.topUnidade ? (
-                    <>
-                      <p className="mt-1 text-sm font-medium">
-                        {resumo.topUnidade.unidade}{' '}
-                        <span className="text-[11px] text-muted">
-                          ({resumo.topUnidade.regional || '—'})
-                        </span>
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted">
-                        {resumo.topUnidade.itens_entregues.toLocaleString('pt-BR')} itens entregues
-                        no período, atendendo{' '}
-                        {resumo.topUnidade.colaboradores.toLocaleString('pt-BR')} colaboradores.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-muted">
-                      Nenhuma entrega encontrada com os filtros atuais.
-                    </p>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-                  <p className="text-[11px] font-semibold">EPI mais utilizado</p>
-                  {resumo.topItem ? (
-                    <>
-                      <p className="mt-1 text-sm font-medium">{resumo.topItem.item}</p>
-                      <p className="mt-1 text-[11px] text-muted">
-                        {resumo.topItem.total_itens.toLocaleString('pt-BR')} unidades entregues para{' '}
-                        {resumo.topItem.colaboradores.toLocaleString('pt-BR')} colaboradores em{' '}
-                        {resumo.topItem.unidades.toLocaleString('pt-BR')} unidades diferentes.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-muted">
-                      Ainda não há dados de entregas para calcular o EPI mais utilizado.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {tab === 'unidade' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold">Entregas consolidadas por unidade</h2>
-                <p className="text-[11px] text-muted">
-                  Cada linha representa uma unidade com o total de colaboradores atendidos e de EPIs
-                  entregues no período selecionado.
-                </p>
-              </div>
-              {data && (
-                <div className="text-[11px] text-muted">
-                  {data.porUnidade.length}{' '}
-                  {data.porUnidade.length === 1 ? 'unidade encontrada' : 'unidades encontradas'}.
-                </div>
-              )}
-            </div>
+            </select>
           </div>
 
-          {!data && !loading && (
-            <div className="rounded-xl border border-border bg-panel p-6 text-xs text-muted">
-              Gere o relatório primeiro para visualizar a tabela consolidada por unidade.
-            </div>
-          )}
-
-          {loading && (
-            <div className="rounded-xl border border-border bg-panel p-6 text-xs text-muted">
-              Carregando dados das unidades...
-            </div>
-          )}
-
-          {data && !loading && (
-            <div className="rounded-xl border border-border bg-panel p-0 text-xs">
-              <div className="max-h-[440px] overflow-auto rounded-xl">
-                <table className="min-w-full border-collapse text-[11px]">
-                  <thead className="bg-muted/40">
-                    <tr>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-left">
-                        Regional
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-left">
-                        Unidade
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-right">
-                        Colaboradores com entrega
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-right">
-                        EPIs entregues
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-right">
-                        Média de itens por colaborador
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.porUnidade.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-3 py-4 text-center text-[11px] text-muted border-t border-border"
-                        >
-                          Nenhuma unidade com entrega encontrada para os filtros aplicados.
-                        </td>
-                      </tr>
-                    )}
-                    {data.porUnidade.map((row) => (
-                      <tr key={`${row.regional || '—'}::${row.unidade || '—'}`} className="border-t border-border/60">
-                        <td className="px-3 py-2 align-top">{row.regional || '—'}</td>
-                        <td className="px-3 py-2 align-top">{row.unidade || '—'}</td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {row.colaboradores.toLocaleString('pt-BR')}
-                        </td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {row.itens_entregues.toLocaleString('pt-BR')}
-                        </td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {row.media_itens.toLocaleString('pt-BR', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 2,
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === 'item' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold">Consumo consolidado por item de EPI</h2>
-                <p className="text-[11px] text-muted">
-                  Lista dos EPIs mais utilizados no período, com total de unidades entregues, número
-                  de colaboradores atendidos e quantidade de unidades diferentes que receberam o
-                  item.
-                </p>
-              </div>
-              {data && (
-                <div className="text-[11px] text-muted">
-                  {data.porItem.length}{' '}
-                  {data.porItem.length === 1 ? 'item encontrado' : 'itens encontrados'}.
-                </div>
-              )}
-            </div>
+          <div>
+            <label className="text-xs font-medium text-muted block mb-2">
+              Unidade
+            </label>
+            <select
+              className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              value={filters.unidade || ''}
+              onChange={(e) => setFilters(prev => ({ ...prev, unidade: e.target.value }))}
+              disabled={!filters.regional}
+            >
+              <option value="">Todas as Unidades</option>
+              {unidadesFiltradas.map((u) => (
+                <option key={u.unidade} value={u.unidade}>{u.unidade}</option>
+              ))}
+            </select>
           </div>
 
-          {!data && !loading && (
-            <div className="rounded-xl border border-border bg-panel p-6 text-xs text-muted">
-              Gere o relatório primeiro para visualizar a tabela consolidada por item de EPI.
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-medium text-muted block mb-2">
+              Data Inicial
+            </label>
+            <input
+              type="date"
+              className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              value={filters.de || ''}
+              max={filters.ate || undefined}
+              onChange={(e) => setFilters(prev => ({ ...prev, de: e.target.value }))}
+            />
+          </div>
 
-          {loading && (
-            <div className="rounded-xl border border-border bg-panel p-6 text-xs text-muted">
-              Carregando dados de consumo por item...
-            </div>
-          )}
-
-          {data && !loading && (
-            <div className="rounded-xl border border-border bg-panel p-0 text-xs">
-              <div className="max-h-[440px] overflow-auto rounded-xl">
-                <table className="min-w-full border-collapse text-[11px]">
-                  <thead className="bg-muted/40">
-                    <tr>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-left">
-                        EPI / Item
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-right">
-                        EPIs entregues
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-right">
-                        Colaboradores atendidos
-                      </th>
-                      <th className="sticky top-0 z-10 border-b border-border px-3 py-2 text-right">
-                        Unidades atendidas
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.porItem.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="px-3 py-4 text-center text-[11px] text-muted border-t border-border"
-                        >
-                          Nenhum consumo de EPI encontrado para os filtros aplicados.
-                        </td>
-                      </tr>
-                    )}
-                    {data.porItem.map((row) => (
-                      <tr key={row.item || '—'} className="border-t border-border/60">
-                        <td className="px-3 py-2 align-top">{row.item || '—'}</td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {row.total_itens.toLocaleString('pt-BR')}
-                        </td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {row.colaboradores.toLocaleString('pt-BR')}
-                        </td>
-                        <td className="px-3 py-2 text-right align-top">
-                          {row.unidades.toLocaleString('pt-BR')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-medium text-muted block mb-2">
+              Data Final
+            </label>
+            <input
+              type="date"
+              className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm outline-none transition-all focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              value={filters.ate || ''}
+              min={filters.de || undefined}
+              onChange={(e) => setFilters(prev => ({ ...prev, ate: e.target.value }))}
+            />
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Seleção de Módulos e Colunas */}
+      <div className="rounded-xl border border-border bg-panel p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold">Módulos e Colunas do Relatório</h2>
+          <div className="text-xs text-muted">
+            {selectedModules.length} módulo(s) selecionado(s)
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {enabledModules.map((module) => {
+            const isSelected = selectedModules.some(m => m.id === module.id);
+            const selectedModule = selectedModules.find(m => m.id === module.id);
+            const isExpanded = expandedModule === module.id;
+
+            return (
+              <div
+                key={module.id}
+                className={`rounded-lg border-2 transition-all ${
+                  isSelected
+                    ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10'
+                    : 'border-border bg-card'
+                }`}
+              >
+                <div
+                  className="flex items-center justify-between p-4 cursor-pointer"
+                  onClick={() => {
+                    if (!isSelected) toggleModule(module.id);
+                    setExpandedModule(isExpanded ? null : module.id);
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleModule(module.id);
+                        if (!isSelected) setExpandedModule(module.id);
+                      }}
+                      className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{module.icon}</span>
+                        <span className="text-sm font-semibold">{module.name}</span>
+                      </div>
+                      <p className="text-xs text-muted mt-0.5">{module.description}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isSelected && (
+                      <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        {selectedModule?.selectedColumns.length || 0} coluna(s) selecionada(s)
+                      </span>
+                    )}
+                    <svg
+                      className={`h-5 w-5 text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+
+                {isSelected && isExpanded && (
+                  <div className="border-t border-border bg-panel p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-xs font-medium text-muted">
+                        Selecione as colunas que deseja incluir:
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => selectAllColumns(module.id)}
+                          className="text-xs px-2 py-1 rounded border border-border hover:bg-muted"
+                        >
+                          Selecionar todas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deselectAllColumns(module.id)}
+                          className="text-xs px-2 py-1 rounded border border-border hover:bg-muted"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                      {module.columns.map((column) => {
+                        const isColumnSelected = selectedModule?.selectedColumns.includes(column.id) || false;
+                        return (
+                          <label
+                            key={column.id}
+                            className="flex items-start gap-2 p-2 rounded-lg border border-border hover:bg-muted/50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isColumnSelected}
+                              onChange={() => toggleColumn(module.id, column.id)}
+                              className="mt-0.5 h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium text-text">{column.label}</div>
+                              {column.description && (
+                                <div className="text-[10px] text-muted mt-0.5">{column.description}</div>
+                              )}
+                              <div className="text-[10px] text-muted mt-0.5">
+                                Tipo: {column.type} • Largura: {column.width || 15}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {enabledModules.length === 0 && (
+          <div className="text-center py-8 text-sm text-muted">
+            Nenhum módulo disponível no momento.
+          </div>
+        )}
+      </div>
+
+      {/* Botão de Gerar */}
+      <div className="flex items-center justify-end gap-4">
+        <div className="text-xs text-muted">
+          {selectedModules.reduce((acc, m) => acc + m.selectedColumns.length, 0)} coluna(s) total selecionada(s)
+        </div>
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={generating || selectedModules.length === 0}
+          className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20"
+        >
+          {generating ? (
+            <span className="flex items-center gap-2">
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Gerando Excel...
+            </span>
+          ) : (
+            '📊 Gerar Relatório Excel'
+          )}
+        </button>
+      </div>
+
+      {/* Informações */}
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/10">
+        <div className="flex items-start gap-3">
+          <div className="text-emerald-600 dark:text-emerald-400 text-xl">ℹ️</div>
+          <div className="flex-1 text-xs text-emerald-800 dark:text-emerald-200">
+            <div className="font-semibold mb-1">Como usar:</div>
+            <ul className="list-disc list-inside space-y-1 text-emerald-700 dark:text-emerald-300">
+              <li>Selecione os módulos que deseja incluir no relatório (cada módulo será uma aba no Excel)</li>
+              <li>Para cada módulo, escolha as colunas específicas que precisa visualizar</li>
+              <li>Aplique os filtros desejados (Regional, Unidade, Período)</li>
+              <li>Clique em "Gerar Relatório Excel" para baixar o arquivo</li>
+              <li>O arquivo Excel terá uma aba para cada módulo selecionado</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
