@@ -36,12 +36,57 @@ export async function POST(req: Request) {
     await ensureTables();
     const body = await req.json();
     const cpf = String(body?.cpf || "").replace(/\D/g,'');
+    
+    if (!cpf) return NextResponse.json({ ok: false, error: "cpf é obrigatório" }, { status: 200 });
+
+    // Suporte para entrega em massa (array de itens)
+    if (Array.isArray(body?.items) && body.items.length > 0) {
+      const results: any[] = [];
+      
+      for (const itemData of body.items) {
+        const item = String(itemData?.item || "");
+        const qty = Number(itemData?.qty ?? 1);
+        const date = String(itemData?.date || "").substring(0,10) || new Date().toISOString().substring(0,10);
+        const required = Number(itemData?.qty_required ?? 1) || 1;
+
+        if (!item || qty <= 0) continue;
+
+        try {
+          const up = await prisma.$queryRawUnsafe<any[]>(`
+            INSERT INTO epi_entregas (cpf, item, qty_required, qty_delivered, deliveries)
+            VALUES ($1, $2, $3, $4, jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)))
+            ON CONFLICT (cpf, item) DO UPDATE SET
+              qty_required = EXCLUDED.qty_required,
+              qty_delivered = epi_entregas.qty_delivered + $6,
+              deliveries = epi_entregas.deliveries || jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)),
+              updated_at = now()
+            RETURNING *;
+          `, cpf, item, required, qty, date, qty);
+          
+          if (up && up[0]) {
+            results.push(up[0]);
+          }
+        } catch (itemError: any) {
+          console.error(`Erro ao processar item ${item}:`, itemError);
+          // Continua processando os outros itens
+        }
+      }
+
+      return NextResponse.json({ 
+        ok: true, 
+        rows: results,
+        count: results.length,
+        message: `${results.length} item(ns) processado(s) com sucesso`
+      });
+    }
+
+    // Modo antigo: entrega individual (compatibilidade)
     const item = String(body?.item || "");
     const qty = Number(body?.qty ?? 1);
     const date = String(body?.date || "").substring(0,10) || new Date().toISOString().substring(0,10);
     const required = Number(body?.qty_required ?? 1) || 1;
 
-    if (!cpf || !item) return NextResponse.json({ ok: false, error: "cpf e item são obrigatórios" }, { status: 200 });
+    if (!item) return NextResponse.json({ ok: false, error: "item é obrigatório" }, { status: 200 });
 
     const up = await prisma.$queryRawUnsafe<any[]>(`
       INSERT INTO epi_entregas (cpf, item, qty_required, qty_delivered, deliveries)
