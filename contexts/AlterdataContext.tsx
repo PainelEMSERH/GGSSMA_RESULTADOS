@@ -37,57 +37,31 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
   const hasLoadedRef = useRef(false);
   const isLoadingRef = useRef(false);
 
-  // Carrega cache imediatamente no mount
+  // Carrega cache imediatamente no mount (SEM fazer chamada à API)
   useEffect(() => {
-    // Função assíncrona para verificar batch_id e restaurar cache
-    const restoreCache = async () => {
-      // Se já foi carregado nesta sessão, restaura do cache imediatamente
-      if (isSessionLoaded()) {
-        const cache = getCache();
-        if (cache && cache.rows.length > 0) {
-          setColumns(cache.columns);
-          setRows(cache.rows);
-          setUnidKey(cache.unidKey);
-          setVotePeek(cache.votePeek);
-          hasLoadedRef.current = true;
-          return; // Já tem dados, não precisa carregar
-        }
+    // Se já foi carregado nesta sessão, restaura do cache imediatamente
+    if (isSessionLoaded()) {
+      const cache = getCache();
+      if (cache && cache.rows.length > 0) {
+        setColumns(cache.columns);
+        setRows(cache.rows);
+        setUnidKey(cache.unidKey);
+        setVotePeek(cache.votePeek);
+        hasLoadedRef.current = true;
+        return; // Já tem dados, não precisa carregar
       }
+    }
 
-      // Verifica batch_id atual e valida cache
-      try {
-        const colsRes = await fetch('/api/alterdata/raw-columns', { cache: 'no-store' });
-        const colsData = await colsRes.json();
-        const batchId = colsData?.batch_id || null;
-
-        // Se cache é válido, restaura imediatamente
-        if (isCacheValid(batchId)) {
-          const cache = getCache();
-          if (cache && cache.rows.length > 0) {
-            setColumns(cache.columns);
-            setRows(cache.rows);
-            setUnidKey(cache.unidKey);
-            setVotePeek(cache.votePeek);
-            markSessionLoaded();
-            hasLoadedRef.current = true;
-            return; // Cache válido, não precisa carregar
-          }
-        }
-      } catch (e) {
-        // Se falhar ao verificar batch_id, tenta restaurar cache mesmo assim
-        const cache = getCache();
-        if (cache && cache.rows.length > 0) {
-          setColumns(cache.columns);
-          setRows(cache.rows);
-          setUnidKey(cache.unidKey);
-          setVotePeek(cache.votePeek);
-          markSessionLoaded();
-          hasLoadedRef.current = true;
-        }
-      }
-    };
-
-    restoreCache();
+    // Se tem cache válido mas não foi carregado nesta sessão, restaura
+    const cache = getCache();
+    if (cache && cache.rows.length > 0) {
+      setColumns(cache.columns);
+      setRows(cache.rows);
+      setUnidKey(cache.unidKey);
+      setVotePeek(cache.votePeek);
+      markSessionLoaded();
+      hasLoadedRef.current = true;
+    }
   }, []);
 
   const loadData = async () => {

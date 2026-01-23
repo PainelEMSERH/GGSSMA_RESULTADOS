@@ -305,36 +305,11 @@ export default function Page() {
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
-  // Carrega dados UMA VEZ no mount (se não tiver cache)
-  const hasLoadedRef = useRef(false);
-
-  const topScrollRef = useRef<HTMLDivElement | null>(null);
-  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
-  const [scrollWidth, setScrollWidth] = useState(0);
-  const syncingRef = useRef(false);
-
   // Resetar página quando filtros mudarem
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
-  // Carrega dados UMA VEZ no mount (se não tiver cache)
-  useEffect(() => {
-    // Se já carregou, NUNCA recarrega
-    if (hasLoadedRef.current) {
-      return;
-    }
-    
-    // Se já tem dados (do cache), marca como carregado e retorna
-    if (rows.length > 0 && columns.length > 0) {
-      hasLoadedRef.current = true;
-      return; // Já tem dados, não precisa fazer nada
-    }
-
-    // Marca como carregando para evitar múltiplas execuções
-    hasLoadedRef.current = true;
-    
-    // Carrega dados (Context já gerencia cache)
-    loadData();
-  }, [rows.length, columns.length, loadData]);
+  // NÃO chama loadData aqui - o Context já gerencia tudo
+  // Se não tiver dados, o Context vai carregar automaticamente
 
 useEffect(() => {
   const body = bodyScrollRef.current;
