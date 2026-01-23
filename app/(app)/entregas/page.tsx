@@ -239,10 +239,9 @@ async function checkManualCpf(cpfRaw: string) {
         if (state.q) params.set('q', state.q);
         params.set('page', String(state.page));
         params.set('pageSize', String(state.pageSize));
-        // Cache inteligente: usa cache quando possível, mas revalida após 30s
+        // Sem cache para garantir dados sempre atualizados
         const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { 
-          cache: 'force-cache',
-          next: { revalidate: 30 }
+          cache: 'no-store'
         });
         if (!on) return;
         setRows((json.rows || []) as Row[]);
@@ -911,8 +910,33 @@ const visibleRows = useMemo(() => {
             <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50 overflow-y-auto" onClick={() => setModal({ open: false })}>
               <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-3xl shadow-xl my-auto max-h-[90vh] overflow-hidden flex flex-col relative" onClick={e => e.stopPropagation()} style={{ isolation: 'isolate' }}>
                 <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex-shrink-0">
-                  <div className="text-lg font-semibold">Entregas de EPI — {modal.row.nome} ({maskCPF(modal.row.id)})</div>
-                  <div className="text-xs opacity-70">{modal.row.funcao} • {modal.row.unidade} • {modal.row.regional}</div>
+                  <div className="text-lg font-semibold mb-3">Entregas de EPI — {modal.row.nome}</div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">CPF</div>
+                      <div className="font-medium">{maskCPF(modal.row.id)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Função</div>
+                      <div className="font-medium">{modal.row.funcao || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Unidade</div>
+                      <div className="font-medium">{modal.row.unidade || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Regional</div>
+                      <div className="font-medium">{modal.row.regional || '—'}</div>
+                    </div>
+                  </div>
+                  {kit.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+                      <div className="text-xs text-muted-foreground mb-1">Kit de EPI</div>
+                      <div className="text-sm font-medium">
+                        {kit.length} item(ns) no kit • {kit.filter(k => isEpiObrigatorio(k.item)).length} obrigatório(s)
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1 min-h-0">
                   <div>

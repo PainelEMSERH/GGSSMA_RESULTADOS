@@ -151,8 +151,8 @@ function detectUnidadeKey(rows: AnyRow[]): { key: string|null, votes: Record<str
 
 // ---- Fetch helpers ----
 async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, headers: Headers}> {
-  // Usa cache inteligente: force-cache para performance, mas com revalidação
-  const r = await fetch(url, { ...init, cache: 'force-cache', next: { revalidate: 300 } });
+  // Usa cache reduzido: 30 segundos para garantir dados atualizados
+  const r = await fetch(url, { ...init, cache: 'no-store' });
   const text = await r.text();
   let json: any;
   try { json = JSON.parse(text); } catch { json = { ok:false, error: 'JSON inválido', raw: text }; }
@@ -197,18 +197,29 @@ export default function Page() {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
-    // Preenche imediatamente a partir do cache local, se existir
+    // Preenche imediatamente a partir do cache local, se existir e válido
     try {
       const rawLS = typeof window !== 'undefined'
         ? window.localStorage.getItem(LS_KEY_ALTERDATA)
         : null;
       if (rawLS) {
         const cached = JSON.parse(rawLS);
-        if (cached && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
+        const cacheAge = cached.timestamp ? Date.now() - cached.timestamp : Infinity;
+        const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutos
+        
+        // Só usa cache se for recente (menos de 5 minutos)
+        if (cached && 
+            cacheAge < MAX_CACHE_AGE &&
+            Array.isArray(cached.rows) && 
+            Array.isArray(cached.columns) &&
+            cached.rows.length > 0) {
           setColumns(cached.columns);
           setRows(cached.rows);
           setUnidKey(cached.unidKey || null);
           setVotePeek(cached.votePeek || '');
+        } else {
+          // Cache expirado, remove
+          window.localStorage.removeItem(LS_KEY_ALTERDATA);
         }
       }
     } catch {}
@@ -222,47 +233,37 @@ export default function Page() {
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
         
-        // Cache inteligente: verifica se o batch_id mudou
-        let shouldUseCache = false;
+        // Cache inteligente: verifica se o batch_id mudou E se tem timestamp recente
         try {
           const oldCache = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (oldCache) {
             const parsed = JSON.parse(oldCache);
-            // Usa cache apenas se o batch_id for o mesmo
-            if (parsed.batch_id === batchId && Array.isArray(parsed.rows) && Array.isArray(parsed.columns)) {
-              shouldUseCache = true;
+            const cacheAge = parsed.timestamp ? Date.now() - parsed.timestamp : Infinity;
+            const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutos
+            
+            // Usa cache apenas se:
+            // 1. batch_id for o mesmo
+            // 2. cache tiver menos de 5 minutos
+            // 3. dados estiverem completos
+            if (parsed.batch_id === batchId && 
+                cacheAge < MAX_CACHE_AGE &&
+                Array.isArray(parsed.rows) && 
+                Array.isArray(parsed.columns) &&
+                parsed.rows.length > 0) {
               if(on){
                 setColumns(parsed.columns);
                 setRows(parsed.rows);
                 setUnidKey(parsed.unidKey || null);
                 setVotePeek(parsed.votePeek || '');
                 setLoading(false);
-                return; // Retorna imediatamente com cache
+                return; // Retorna imediatamente com cache válido
               }
-            } else if (parsed.batch_id !== batchId) {
-              // Limpa cache se batch_id mudou
+            } else {
+              // Limpa cache se batch_id mudou ou cache expirou
               window.localStorage.removeItem(LS_KEY_ALTERDATA);
             }
           }
         } catch {}
-
-        // Cache por batch_id
-        try{
-          const raw = window.localStorage.getItem(LS_KEY_ALTERDATA);
-          if (raw) {
-            const cached = JSON.parse(raw);
-            if (cached && cached.batch_id === batchId && Array.isArray(cached.rows) && Array.isArray(cached.columns)) {
-              if(on){
-                setColumns(cached.columns);
-                setRows(cached.rows);
-                setUnidKey(cached.unidKey || null);
-                setVotePeek(cached.votePeek || '');
-                setLoading(false);
-                return;
-              }
-            }
-          }
-        }catch{}
 
         // Carrega todas as páginas
         const first = await fetchPage(1, 200);
@@ -298,7 +299,17 @@ export default function Page() {
           setRows(withReg);
           setUnidKey(uk);
           setVotePeek(peek);
-          try { window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ batch_id: batchId, rows: withReg, columns: cols, unidKey: uk, votePeek: peek })); } catch {}
+          // Salva cache com timestamp para controle de expiração
+          try { 
+            window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ 
+              batch_id: batchId, 
+              rows: withReg, 
+              columns: cols, 
+              unidKey: uk, 
+              votePeek: peek,
+              timestamp: Date.now() // Adiciona timestamp para controle de expiração
+            })); 
+          } catch {}
         }
       }catch(e:any){
         if(on) setError(String(e?.message||e));
@@ -400,17 +411,16 @@ useEffect(() => {
   <div className="flex items-center gap-2">
     <button
       onClick={() => {
-        if (confirm('Limpar cache e recarregar dados?')) {
-          try {
-            window.localStorage.removeItem(LS_KEY_ALTERDATA);
-            window.location.reload();
-          } catch (e) {
-            alert('Erro ao limpar cache');
-          }
+        try {
+          // Limpa cache local e recarrega página
+          window.localStorage.removeItem(LS_KEY_ALTERDATA);
+          window.location.reload();
+        } catch (e) {
+          alert('Erro ao limpar cache');
         }
       }}
       className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted hover:bg-muted transition-colors"
-      title="Limpar cache e recarregar"
+      title="Limpar cache e recarregar dados atualizados"
     >
       🔄 Recarregar
     </button>

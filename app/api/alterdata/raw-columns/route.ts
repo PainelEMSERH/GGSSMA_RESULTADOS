@@ -46,9 +46,10 @@ export async function GET() {
       `);
       const batch_id = b?.[0]?.batch_id || null;
       const res = NextResponse.json({ ok:true, columns, batch_id });
-      // Cache otimizado: 5 minutos de cache, mas revalida em background
-      res.headers.set('Cache-Control','public, s-maxage=300, stale-while-revalidate=3600');
+      // Cache reduzido: 30 segundos para garantir dados atualizados após importação
+      res.headers.set('Cache-Control','public, s-maxage=30, stale-while-revalidate=60');
       res.headers.set('x-alterdata-route', 'legacy-v4');
+      res.headers.set('x-batch-id', batch_id || '');
       return res;
     }
 

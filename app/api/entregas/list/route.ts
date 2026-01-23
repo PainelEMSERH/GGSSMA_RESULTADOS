@@ -316,13 +316,13 @@ export async function GET(req: Request) {
     const mirror = await loadSafeRawRows(url.origin, req);
     let acc = mirror.rows.slice();
 
-    // 2) Detecta chaves
-    const cpfKey  = pickKeyByName(acc, ['cpf','matric','cpffunc','cpffuncionario']);
-    const nomeKey = pickKeyByName(acc, ['nome','colab','funcionario']);
-    const funcKey = pickKeyByName(acc, ['func','cargo']);
-    const unidKey = pickKeyByName(acc, ['unid','lotac','setor','hosp','posto','local']);
-    const regKey  = pickKeyByName(acc, ['regi','regional','gerencia']); // se existir direto no dataset
-    const demKey  = pickKeyByName(acc, ['demissao','demiss','dt_demissao','demissao_colab']);
+    // 2) Detecta chaves - prioriza nomes exatos primeiro
+    const cpfKey  = pickKeyByName(acc, ['cpf','CPF','matric','matricula','Matrícula','cpffunc','cpffuncionario']);
+    const nomeKey = pickKeyByName(acc, ['nome','Nome','colab','Colaborador','colaborador','funcionario']);
+    const funcKey = pickKeyByName(acc, ['funcao','Função','func','cargo','Cargo','FUNCAO','CARGO']);
+    const unidKey = pickKeyByName(acc, ['unidade','Unidade','unidade_hospitalar','Unidade Hospitalar','unid','lotac','setor','hosp','posto','local','UNIDADE']);
+    const regKey  = pickKeyByName(acc, ['regional','Regional','regiao','região','gerencia','REGIONAL']); // se existir direto no dataset
+    const demKey  = pickKeyByName(acc, ['demissao','Demissão','demiss','dt_demissao','demissao_colab','DEMISSAO']);
 
     // 3) Carrega mapa auxiliar unidade -> regional
     const unidDBMap = await loadUnidMapFromDB();
@@ -337,11 +337,37 @@ export async function GET(req: Request) {
       const id = onlyDigits(idRaw).slice(-11);
       const nome = String((nomeKey && (r as any)[nomeKey]) ?? '');
       const func = String((funcKey && (r as any)[funcKey]) ?? '');
-      const un   = String((unidKey && (r as any)[unidKey]) ?? '');
+      // Busca unidade de várias formas possíveis
+      let un = '';
+      if (unidKey && (r as any)[unidKey]) {
+        un = String((r as any)[unidKey]);
+      } else {
+        // Tenta outras chaves comuns
+        const unidHints = ['unidade', 'unid', 'lotacao', 'setor', 'hosp', 'posto', 'local', 'unidade_hospitalar', 'Unidade Hospitalar'];
+        for (const hint of unidHints) {
+          if ((r as any)[hint]) {
+            un = String((r as any)[hint]);
+            break;
+          }
+        }
+      }
       const demRaw = demKey ? String(((r as any)[demKey] ?? '') as any) : '';
       // Regional por prioridade: coluna direta -> lib/unidReg -> tabela stg_unid_reg
-      let reg = String((regKey && (r as any)[regKey]) ?? '');
-      if (!reg) {
+      let reg = '';
+      if (regKey && (r as any)[regKey]) {
+        reg = String((r as any)[regKey]);
+      } else {
+        // Tenta outras chaves comuns
+        const regHints = ['regional', 'regiao', 'gerencia', 'Regional'];
+        for (const hint of regHints) {
+          if ((r as any)[hint]) {
+            reg = String((r as any)[hint]);
+            break;
+          }
+        }
+      }
+      // Se não encontrou regional, tenta mapear pela unidade
+      if (!reg && un) {
         const canon = canonUnidade(un);
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
