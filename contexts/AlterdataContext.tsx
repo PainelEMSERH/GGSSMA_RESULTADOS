@@ -207,14 +207,18 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
         return { ...r, regional: reg };
       });
 
-      // Reordena colunas: Regional primeiro, Nmdepartamento segundo
+      // Reordena colunas: Regional primeiro, Nmdepartamento segundo, Colaborador terceiro, Função quarto
       let finalCols = [...baseCols];
       finalCols = finalCols.filter(c => {
         const n = normCol(c);
-        return n !== 'regional' && !n.includes('nmdepartamento') && !n.includes('nm departamento');
+        return n !== 'regional' 
+          && !n.includes('nmdepartamento') && !n.includes('nm departamento')
+          && !n.includes('nmfuncionario') && !n.includes('nm funcionario') && !n.includes('colaborador')
+          && !n.includes('nmfuncao') && !n.includes('nm funcao') && !n.includes('funcao');
       });
       finalCols = ['regional', ...finalCols];
       
+      // Adiciona Departamento em segundo
       const nmdepKey = baseCols.find(c => {
         const n = normCol(c);
         return n.includes('nmdepartamento') || n.includes('nm departamento') || n.includes('departamento');
@@ -222,6 +226,33 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
       if (nmdepKey) {
         const idx = finalCols.indexOf('regional');
         finalCols.splice(idx + 1, 0, nmdepKey);
+      }
+      
+      // Adiciona Colaborador em terceiro
+      const colaboradorKey = baseCols.find(c => {
+        const n = normCol(c);
+        return n.includes('nmfuncionario') || n.includes('nm funcionario') || n.includes('colaborador');
+      });
+      if (colaboradorKey) {
+        const idx = finalCols.indexOf('regional');
+        const deptIdx = nmdepKey ? finalCols.indexOf(nmdepKey) : idx;
+        finalCols.splice(deptIdx + 1, 0, colaboradorKey);
+      }
+      
+      // Adiciona Função ao lado de Colaborador (quarto)
+      const funcaoKey = baseCols.find(c => {
+        const n = normCol(c);
+        return n.includes('nmfuncao') || n.includes('nm funcao') || n.includes('funcao');
+      });
+      if (funcaoKey) {
+        const colaboradorIdx = colaboradorKey ? finalCols.indexOf(colaboradorKey) : -1;
+        if (colaboradorIdx >= 0) {
+          finalCols.splice(colaboradorIdx + 1, 0, funcaoKey);
+        } else {
+          // Se não encontrou colaborador, coloca após departamento ou regional
+          const deptIdx = nmdepKey ? finalCols.indexOf(nmdepKey) : finalCols.indexOf('regional');
+          finalCols.splice(deptIdx + 1, 0, funcaoKey);
+        }
       }
 
       const peek = uk ? `unidKey=${uk} votes=${JSON.stringify(det.votes)}` : '';
