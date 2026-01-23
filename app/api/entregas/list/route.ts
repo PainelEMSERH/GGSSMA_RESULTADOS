@@ -263,21 +263,41 @@ async function tryFastList(
         const id = onlyDigits(idRaw).slice(-11);
         const nome = String(r.nome ?? r.NOME ?? '');
         const func = String(r.funcao ?? r.cargo ?? r.FUNCAO ?? r.CARGO ?? '');
-        const un = String(r.unidade ?? r.UNIDADE ?? '');
+        
+        // Busca unidade de várias formas (case-insensitive)
+        let un = '';
+        const unKeys = ['unidade', 'UNIDADE', 'Unidade', 'unidade_hospitalar', 'UNIDADE_HOSPITALAR', 'lotacao', 'LOTACAO', 'setor', 'SETOR'];
+        for (const key of unKeys) {
+          if (r[key] && String(r[key]).trim()) {
+            un = String(r[key]).trim();
+            break;
+          }
+        }
 
-        let reg = String(r.regional ?? r.REGIONAL ?? '');
-        if (!reg) {
+        // Busca regional de várias formas, depois tenta mapear pela unidade
+        let reg = '';
+        const regKeys = ['regional', 'REGIONAL', 'Regional', 'regiao', 'REGIAO', 'gerencia', 'GERENCIA'];
+        for (const key of regKeys) {
+          if (r[key] && String(r[key]).trim()) {
+            reg = String(r[key]).trim();
+            break;
+          }
+        }
+        
+        // Se não encontrou regional, tenta mapear pela unidade
+        if (!reg && un) {
           const canon = canonUnidade(un);
           reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
         }
+        
         const regOut = prettyRegional(reg);
 
         return {
           id,
           nome,
           funcao: func,
-          unidade: un,
-          regional: regOut,
+          unidade: un || '—',
+          regional: regOut || '—',
         } as Row;
       })
       .filter((r) => r.id || r.nome || r.unidade);
@@ -340,13 +360,13 @@ export async function GET(req: Request) {
       // Busca unidade de várias formas possíveis
       let un = '';
       if (unidKey && (r as any)[unidKey]) {
-        un = String((r as any)[unidKey]);
+        un = String((r as any)[unidKey]).trim();
       } else {
         // Tenta outras chaves comuns
-        const unidHints = ['unidade', 'unid', 'lotacao', 'setor', 'hosp', 'posto', 'local', 'unidade_hospitalar', 'Unidade Hospitalar'];
+        const unidHints = ['unidade', 'unid', 'lotacao', 'setor', 'hosp', 'posto', 'local', 'unidade_hospitalar', 'Unidade Hospitalar', 'UNIDADE', 'LOTACAO', 'SETOR'];
         for (const hint of unidHints) {
-          if ((r as any)[hint]) {
-            un = String((r as any)[hint]);
+          if ((r as any)[hint] && String((r as any)[hint]).trim()) {
+            un = String((r as any)[hint]).trim();
             break;
           }
         }
@@ -355,13 +375,13 @@ export async function GET(req: Request) {
       // Regional por prioridade: coluna direta -> lib/unidReg -> tabela stg_unid_reg
       let reg = '';
       if (regKey && (r as any)[regKey]) {
-        reg = String((r as any)[regKey]);
+        reg = String((r as any)[regKey]).trim();
       } else {
         // Tenta outras chaves comuns
-        const regHints = ['regional', 'regiao', 'gerencia', 'Regional'];
+        const regHints = ['regional', 'regiao', 'gerencia', 'Regional', 'REGIONAL', 'REGIAO', 'GERENCIA'];
         for (const hint of regHints) {
-          if ((r as any)[hint]) {
-            reg = String((r as any)[hint]);
+          if ((r as any)[hint] && String((r as any)[hint]).trim()) {
+            reg = String((r as any)[hint]).trim();
             break;
           }
         }
@@ -376,8 +396,8 @@ export async function GET(req: Request) {
         id,
         nome,
         funcao: func,
-        unidade: un,
-        regional: regOut,
+        unidade: un || '—',
+        regional: regOut || '—',
         _demissao: demRaw,
       };
     }).filter(x => x.id || x.nome || x.unidade);
