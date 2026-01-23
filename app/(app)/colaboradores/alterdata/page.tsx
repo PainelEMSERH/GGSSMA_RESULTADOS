@@ -384,8 +384,6 @@ export default function Page() {
               votePeek: peek,
               timestamp: Date.now() // Adiciona timestamp para controle de expiração
             }));
-            // Marca como carregado na sessão
-            sessionStorage.setItem(CACHE_KEY, 'true');
           } catch {}
         }
       }catch(e:any){
