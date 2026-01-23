@@ -1,11 +1,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
+import { REGIONALS, Regional } from '@/lib/unidReg';
 import { getColumnDisplayName } from '@/lib/alterdata/columnNames';
-
-// Cache inteligente - versão que invalida apenas quando batch_id muda
-const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v6_smart';
+import { useAlterdata } from '@/contexts/AlterdataContext';
 
 // ---------- Ocultação de colunas ----------
 const HIDE_LABELS = [
@@ -192,60 +190,18 @@ async function fetchPage(page: number, limit: number): Promise<{data: ApiRows, h
 }
 
 export default function Page() {
-  // Carrega cache IMEDIATAMENTE no estado inicial (antes de qualquer render)
-  const [columns, setColumns] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.columns && Array.isArray(parsed.columns)) {
-          return parsed.columns;
-        }
-      }
-    } catch {}
-    return [];
-  });
-  
-  const [rows, setRows] = useState<AnyRow[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.rows && Array.isArray(parsed.rows) && parsed.rows.length > 0) {
-          return parsed.rows;
-        }
-      }
-    } catch {}
-    return [];
-  });
-  
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<string>('');
-  const [unidKey, setUnidKey] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        return parsed.unidKey || null;
-      }
-    } catch {}
-    return null;
-  });
-  const [votePeek, setVotePeek] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    try {
-      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        return parsed.votePeek || '';
-      }
-    } catch {}
-    return '';
-  });
+  // Usa Context Global - dados já estão em cache
+  const { 
+    columns, 
+    rows, 
+    unidKey, 
+    votePeek, 
+    loading, 
+    error, 
+    progress, 
+    loadData,
+    clearData 
+  } = useAlterdata();
 
   // Paginação (cliente)
   const [page, setPage] = useState(1);
@@ -255,7 +211,7 @@ export default function Page() {
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
-  // Flag para garantir que só carrega UMA VEZ
+  // Carrega dados UMA VEZ no mount (se não tiver cache)
   const hasLoadedRef = useRef(false);
 
   const topScrollRef = useRef<HTMLDivElement | null>(null);
@@ -266,13 +222,14 @@ export default function Page() {
   // Resetar página quando filtros mudarem
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
-  useEffect(()=>{
+  // Carrega dados UMA VEZ no mount (se não tiver cache)
+  useEffect(() => {
     // Se já carregou, NUNCA recarrega
     if (hasLoadedRef.current) {
       return;
     }
     
-    // Se já tem dados no state (carregados do cache inicial), marca como carregado e retorna
+    // Se já tem dados (do cache), marca como carregado e retorna
     if (rows.length > 0 && columns.length > 0) {
       hasLoadedRef.current = true;
       return; // Já tem dados, não precisa fazer nada
@@ -280,121 +237,10 @@ export default function Page() {
 
     // Marca como carregando para evitar múltiplas execuções
     hasLoadedRef.current = true;
-
-    let on = true;
-    (async ()=>{
-      setLoading(true); setError(null); setProgress('');
-      try{
-        const { json: jCols } = await fetchJSON('/api/alterdata/raw-columns');
-        if (!jCols?.ok) throw new Error(jCols?.error || 'Falha em raw-columns');
-        const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
-        const batchId = jCols?.batch_id || null;
-        
-        // Verifica cache ANTES de carregar do servidor
-        try {
-          const oldCache = window.localStorage.getItem(LS_KEY_ALTERDATA);
-          if (oldCache) {
-            const parsed = JSON.parse(oldCache);
-            // Cache permanente até próxima importação (dados não mudam entre importações)
-            // Usa cache apenas se:
-            // 1. batch_id for o mesmo (mesma importação)
-            // 2. dados estiverem completos
-            if (parsed.batch_id === batchId && 
-                Array.isArray(parsed.rows) && 
-                Array.isArray(parsed.columns) &&
-                parsed.rows.length > 0) {
-              if(on){
-                setColumns(parsed.columns);
-                setRows(parsed.rows);
-                setUnidKey(parsed.unidKey || null);
-                setVotePeek(parsed.votePeek || '');
-                setLoading(false);
-                return; // Retorna imediatamente com cache válido - NÃO CARREGA DO SERVIDOR
-              }
-            } else {
-              // Limpa cache se batch_id mudou (nova importação)
-              window.localStorage.removeItem(LS_KEY_ALTERDATA);
-              hasLoadedRef.current = false; // Permite recarregar com nova importação
-            }
-          }
-        } catch {}
-
-        // Carrega todas as páginas
-        const first = await fetchPage(1, 200);
-        const total = first.data.total || first.data.rows.length;
-        const limit = first.data.limit || 200;
-        const pages = Math.max(1, Math.ceil(total / limit));
-        const acc: AnyRow[] = [...first.data.rows.map(r => ({ row_no: r.row_no, ...r.data }))];
-        if (on) setProgress(`${acc.length}/${total}`);
-
-        for (let p = 2; p <= pages; p++) {
-          const res = await fetchPage(p, limit);
-          acc.push(...res.data.rows.map(r => ({ row_no: r.row_no, ...r.data })));
-          if (on) setProgress(`${Math.min(acc.length,total)}/${total}`);
-        }
-
-        // Detecta coluna de unidade por votação
-        const det = detectUnidadeKey(acc);
-        const uk = det.key;
-
-        // Mapeia regional
-        const withReg = acc.map(r => {
-          const rawUn = uk ? String(r[uk] ?? '') : '';
-          const canon = canonUnidade(rawUn);
-          const reg = (UNID_TO_REGIONAL as any)[canon] || '';
-          return { ...r, regional: reg };
-        });
-
-        // Reordena colunas: Regional primeiro, Nmdepartamento segundo (se existir)
-        let cols = [...baseCols];
-        
-        // Remove regional e Nmdepartamento se já existirem
-        cols = cols.filter(c => {
-          const n = __norm(c);
-          return n !== 'regional' && n !== 'nmdepartamento' && n !== 'nm departamento';
-        });
-        
-        // Adiciona Regional como primeira coluna
-        cols = ['regional', ...cols];
-        
-        // Adiciona Nmdepartamento como segunda coluna (se existir nos dados)
-        const nmdepKey = baseCols.find(c => {
-          const n = __norm(c);
-          return n.includes('nmdepartamento') || n.includes('nm departamento') || n.includes('departamento');
-        });
-        if (nmdepKey) {
-          const idx = cols.indexOf('regional');
-          cols.splice(idx + 1, 0, nmdepKey);
-        }
-        
-        const peek = uk ? `unidKey=${uk} votes=${JSON.stringify(det.votes)}` : `unidKey=? votes=${JSON.stringify(det.votes)}`;
-
-        if(on){
-          setColumns(cols);
-          setRows(withReg);
-          setUnidKey(uk);
-          setVotePeek(peek);
-          // Salva cache com timestamp para controle de expiração
-          try { 
-            window.localStorage.setItem(LS_KEY_ALTERDATA, JSON.stringify({ 
-              batch_id: batchId, 
-              rows: withReg, 
-              columns: cols, 
-              unidKey: uk, 
-              votePeek: peek,
-              timestamp: Date.now() // Adiciona timestamp para controle de expiração
-            }));
-          } catch {}
-        }
-      }catch(e:any){
-        if(on) setError(String(e?.message||e));
-      }finally{
-        if(on) setLoading(false);
-      }
-    })();
-
-    return ()=>{ on=false };
-  }, []);
+    
+    // Carrega dados (Context já gerencia cache)
+    loadData();
+  }, [rows.length, columns.length, loadData]);
 
 useEffect(() => {
   const body = bodyScrollRef.current;
@@ -487,9 +333,10 @@ useEffect(() => {
     <button
       onClick={() => {
         try {
-          // Limpa cache local e recarrega página
-          window.localStorage.removeItem(LS_KEY_ALTERDATA);
-          window.location.reload();
+          // Limpa cache e recarrega dados
+          clearData();
+          hasLoadedRef.current = false;
+          loadData();
         } catch (e) {
           alert('Erro ao limpar cache');
         }
