@@ -153,8 +153,16 @@ export default async function Page() {
       </div>
 
       {admin.isRoot && (
-        <div className="mt-4">
+        <div className="space-y-4">
           <ImportarAlterdataClient />
+          <div className="mt-6">
+            <a
+              href="/admin/importar-bases"
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-500 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+            >
+              📥 Importar Outras Bases (SPCI, CIPA, Acidentes, OS)
+            </a>
+          </div>
         </div>
       )}
 
