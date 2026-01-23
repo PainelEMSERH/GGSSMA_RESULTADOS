@@ -305,11 +305,13 @@ export default function Page() {
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const syncingRef = useRef(false);
+
   // Resetar página quando filtros mudarem
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
-
-  // NÃO chama loadData aqui - o Context já gerencia tudo
-  // Se não tiver dados, o Context vai carregar automaticamente
 
 useEffect(() => {
   const body = bodyScrollRef.current;
