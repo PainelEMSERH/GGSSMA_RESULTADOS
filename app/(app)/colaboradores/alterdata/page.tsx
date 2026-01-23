@@ -16,18 +16,35 @@ const HIDE_LABELS = [
   'Nome Médico',
   'Periodicidade',
   'Telefone',
-  // Novas
   'Fim Afastamento',
   'Estado Civil',
   'Início Afastamento',
   'Mês Ultimo ASO',
   'Sexo',
   'Tipo de ASO',
+  // Específicas solicitadas
+  'Dtnascimento',
+  'N Mes Ultimo Aso',
+  'Dsmotivo',
+  'Nrcelular',
+  'Nrtelefone',
+  'Tpestadocivil',
+  'Tpsexo',
+  'Nmcidade',
 ];
 
 const HIDE_NORMS = new Set([
   'celular','cidade','dataatestado','motivoafastamento','nomemedico','periodicidade','telefone',
-  'fimafastamento','estadocivil','inicioafastamento','mesultimoaso','sexo','tipodeaso','tipoaso'
+  'fimafastamento','estadocivil','inicioafastamento','mesultimoaso','sexo','tipodeaso','tipoaso',
+  // Específicas solicitadas
+  'dtnascimento','dt nascimento','nascimento',
+  'nmesultimoaso','n mes ultimo aso','mesultimoaso',
+  'dsmotivo','ds motivo','motivo',
+  'nrcelular','nr celular','celular',
+  'nrtelefone','nr telefone','telefone',
+  'tpestadocivil','tp estado civil','estadocivil',
+  'tpsexo','tp sexo','sexo',
+  'nmcidade','nm cidade','cidade'
 ]);
 
 function __norm(s: string){
@@ -78,6 +95,13 @@ function fmtMatricula5(val: any): string {
   return last5;
 }
 
+function fmtCdChamada6(val: any): string {
+  if (val === null || val === undefined) return '';
+  const digits = String(val).replace(/\D/g,'') || '';
+  const last6 = digits.slice(-6).padStart(6, '0');
+  return last6;
+}
+
 function isDateKey(n: string): boolean {
   return n.includes('data') || n.includes('admissao') || n.includes('demissao') || n.includes('aso') || n.includes('afastamento') || n.includes('nascimento');
 }
@@ -91,6 +115,7 @@ function renderValue(col: string, val: any): string {
   const n = __norm(col);
   if (n.includes('cpf')) return fmtCPF(val);
   if (n.includes('matric')) return fmtMatricula5(val);
+  if (n.includes('cdchamada') || n.includes('cd chamada') || col === 'Cdchamada') return fmtCdChamada6(val);
   if (isDateKey(n)) return fmtDateDDMMYYYY(val);
   return String(val ?? '');
 }
@@ -194,7 +219,13 @@ export default function Page() {
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
   useEffect(()=>{
-    if (fetchedRef.current) return;
+    // Não recarrega se já tiver dados carregados (evita recarregar ao mudar de página)
+    if (fetchedRef.current) {
+      // Se já tem dados, não recarrega
+      if (rows.length > 0) return;
+      // Se não tem dados mas já tentou carregar, não tenta de novo
+      return;
+    }
     fetchedRef.current = true;
 
     // Preenche imediatamente a partir do cache local, se existir e válido
@@ -291,7 +322,28 @@ export default function Page() {
           return { ...r, regional: reg };
         });
 
-        const cols = baseCols.includes('regional') ? baseCols : ['regional', ...baseCols];
+        // Reordena colunas: Regional primeiro, Nmdepartamento segundo (se existir)
+        let cols = [...baseCols];
+        
+        // Remove regional e Nmdepartamento se já existirem
+        cols = cols.filter(c => {
+          const n = __norm(c);
+          return n !== 'regional' && n !== 'nmdepartamento' && n !== 'nm departamento';
+        });
+        
+        // Adiciona Regional como primeira coluna
+        cols = ['regional', ...cols];
+        
+        // Adiciona Nmdepartamento como segunda coluna (se existir nos dados)
+        const nmdepKey = baseCols.find(c => {
+          const n = __norm(c);
+          return n.includes('nmdepartamento') || n.includes('nm departamento') || n.includes('departamento');
+        });
+        if (nmdepKey) {
+          const idx = cols.indexOf('regional');
+          cols.splice(idx + 1, 0, nmdepKey);
+        }
+        
         const peek = uk ? `unidKey=${uk} votes=${JSON.stringify(det.votes)}` : `unidKey=? votes=${JSON.stringify(det.votes)}`;
 
         if(on){

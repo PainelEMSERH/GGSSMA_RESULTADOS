@@ -18,6 +18,16 @@ export const COLUMN_NAME_MAP: Record<string, string> = {
   'unidade': 'Unidade',
   'Regional': 'Regional',
   'regional': 'Regional',
+  'Nmdepartamento': 'Departamento',
+  'nmdepartamento': 'Departamento',
+  'Nm Departamento': 'Departamento',
+  'nm departamento': 'Departamento',
+  'Departamento': 'Departamento',
+  'departamento': 'Departamento',
+  'Cdchamada': 'Chamada',
+  'cdchamada': 'Chamada',
+  'Cd Chamada': 'Chamada',
+  'cd chamada': 'Chamada',
   
   // Função e Cargo
   'Função': 'Função',
