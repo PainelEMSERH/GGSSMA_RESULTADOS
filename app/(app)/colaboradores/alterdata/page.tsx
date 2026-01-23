@@ -101,7 +101,18 @@ function fmtCdChamada6(val: any): string {
 }
 
 function isDateKey(n: string): boolean {
-  return n.includes('data') || n.includes('admissao') || n.includes('demissao') || n.includes('aso') || n.includes('afastamento') || n.includes('nascimento');
+  return n.includes('data') 
+    || n.includes('admissao') 
+    || n.includes('demissao') 
+    || n.includes('aso') 
+    || n.includes('afastamento') 
+    || n.includes('nascimento')
+    || n.includes('proximoaso')
+    || n.includes('proximo aso')
+    || n.includes('dtadmissao')
+    || n.includes('dtdemissao')
+    || n === 'admissao'
+    || n === 'demissao';
 }
 
 function headerLabel(col: string): string {
@@ -111,11 +122,56 @@ function headerLabel(col: string): string {
 
 function renderValue(col: string, val: any): string {
   const n = __norm(col);
+  const colLower = col.toLowerCase();
+  
+  // Verifica CPF
   if (n.includes('cpf')) return fmtCPF(val);
+  
+  // Verifica Matrícula
   if (n.includes('matric')) return fmtMatricula5(val);
+  
+  // Verifica Chamada
   if (n.includes('cdchamada') || n.includes('cd chamada') || col === 'Cdchamada') return fmtCdChamada6(val);
-  if (isDateKey(n)) return fmtDateDDMMYYYY(val);
+  
+  // Verifica datas - verifica tanto o nome normalizado quanto o original
+  if (isDateKey(n) || 
+      colLower.includes('dtadmissao') || 
+      colLower.includes('dtdemissao') || 
+      colLower.includes('proximo aso') || 
+      colLower.includes('proximoaso') ||
+      colLower === 'admissão' ||
+      colLower === 'demissão' ||
+      colLower === 'próximo aso') {
+    return fmtDateDDMMYYYY(val);
+  }
+  
   return String(val ?? '');
+}
+
+// Determina o alinhamento da célula baseado no tipo de dado
+function getCellAlignment(col: string): string {
+  const n = __norm(col);
+  const colLower = col.toLowerCase();
+  
+  // Números, CPF, Matrícula: alinhados à direita (padrão profissional)
+  if (n.includes('cpf') || n.includes('matric') || n.includes('cdchamada') || n.includes('numero') || n.includes('quantidade')) {
+    return 'text-right';
+  }
+  
+  // Datas: centralizadas (mais legível e profissional)
+  if (isDateKey(n) || 
+      colLower.includes('dtadmissao') || 
+      colLower.includes('dtdemissao') || 
+      colLower.includes('proximo aso') || 
+      colLower.includes('proximoaso') ||
+      colLower === 'admissão' ||
+      colLower === 'demissão' ||
+      colLower === 'próximo aso') {
+    return 'text-center';
+  }
+  
+  // Texto: alinhado à esquerda (padrão para leitura)
+  return 'text-left';
 }
 
 // ---------- Tipos ----------
@@ -456,7 +512,7 @@ useEffect(() => {
                     .map((c,i) => (
                     <th
                       key={i}
-                      className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm"
+                      className={`px-3 py-2.5 border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm ${getCellAlignment(c)}`}
                     >
                       {headerLabel(c)}
                     </th>
@@ -469,7 +525,7 @@ useEffect(() => {
                     {columns
                       .filter(c => !__shouldHide(c))
                       .map((c,i) => (
-                      <td key={i} className="px-3 py-2.5 text-sm text-text whitespace-nowrap">
+                      <td key={i} className={`px-3 py-2.5 text-sm text-text whitespace-nowrap ${getCellAlignment(c)}`}>
                         {renderValue(c, r[c])}
                       </td>
                     ))}
