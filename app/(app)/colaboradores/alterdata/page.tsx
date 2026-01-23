@@ -62,16 +62,17 @@ function fmtDateDDMMYYYY(val: any): string {
   const numVal = typeof val === 'string' ? parseFloat(val) : Number(val);
   
   // Se for um número serial do Excel (geralmente entre 1 e 100000)
-  // Excel serial date: 1 = 01/01/1900, 42979 seria aproximadamente 2017
+  // Excel serial date: 1 = 01/01/1900
+  // Fórmula: baseDate (01/01/1900) + (serial - 1) dias
   if (!isNaN(numVal) && numVal > 0 && numVal < 1000000) {
-    // Excel epoch: 1 de janeiro de 1900 (mas Excel tem bug, considera 1900 como ano bissexto)
-    // JavaScript Date usa epoch de 1970, então precisamos ajustar
-    // Excel serial date 1 = 31/12/1899 (devido ao bug do Excel)
-    const excelEpoch = new Date(1899, 11, 30); // 30 de dezembro de 1899
-    const jsDate = new Date(excelEpoch.getTime() + numVal * 24 * 60 * 60 * 1000);
+    // Data base do Excel: 1 de janeiro de 1900
+    const baseDate = new Date(1900, 0, 1); // 1 de janeiro de 1900
+    // Excel serial 1 = 01/01/1900, então adicionamos (serial - 1) dias
+    const daysToAdd = numVal - 1;
+    const jsDate = new Date(baseDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
     
-    // Verifica se a data é válida
-    if (!isNaN(jsDate.getTime())) {
+    // Verifica se a data é válida e está em um range razoável (1900-2100)
+    if (!isNaN(jsDate.getTime()) && jsDate.getFullYear() >= 1900 && jsDate.getFullYear() <= 2100) {
       const day = String(jsDate.getDate()).padStart(2, '0');
       const month = String(jsDate.getMonth() + 1).padStart(2, '0');
       const year = jsDate.getFullYear();
