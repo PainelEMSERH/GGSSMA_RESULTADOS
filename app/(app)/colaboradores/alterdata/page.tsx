@@ -2,9 +2,10 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
+import { getColumnDisplayName } from '@/lib/alterdata/columnNames';
 
-// Força novo cache após o hotfix - versão atualizada para invalidar cache antigo
-const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v5_fresh';
+// Cache inteligente - versão que invalida apenas quando batch_id muda
+const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v6_smart';
 
 // ---------- Ocultação de colunas ----------
 const HIDE_LABELS = [
@@ -82,9 +83,8 @@ function isDateKey(n: string): boolean {
 }
 
 function headerLabel(col: string): string {
-  const n = __norm(col);
-  if (n === 'regional') return 'Regional';
-  return col;
+  // Usa o mapeamento elegante de nomes de colunas
+  return getColumnDisplayName(col);
 }
 
 function renderValue(col: string, val: any): string {
@@ -151,8 +151,8 @@ function detectUnidadeKey(rows: AnyRow[]): { key: string|null, votes: Record<str
 
 // ---- Fetch helpers ----
 async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, headers: Headers}> {
-  // Usa no-store para garantir dados frescos após importação
-  const r = await fetch(url, { ...init, cache: 'no-store' });
+  // Usa cache inteligente: force-cache para performance, mas com revalidação
+  const r = await fetch(url, { ...init, cache: 'force-cache', next: { revalidate: 300 } });
   const text = await r.text();
   let json: any;
   try { json = JSON.parse(text); } catch { json = { ok:false, error: 'JSON inválido', raw: text }; }
@@ -161,7 +161,7 @@ async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, he
 
 async function fetchPage(page: number, limit: number): Promise<{data: ApiRows, headers: Headers}> {
   const params = new URLSearchParams({ page:String(page), limit:String(limit) });
-  const { json, headers } = await fetchJSON('/api/alterdata/raw-rows?' + params.toString(), { cache: 'no-store' });
+  const { json, headers } = await fetchJSON('/api/alterdata/raw-rows?' + params.toString());
   if (!json?.ok) throw new Error(json?.error || 'Falha ao carregar página '+page);
   return { data: json as ApiRows, headers };
 }
@@ -217,17 +217,30 @@ export default function Page() {
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
       try{
-        const { json: jCols } = await fetchJSON('/api/alterdata/raw-columns', { cache: 'no-store' });
+        const { json: jCols } = await fetchJSON('/api/alterdata/raw-columns');
         if (!jCols?.ok) throw new Error(jCols?.error || 'Falha em raw-columns');
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
         
-        // Limpa cache antigo se o batch_id mudou
+        // Cache inteligente: verifica se o batch_id mudou
+        let shouldUseCache = false;
         try {
           const oldCache = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (oldCache) {
             const parsed = JSON.parse(oldCache);
-            if (parsed.batch_id && parsed.batch_id !== batchId) {
+            // Usa cache apenas se o batch_id for o mesmo
+            if (parsed.batch_id === batchId && Array.isArray(parsed.rows) && Array.isArray(parsed.columns)) {
+              shouldUseCache = true;
+              if(on){
+                setColumns(parsed.columns);
+                setRows(parsed.rows);
+                setUnidKey(parsed.unidKey || null);
+                setVotePeek(parsed.votePeek || '');
+                setLoading(false);
+                return; // Retorna imediatamente com cache
+              }
+            } else if (parsed.batch_id !== batchId) {
+              // Limpa cache se batch_id mudou
               window.localStorage.removeItem(LS_KEY_ALTERDATA);
             }
           }
@@ -504,14 +517,14 @@ useEffect(() => {
             className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto"
           >
             <table className="min-w-full text-sm align-middle">
-              <thead className="sticky top-0 bg-panel">
+              <thead className="sticky top-0 bg-panel z-10">
                 <tr>
                   {columns
                     .filter(c => !__shouldHide(c))
                     .map((c,i) => (
                     <th
                       key={i}
-                      className="px-3 py-2 text-center border-b border-border whitespace-nowrap text-xs font-medium uppercase tracking-wide"
+                      className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm"
                     >
                       {headerLabel(c)}
                     </th>
@@ -520,11 +533,11 @@ useEffect(() => {
               </thead>
               <tbody>
                 {paged.map((r, idx) => (
-                  <tr key={idx} className="odd:bg-panel/40 hover:bg-panel/80 transition-colors">
+                  <tr key={idx} className="odd:bg-panel/30 hover:bg-panel/70 transition-colors border-b border-border/50">
                     {columns
                       .filter(c => !__shouldHide(c))
                       .map((c,i) => (
-                      <td key={i} className="px-3 py-2 border-b border-border whitespace-nowrap">
+                      <td key={i} className="px-3 py-2.5 text-sm text-text whitespace-nowrap">
                         {renderValue(c, r[c])}
                       </td>
                     ))}

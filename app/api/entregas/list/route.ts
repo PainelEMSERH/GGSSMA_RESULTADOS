@@ -205,7 +205,7 @@ async function tryFastList(
   pageSize: number
 ): Promise<FastListResult | null> {
   try {
-    const DEMISSAO_LIMITE = '2025-01-01';
+    const DEMISSAO_LIMITE = '2026-01-01'; // Colaboradores ativos em 2026 ou demitidos após 01/01/2026
 
     const wh: string[] = [];
     const regTrim = (regional || '').trim();
@@ -218,7 +218,7 @@ async function tryFastList(
       wh.push(`unidade = '${esc(uniTrim)}'`);
     }
 
-    // Aplica regra de demissão direto no banco: mantém sem demissão ou demitidos a partir de 2025
+    // Aplica regra de demissão direto no banco: mantém sem demissão ou demitidos a partir de 2026
     wh.push(`(demissao IS NULL OR demissao = '' OR demissao >= '${DEMISSAO_LIMITE}')`);
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
@@ -330,7 +330,7 @@ export async function GET(req: Request) {
     // 4) Mapeia linhas + regional + captura demissão (sem kit aqui para manter a lista leve)
     type InternalRow = Row & { _demissao?: string };
 
-    const DEMISSAO_LIMITE = '2025-01-01';
+    const DEMISSAO_LIMITE = '2026-01-01'; // Colaboradores ativos em 2026 ou demitidos após 01/01/2026
 
     let rowsAll: InternalRow[] = acc.map((r: any) => {
       const idRaw = cpfKey ? (r as any)[cpfKey] : '';

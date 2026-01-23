@@ -213,6 +213,7 @@ async function checkManualCpf(cpfRaw: string) {
   useEffect(() => {
     let on = true;
     (async () => {
+      // Cache inteligente: usa cache mas com revalidação
       const { json } = await fetchJSON('/api/entregas/options', { cache: 'force-cache' });
       if (!on) return;
       setRegionais(json.regionais || []);
@@ -238,7 +239,11 @@ async function checkManualCpf(cpfRaw: string) {
         if (state.q) params.set('q', state.q);
         params.set('page', String(state.page));
         params.set('pageSize', String(state.pageSize));
-        const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
+        // Cache inteligente: usa cache quando possível, mas revalida após 30s
+        const { json } = await fetchJSON('/api/entregas/list?' + params.toString(), { 
+          cache: 'force-cache',
+          next: { revalidate: 30 }
+        });
         if (!on) return;
         setRows((json.rows || []) as Row[]);
         setTotal(Number(json.total || 0));
@@ -586,92 +591,110 @@ const visibleRows = useMemo(() => {
             )}
 
             {state.regional && (
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-neutral-50 dark:bg-neutral-900/50">
-                    <tr>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Nome
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        CPF
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Função
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Unidade
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Regional
-                      </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium uppercase tracking-wide">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Carregando…</td></tr>
-                    )}
-                    {!loading && visibleRows.map((r) => {
-                      const st = statusMap[r.id];
-                      const code: StatusCode = (st?.code || 'ATIVO');
-                      const label = st?.label || STATUS_LABELS[code];
-                      const obs = st?.obs || '';
-                      const isForaMeta = EXCLUDED_STATUS.includes(code);
-                      return (
-                        <tr key={r.id} className="border-t border-neutral-200 dark:border-neutral-800">
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${statusDotClass(code)}`} />
-                              <span className="truncate">{r.nome}</span>
-                              {(obs || code !== 'ATIVO') && (
-                                <span
-                                  className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 cursor-default"
-                                  title={obs || label}
-                                >
-                                  🅘
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap">{maskCPF(r.id)}</td>
-                          <td className="px-3 py-2">{r.funcao}</td>
-                          <td className="px-3 py-2">{r.unidade}</td>
-                          <td className="px-3 py-2">{r.regional}</td>
-                          <td className="px-3 py-2 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => openStatusModal(r)}
-                                className="px-2 py-1 rounded-lg border text-xs"
-                              >
-                                Situação
-                              </button>
-                              <button
-                                onClick={() => openDeliver(r)}
-                                disabled={isForaMeta}
-                                className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                                  isForaMeta
-                                    ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400'
-                                }`}
-                              >
-                                Entregar
-                              </button>
+              <div className="rounded-xl border border-border bg-panel overflow-hidden">
+                <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
+                  <table className="min-w-full text-sm align-middle">
+                    <thead className="sticky top-0 bg-panel z-10">
+                      <tr>
+                        <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
+                          Nome
+                        </th>
+                        <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
+                          CPF
+                        </th>
+                        <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
+                          Função
+                        </th>
+                        <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
+                          Unidade
+                        </th>
+                        <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
+                          Regional
+                        </th>
+                        <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
+                          Ações
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-8 text-center text-muted">
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                              <span className="text-xs">Carregando colaboradores…</span>
                             </div>
                           </td>
                         </tr>
-                      );
-                    })}
-                    {!loading && visibleRows.length === 0 && (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center opacity-70">Sem resultados.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                      )}
+                      {!loading && visibleRows.map((r) => {
+                        const st = statusMap[r.id];
+                        const code: StatusCode = (st?.code || 'ATIVO');
+                        const label = st?.label || STATUS_LABELS[code];
+                        const obs = st?.obs || '';
+                        const isForaMeta = EXCLUDED_STATUS.includes(code);
+                        return (
+                          <tr key={r.id} className="odd:bg-panel/30 hover:bg-panel/70 transition-colors border-b border-border/50">
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotClass(code)}`} />
+                                <span className="truncate font-medium text-text">{r.nome}</span>
+                                {(obs || code !== 'ATIVO') && (
+                                  <span
+                                    className="text-[10px] px-1.5 py-0.5 rounded-full border border-border cursor-default flex-shrink-0"
+                                    title={obs || label}
+                                  >
+                                    🅘
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 whitespace-nowrap text-text">{maskCPF(r.id)}</td>
+                            <td className="px-3 py-2.5 text-text">{r.funcao || '—'}</td>
+                            <td className="px-3 py-2.5 text-text">{r.unidade || '—'}</td>
+                            <td className="px-3 py-2.5 text-text">{r.regional || '—'}</td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => openStatusModal(r)}
+                                  className="px-2.5 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium text-text transition-colors"
+                                >
+                                  Situação
+                                </button>
+                                <button
+                                  onClick={() => openDeliver(r)}
+                                  disabled={isForaMeta}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                    isForaMeta
+                                      ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
+                                      : 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 shadow-sm'
+                                  }`}
+                                >
+                                  Entregar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!loading && visibleRows.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-8 text-center text-muted">
+                            <div className="flex flex-col items-center gap-2">
+                              <span className="text-sm">Nenhum colaborador encontrado.</span>
+                              <span className="text-xs opacity-70">Ajuste os filtros ou selecione outra regional.</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-                <div className="flex items-center justify-between px-3 py-2 border-t border-neutral-200 dark:border-neutral-800">
-                  <div className="text-xs opacity-70">Total: {total}</div>
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-panel/50">
+                  <div className="text-xs font-medium text-muted">
+                    Total: <span className="text-text font-semibold">{total.toLocaleString('pt-BR')}</span> colaboradores
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       className="px-2 py-1 rounded-lg border"
