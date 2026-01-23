@@ -34,6 +34,25 @@ async function ensureSetup(){
       imported_by TEXT,
       imported_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`,
+    // Cria view materializada otimizada para carregamento rápido
+    `CREATE MATERIALIZED VIEW IF NOT EXISTS mv_alterdata_v2_raw_flat AS
+     SELECT 
+       r.row_no,
+       r.batch_id,
+       r.imported_at,
+       r.data->>'CPF' as cpf,
+       r.data->>'Matrícula' as matricula,
+       r.data->>'Colaborador' as colaborador,
+       r.data->>'Unidade Hospitalar' as unidade_hospitalar,
+       r.data->>'Função' as funcao,
+       r.data->>'Admissão' as admissao,
+       r.data->>'Demissão' as demissao,
+       r.data->>'Nmdepartamento' as nmdepartamento,
+       r.data->>'Cdchamada' as cdchamada,
+       r.data as data_jsonb
+     FROM stg_alterdata_v2_raw r`,
+    `CREATE INDEX IF NOT EXISTS idx_mv_alterdata_raw_flat_batch ON mv_alterdata_v2_raw_flat (batch_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_mv_alterdata_raw_flat_row_no ON mv_alterdata_v2_raw_flat (row_no)`,
     `CREATE TABLE IF NOT EXISTS stg_alterdata_v2_imports (
       batch_id UUID PRIMARY KEY,
       source_file TEXT,
@@ -214,6 +233,17 @@ export async function POST(req: Request) {
     `);
 
 await prisma.$executeRawUnsafe(`SELECT apply_alterdata_v2_batch('${batchId}'::uuid)`);
+
+// Atualiza view materializada otimizada (se existir) para carregamento rápido
+try {
+  await prisma.$executeRawUnsafe(`
+    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_alterdata_v2_raw_flat;
+    ANALYZE mv_alterdata_v2_raw_flat;
+  `);
+} catch (e) {
+  // View ainda não existe, ignora erro (será criada na primeira vez)
+  console.log('View materializada ainda não existe, será criada na próxima vez');
+}
 
 // Audit log da importação
 try {

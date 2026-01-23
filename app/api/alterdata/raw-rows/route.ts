@@ -117,27 +117,54 @@ export async function GET(req: Request) {
     let countSql = '';
 
     if (hasV2Raw) {
-      // Mostra apenas o último batch importado (mais recente)
-      const batchId = await latestBatchId();
-      const batchWhere = batchId ? `r.batch_id = '${esc(batchId)}'` : '1=1';
-      const whereClause = where ? where.replace(/^WHERE\\s+/, '') : '';
-      const combinedWhere = whereClause 
-        ? (batchWhere !== '1=1' ? `WHERE ${batchWhere} AND ${whereClause}` : `WHERE ${whereClause}`)
-        : (batchWhere !== '1=1' ? `WHERE ${batchWhere}` : '');
+      // Tenta usar view materializada otimizada primeiro (muito mais rápido)
+      const hasOptimizedView = await tableExists('mv_alterdata_v2_raw_flat');
+      
+      if (hasOptimizedView) {
+        // Usa view materializada otimizada (muito mais rápido)
+        const batchId = await latestBatchId();
+        const batchWhere = batchId ? `batch_id = '${esc(batchId)}'` : '1=1';
+        const whereClause = where ? where.replace(/^WHERE\\s+/, '') : '';
+        const combinedWhere = whereClause 
+          ? (batchWhere !== '1=1' ? `WHERE ${batchWhere} AND ${whereClause}` : `WHERE ${whereClause}`)
+          : (batchWhere !== '1=1' ? `WHERE ${batchWhere}` : '');
 
-      rowsSql = `
-        SELECT r.row_no, r.data
-        FROM stg_alterdata_v2_raw r
-        ${combinedWhere}
-        ORDER BY r.row_no
-        LIMIT ${limit} OFFSET ${offset}
-      `;
+        rowsSql = `
+          SELECT row_no, data_jsonb as data
+          FROM mv_alterdata_v2_raw_flat
+          ${combinedWhere}
+          ORDER BY row_no
+          LIMIT ${limit} OFFSET ${offset}
+        `;
 
-      countSql = `
-        SELECT COUNT(*)::int AS total
-        FROM stg_alterdata_v2_raw r
-        ${combinedWhere}
-      `;
+        countSql = `
+          SELECT COUNT(*)::int AS total
+          FROM mv_alterdata_v2_raw_flat
+          ${combinedWhere}
+        `;
+      } else {
+        // Fallback: usa tabela raw original (mais lento)
+        const batchId = await latestBatchId();
+        const batchWhere = batchId ? `r.batch_id = '${esc(batchId)}'` : '1=1';
+        const whereClause = where ? where.replace(/^WHERE\\s+/, '') : '';
+        const combinedWhere = whereClause 
+          ? (batchWhere !== '1=1' ? `WHERE ${batchWhere} AND ${whereClause}` : `WHERE ${whereClause}`)
+          : (batchWhere !== '1=1' ? `WHERE ${batchWhere}` : '');
+
+        rowsSql = `
+          SELECT r.row_no, r.data
+          FROM stg_alterdata_v2_raw r
+          ${combinedWhere}
+          ORDER BY r.row_no
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+
+        countSql = `
+          SELECT COUNT(*)::int AS total
+          FROM stg_alterdata_v2_raw r
+          ${combinedWhere}
+        `;
+      }
     } else {
       const base = `SELECT row_number() over() as row_no, to_jsonb(t) as data FROM stg_alterdata t`;
       const baseAlias = 'base';
@@ -167,8 +194,8 @@ export async function GET(req: Request) {
     const total = totalRes?.[0]?.total ?? 0;
     const batchId = await latestBatchId();
     const res = NextResponse.json({ ok:true, rows, page, limit, total });
-    // Cache reduzido: 30 segundos para garantir dados atualizados após importação
-    res.headers.set('Cache-Control','public, s-maxage=30, stale-while-revalidate=60');
+    // Cache permanente até próxima importação (dados são estáticos)
+    res.headers.set('Cache-Control','public, s-maxage=31536000, stale-while-revalidate=86400'); // 1 ano (até próxima importação)
     res.headers.set('x-alterdata-route', 'legacy-v4');
     res.headers.set('x-batch-id', batchId || '');
     return res;

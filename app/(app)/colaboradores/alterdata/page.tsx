@@ -258,9 +258,10 @@ export default function Page() {
       if (rawLS) {
         const cached = JSON.parse(rawLS);
         const cacheAge = cached.timestamp ? Date.now() - cached.timestamp : Infinity;
-        const MAX_CACHE_AGE = 30 * 60 * 1000; // 30 minutos (aumentado para persistir entre navegações)
+        // Cache permanente até próxima importação (dados não mudam entre importações)
+        const MAX_CACHE_AGE = Infinity; // Sem limite de tempo - dados são estáticos até nova importação
         
-        // Só usa cache se for recente (menos de 30 minutos)
+        // Usa cache se batch_id for o mesmo (dados não mudaram)
         if (cached && 
             cacheAge < MAX_CACHE_AGE &&
             Array.isArray(cached.rows) && 
@@ -300,15 +301,11 @@ export default function Page() {
           const oldCache = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (oldCache) {
             const parsed = JSON.parse(oldCache);
-            const cacheAge = parsed.timestamp ? Date.now() - parsed.timestamp : Infinity;
-            const MAX_CACHE_AGE = 30 * 60 * 1000; // 30 minutos (aumentado para persistir entre navegações)
-            
+            // Cache permanente até próxima importação (dados não mudam entre importações)
             // Usa cache apenas se:
-            // 1. batch_id for o mesmo
-            // 2. cache tiver menos de 5 minutos
-            // 3. dados estiverem completos
+            // 1. batch_id for o mesmo (mesma importação)
+            // 2. dados estiverem completos
             if (parsed.batch_id === batchId && 
-                cacheAge < MAX_CACHE_AGE &&
                 Array.isArray(parsed.rows) && 
                 Array.isArray(parsed.columns) &&
                 parsed.rows.length > 0) {
