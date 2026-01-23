@@ -406,7 +406,6 @@ useEffect(() => {
         try {
           // Limpa cache e recarrega dados
           clearData();
-          hasLoadedRef.current = false;
           loadData();
         } catch (e) {
           alert('Erro ao limpar cache');
