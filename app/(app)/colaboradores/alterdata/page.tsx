@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UNID_TO_REGIONAL, REGIONALS, canonUnidade, Regional } from '@/lib/unidReg';
 
-// Força novo cache após o hotfix
-const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v4_hotfix';
+// Força novo cache após o hotfix - versão atualizada para invalidar cache antigo
+const LS_KEY_ALTERDATA = 'alterdata_cache_prod_v5_fresh';
 
 // ---------- Ocultação de colunas ----------
 const HIDE_LABELS = [
@@ -151,7 +151,8 @@ function detectUnidadeKey(rows: AnyRow[]): { key: string|null, votes: Record<str
 
 // ---- Fetch helpers ----
 async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, headers: Headers}> {
-  const r = await fetch(url, init);
+  // Usa no-store para garantir dados frescos após importação
+  const r = await fetch(url, { ...init, cache: 'no-store' });
   const text = await r.text();
   let json: any;
   try { json = JSON.parse(text); } catch { json = { ok:false, error: 'JSON inválido', raw: text }; }
@@ -160,7 +161,7 @@ async function fetchJSON(url: string, init?: RequestInit): Promise<{json:any, he
 
 async function fetchPage(page: number, limit: number): Promise<{data: ApiRows, headers: Headers}> {
   const params = new URLSearchParams({ page:String(page), limit:String(limit) });
-  const { json, headers } = await fetchJSON('/api/alterdata/raw-rows?' + params.toString(), { cache: 'force-cache' });
+  const { json, headers } = await fetchJSON('/api/alterdata/raw-rows?' + params.toString(), { cache: 'no-store' });
   if (!json?.ok) throw new Error(json?.error || 'Falha ao carregar página '+page);
   return { data: json as ApiRows, headers };
 }
@@ -216,10 +217,21 @@ export default function Page() {
     (async ()=>{
       setLoading(true); setError(null); setProgress('');
       try{
-        const { json: jCols } = await fetchJSON('/api/alterdata/raw-columns', { cache: 'force-cache' });
+        const { json: jCols } = await fetchJSON('/api/alterdata/raw-columns', { cache: 'no-store' });
         if (!jCols?.ok) throw new Error(jCols?.error || 'Falha em raw-columns');
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
+        
+        // Limpa cache antigo se o batch_id mudou
+        try {
+          const oldCache = window.localStorage.getItem(LS_KEY_ALTERDATA);
+          if (oldCache) {
+            const parsed = JSON.parse(oldCache);
+            if (parsed.batch_id && parsed.batch_id !== batchId) {
+              window.localStorage.removeItem(LS_KEY_ALTERDATA);
+            }
+          }
+        } catch {}
 
         // Cache por batch_id
         try{
@@ -372,9 +384,27 @@ useEffect(() => {
       Visual completo da base Alterdata com regionalização automática, filtros rápidos e paginação em memória.
     </p>
   </div>
-  <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
-    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-    <span>Base carregada do Neon</span>
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => {
+        if (confirm('Limpar cache e recarregar dados?')) {
+          try {
+            window.localStorage.removeItem(LS_KEY_ALTERDATA);
+            window.location.reload();
+          } catch (e) {
+            alert('Erro ao limpar cache');
+          }
+        }
+      }}
+      className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted hover:bg-muted transition-colors"
+      title="Limpar cache e recarregar"
+    >
+      🔄 Recarregar
+    </button>
+    <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
+      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+      <span>Base carregada do Neon</span>
+    </div>
   </div>
 </div>
 
