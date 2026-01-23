@@ -57,6 +57,28 @@ function __shouldHide(col: string): boolean {
 // ---------- Formatações ----------
 function fmtDateDDMMYYYY(val: any): string {
   if (val === null || val === undefined) return '';
+  
+  // Converte para número se for string numérica
+  const numVal = typeof val === 'string' ? parseFloat(val) : Number(val);
+  
+  // Se for um número serial do Excel (geralmente entre 1 e 100000)
+  // Excel serial date: 1 = 01/01/1900, 42979 seria aproximadamente 2017
+  if (!isNaN(numVal) && numVal > 0 && numVal < 1000000) {
+    // Excel epoch: 1 de janeiro de 1900 (mas Excel tem bug, considera 1900 como ano bissexto)
+    // JavaScript Date usa epoch de 1970, então precisamos ajustar
+    // Excel serial date 1 = 31/12/1899 (devido ao bug do Excel)
+    const excelEpoch = new Date(1899, 11, 30); // 30 de dezembro de 1899
+    const jsDate = new Date(excelEpoch.getTime() + numVal * 24 * 60 * 60 * 1000);
+    
+    // Verifica se a data é válida
+    if (!isNaN(jsDate.getTime())) {
+      const day = String(jsDate.getDate()).padStart(2, '0');
+      const month = String(jsDate.getMonth() + 1).padStart(2, '0');
+      const year = jsDate.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  }
+  
   const s = String(val).trim();
   if (!s) return '';
 
@@ -153,8 +175,23 @@ function getCellAlignment(col: string): string {
   const n = __norm(col);
   const colLower = col.toLowerCase();
   
-  // Números, CPF, Matrícula: alinhados à direita (padrão profissional)
-  if (n.includes('cpf') || n.includes('matric') || n.includes('cdchamada') || n.includes('numero') || n.includes('quantidade')) {
+  // Regional: centralizada
+  if (n === 'regional' || colLower === 'regional') {
+    return 'text-center';
+  }
+  
+  // Matrícula/Chamada: centralizada
+  if (n.includes('matric') || n.includes('cdchamada') || n.includes('cd chamada') || col === 'Cdchamada') {
+    return 'text-center';
+  }
+  
+  // Desc Atestado/Tipo ASO: centralizada
+  if (n.includes('descatestado') || n.includes('desc atestado') || n.includes('tipoaso') || n.includes('tipo aso')) {
+    return 'text-center';
+  }
+  
+  // Números, CPF: alinhados à direita (padrão profissional)
+  if (n.includes('cpf') || n.includes('numero') || n.includes('quantidade')) {
     return 'text-right';
   }
   
@@ -512,7 +549,7 @@ useEffect(() => {
                     .map((c,i) => (
                     <th
                       key={i}
-                      className={`px-3 py-2.5 border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm ${getCellAlignment(c)}`}
+                      className={`px-3 py-2.5 border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm text-center`}
                     >
                       {headerLabel(c)}
                     </th>
