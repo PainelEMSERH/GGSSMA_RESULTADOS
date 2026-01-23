@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { REGIONALS, Regional } from '@/lib/unidReg';
+import { REGIONALS, Regional, UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
 import { getColumnDisplayName } from '@/lib/alterdata/columnNames';
 import { useAlterdata } from '@/contexts/AlterdataContext';
 
