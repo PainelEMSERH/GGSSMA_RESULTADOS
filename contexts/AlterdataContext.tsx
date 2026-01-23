@@ -149,10 +149,11 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Detecta coluna de unidade por votação
+      // Importa funções de regionalização UMA VEZ
       const { UNID_TO_REGIONAL, canonUnidade } = await import('@/lib/unidReg');
       
-      function norm(s: string) {
+      // Função auxiliar para normalizar
+      function normCol(s: string) {
         return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
       }
       
@@ -161,6 +162,7 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
         'hospital','empresa','localtrabalho','localdetrabalho','setor','departamento'
       ];
       
+      // Detecta coluna de unidade por votação
       function detectUnidadeKey(rows: Array<Record<string, any>>): { key: string|null, votes: Record<string, number> } {
         const votes: Record<string, number> = {};
         if (!rows?.length) return { key: null, votes };
@@ -185,7 +187,7 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
         // Fallback: busca por nome
         const scoreByName: Record<string, number> = {};
         for (const k of keys) {
-          const n = norm(k);
+          const n = normCol(k);
           let s = 0;
           for (const hint of NAME_HINTS) if (n.includes(hint)) s++;
           scoreByName[k] = s;
@@ -198,7 +200,6 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
       const uk = det.key;
 
       // Mapeia regional
-      const { UNID_TO_REGIONAL, canonUnidade } = await import('@/lib/unidReg');
       const withReg = allRows.map((r: any) => {
         const rawUn = uk ? String(r[uk] ?? '') : '';
         const canon = canonUnidade(rawUn);
@@ -207,19 +208,15 @@ export function AlterdataProvider({ children }: { children: React.ReactNode }) {
       });
 
       // Reordena colunas: Regional primeiro, Nmdepartamento segundo
-      function norm(s: string) {
-        return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
-      }
-      
       let finalCols = [...baseCols];
       finalCols = finalCols.filter(c => {
-        const n = norm(c);
+        const n = normCol(c);
         return n !== 'regional' && !n.includes('nmdepartamento') && !n.includes('nm departamento');
       });
       finalCols = ['regional', ...finalCols];
       
       const nmdepKey = baseCols.find(c => {
-        const n = norm(c);
+        const n = normCol(c);
         return n.includes('nmdepartamento') || n.includes('nm departamento') || n.includes('departamento');
       });
       if (nmdepKey) {
