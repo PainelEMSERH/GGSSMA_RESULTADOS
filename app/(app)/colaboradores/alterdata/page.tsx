@@ -192,13 +192,60 @@ async function fetchPage(page: number, limit: number): Promise<{data: ApiRows, h
 }
 
 export default function Page() {
-  const [columns, setColumns] = useState<string[]>([]);
-  const [rows, setRows] = useState<AnyRow[]>([]);
+  // Carrega cache IMEDIATAMENTE no estado inicial (antes de qualquer render)
+  const [columns, setColumns] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.columns && Array.isArray(parsed.columns)) {
+          return parsed.columns;
+        }
+      }
+    } catch {}
+    return [];
+  });
+  
+  const [rows, setRows] = useState<AnyRow[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.rows && Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+          return parsed.rows;
+        }
+      }
+    } catch {}
+    return [];
+  });
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
-  const [unidKey, setUnidKey] = useState<string | null>(null);
-  const [votePeek, setVotePeek] = useState<string>(''); // diagnóstico leve
+  const [unidKey, setUnidKey] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return parsed.unidKey || null;
+      }
+    } catch {}
+    return null;
+  });
+  const [votePeek, setVotePeek] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const cached = localStorage.getItem(LS_KEY_ALTERDATA);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return parsed.votePeek || '';
+      }
+    } catch {}
+    return '';
+  });
 
   // Paginação (cliente)
   const [page, setPage] = useState(1);
@@ -208,9 +255,8 @@ export default function Page() {
   const [regional, setRegional] = useState<Regional | 'TODAS'>('TODAS');
   const [unidade, setUnidade] = useState<string | 'TODAS'>('TODAS');
 
-  // Usa sessionStorage para persistir entre navegações na mesma sessão
-  const CACHE_KEY = 'alterdata_fetched';
-  const wasFetched = typeof window !== 'undefined' ? sessionStorage.getItem(CACHE_KEY) === 'true' : false;
+  // Flag para garantir que só carrega UMA VEZ
+  const hasLoadedRef = useRef(false);
 
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -221,71 +267,19 @@ export default function Page() {
   useEffect(()=>{ setPage(1); }, [q, regional, unidade, pageSize]);
 
   useEffect(()=>{
-    // Se já tem dados carregados, não recarrega
-    if (rows.length > 0) {
-      return; // Já tem dados, não precisa recarregar
+    // Se já carregou, NUNCA recarrega
+    if (hasLoadedRef.current) {
+      return;
     }
     
-    // Se já foi carregado nesta sessão, verifica cache e retorna
-    if (wasFetched) {
-      try {
-        const rawLS = typeof window !== 'undefined'
-          ? window.localStorage.getItem(LS_KEY_ALTERDATA)
-          : null;
-        if (rawLS) {
-          const cached = JSON.parse(rawLS);
-          if (cached && 
-              Array.isArray(cached.rows) && 
-              Array.isArray(cached.columns) &&
-              cached.rows.length > 0) {
-            setColumns(cached.columns);
-            setRows(cached.rows);
-            setUnidKey(cached.unidKey || null);
-            setVotePeek(cached.votePeek || '');
-            setLoading(false);
-            return; // Retorna com cache, não recarrega
-          }
-        }
-      } catch {}
-      return; // Já foi carregado, não recarrega mesmo sem cache
+    // Se já tem dados no state (carregados do cache inicial), marca como carregado e retorna
+    if (rows.length > 0 && columns.length > 0) {
+      hasLoadedRef.current = true;
+      return; // Já tem dados, não precisa fazer nada
     }
 
-    // Preenche imediatamente a partir do cache local, se existir e válido
-    try {
-      const rawLS = typeof window !== 'undefined'
-        ? window.localStorage.getItem(LS_KEY_ALTERDATA)
-        : null;
-      if (rawLS) {
-        const cached = JSON.parse(rawLS);
-        const cacheAge = cached.timestamp ? Date.now() - cached.timestamp : Infinity;
-        // Cache permanente até próxima importação (dados não mudam entre importações)
-        const MAX_CACHE_AGE = Infinity; // Sem limite de tempo - dados são estáticos até nova importação
-        
-        // Usa cache se batch_id for o mesmo (dados não mudaram)
-        if (cached && 
-            cacheAge < MAX_CACHE_AGE &&
-            Array.isArray(cached.rows) && 
-            Array.isArray(cached.columns) &&
-            cached.rows.length > 0) {
-          setColumns(cached.columns);
-          setRows(cached.rows);
-          setUnidKey(cached.unidKey || null);
-          setVotePeek(cached.votePeek || '');
-          setLoading(false);
-          // Marca como carregado para não recarregar ao voltar
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(CACHE_KEY, 'true');
-          }
-          return; // Retorna imediatamente com cache válido, não precisa buscar do servidor
-        } else {
-          // Cache expirado, remove
-          if (typeof window !== 'undefined') {
-            window.localStorage.removeItem(LS_KEY_ALTERDATA);
-            sessionStorage.removeItem(CACHE_KEY);
-          }
-        }
-      }
-    } catch {}
+    // Marca como carregando para evitar múltiplas execuções
+    hasLoadedRef.current = true;
 
     let on = true;
     (async ()=>{
@@ -296,7 +290,7 @@ export default function Page() {
         const baseCols = (Array.isArray(jCols?.columns) ? jCols.columns : []) as string[];
         const batchId = jCols?.batch_id || null;
         
-        // Cache inteligente: verifica se o batch_id mudou E se tem timestamp recente
+        // Verifica cache ANTES de carregar do servidor
         try {
           const oldCache = window.localStorage.getItem(LS_KEY_ALTERDATA);
           if (oldCache) {
@@ -315,11 +309,12 @@ export default function Page() {
                 setUnidKey(parsed.unidKey || null);
                 setVotePeek(parsed.votePeek || '');
                 setLoading(false);
-                return; // Retorna imediatamente com cache válido
+                return; // Retorna imediatamente com cache válido - NÃO CARREGA DO SERVIDOR
               }
             } else {
-              // Limpa cache se batch_id mudou ou cache expirou
+              // Limpa cache se batch_id mudou (nova importação)
               window.localStorage.removeItem(LS_KEY_ALTERDATA);
+              hasLoadedRef.current = false; // Permite recarregar com nova importação
             }
           }
         } catch {}
