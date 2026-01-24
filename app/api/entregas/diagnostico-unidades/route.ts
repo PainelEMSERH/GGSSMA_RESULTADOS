@@ -205,7 +205,8 @@ export async function GET(req: Request) {
       // Cache de kits por função+unidade+PCG (para performance)
       const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey|pcg" -> soma de itens obrigatórios
       
-      // Busca PCG da unidade (uma vez para todos os colaboradores)
+      // Busca PCG da unidade (uma vez para todos os colaboradores). Se não houver PCG na unidade, considera HOSPITAL DA ILHA.
+      const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
       let pcgUnidade: string | null = null;
       if (unidadeNome) {
         try {
@@ -222,6 +223,23 @@ export async function GET(req: Request) {
           }
         } catch (pcgError) {
           console.warn(`[Diagnóstico] Erro ao buscar PCG da unidade ${unidadeNome}:`, pcgError);
+        }
+      }
+      if (!pcgUnidade) {
+        try {
+          const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
+            SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+            FROM stg_epi_map
+            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
+              AND COALESCE(codigo_alterdata, '') != ''
+            LIMIT 1
+          `);
+          if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
+            pcgUnidade = String(fallbackResult[0].pcg).trim();
+            console.log(`[Diagnóstico] Sem PCG na unidade ${unidadeNome}; usando PCG de ${UNIDADE_FALLBACK_PCG}: ${pcgUnidade}`);
+          }
+        } catch (e) {
+          console.warn(`[Diagnóstico] Erro ao buscar PCG de ${UNIDADE_FALLBACK_PCG}:`, e);
         }
       }
       

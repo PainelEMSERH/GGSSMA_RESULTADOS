@@ -131,7 +131,9 @@ export async function GET(req: Request) {
       if (unidadeHosp) unidadesUnicas.add(unidadeHosp);
     }
     
-    // Busca PCG de todas as unidades de uma vez
+    // Busca PCG de todas as unidades de uma vez. Se unidade não tem PCG, considera HOSPITAL DA ILHA.
+    const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
+    let pcgHospitalIlha: string | null = null;
     if (unidadesUnicas.size > 0) {
       try {
         const unidadesList = Array.from(unidadesUnicas).map(u => `'${u.replace(/'/g, "''")}'`).join(',');
@@ -149,6 +151,16 @@ export async function GET(req: Request) {
           if (unid && pcg) {
             pcgPorUnidade.set(unid, pcg);
           }
+        }
+        const fallback: any[] = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
+            AND COALESCE(codigo_alterdata, '') != ''
+          LIMIT 1
+        `);
+        if (fallback.length > 0 && fallback[0].pcg) {
+          pcgHospitalIlha = String(fallback[0].pcg).trim();
         }
       } catch (pcgError) {
         console.warn('[Meta API] Erro ao buscar PCGs das unidades:', pcgError);
@@ -169,9 +181,9 @@ export async function GET(req: Request) {
       const funcKey = normFuncKey(funcao);
       const unidadeKey = normUnidKey(unidadeHosp);
       
-      // Busca PCG da unidade hospitalar (usa cache)
+      // Busca PCG da unidade hospitalar (usa cache). Se não houver, considera HOSPITAL DA ILHA.
       const unidadeHospUpper = unidadeHosp.toUpperCase().trim();
-      const pcgUnidade = pcgPorUnidade.get(unidadeHospUpper) || null;
+      const pcgUnidade = pcgPorUnidade.get(unidadeHospUpper) ?? pcgHospitalIlha;
       
       const cacheKey = `${funcKey}|${unidadeKey}|${pcgUnidade || 'null'}`;
       

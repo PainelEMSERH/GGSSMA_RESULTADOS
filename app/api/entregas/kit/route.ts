@@ -53,7 +53,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, items: [] });
     }
 
-    // Busca PCG da unidade hospitalar (se disponível)
+    // Busca PCG da unidade hospitalar. Se não houver PCG na unidade, considera HOSPITAL DA ILHA.
+    const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
     let pcgUnidade: string | null = null;
     if (unidadeRaw) {
       try {
@@ -70,6 +71,23 @@ export async function GET(req: NextRequest) {
         }
       } catch (pcgError) {
         console.warn('[Kit API] Erro ao buscar PCG da unidade:', pcgError);
+      }
+    }
+    if (!pcgUnidade) {
+      try {
+        const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
+            AND COALESCE(codigo_alterdata, '') != ''
+          LIMIT 1
+        `);
+        if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
+          pcgUnidade = String(fallbackResult[0].pcg).trim();
+          console.log(`[Kit API] Sem PCG na unidade; usando PCG de ${UNIDADE_FALLBACK_PCG}: ${pcgUnidade}`);
+        }
+      } catch (e) {
+        console.warn('[Kit API] Erro ao buscar PCG de HOSPITAL DA ILHA:', e);
       }
     }
 

@@ -13,6 +13,7 @@ type Row = {
   funcao: string;
   unidade: string;
   regional: string;
+  entregue?: boolean;
   kit?: string;
   kitEsperado?: string;
   kit_esperado?: string;
@@ -205,11 +206,17 @@ function formatKit(items?: {item:string,qtd:number}[] | undefined): string {
 
 type FastListResult = { rows: Row[]; total: number };
 
+const ENTREGUE_EXISTS = `EXISTS (
+  SELECT 1 FROM epi_entregas e
+  WHERE regexp_replace(COALESCE(TRIM(e.cpf),''), '[^0-9]', '', 'g') = regexp_replace(COALESCE(TRIM(a.cpf),''), '[^0-9]', '', 'g')
+)`;
+
 async function tryFastList(
   regional: string,
   unidade: string,
   page: number,
-  pageSize: number
+  pageSize: number,
+  entregueFilter: '' | 'pendente' | 'entregue' = ''
 ): Promise<FastListResult | null> {
   try {
     const DEMISSAO_LIMITE = '2026-01-01'; // Colaboradores ativos em 2026 ou demitidos após 01/01/2026
@@ -263,8 +270,17 @@ async function tryFastList(
     // Remove apenas demitidos antes de 2026-01-01
     wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
 
+    // Filtro Pendente/Entregue (epi_entregas)
+    if (entregueFilter === 'pendente') {
+      wh.push(`NOT ${ENTREGUE_EXISTS}`);
+    } else if (entregueFilter === 'entregue') {
+      wh.push(ENTREGUE_EXISTS);
+    }
+
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
     const offset = (page - 1) * pageSize;
+
+    const entregueSelect = `(${ENTREGUE_EXISTS}) AS entregue`;
 
     // Busca direto de stg_alterdata_v2 com JOIN em stg_unid_reg para pegar unidade e regional
     // LEFT JOIN garante que mesmo sem correspondência em stg_unid_reg, os dados aparecem
@@ -276,7 +292,8 @@ async function tryFastList(
         COALESCE(a.funcao, '') AS cargo,
         COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade,
         COALESCE(NULLIF(TRIM(u.regional_responsavel), ''), '') AS regional,
-        COALESCE(a.demissao, '') AS demissao
+        COALESCE(a.demissao, '') AS demissao,
+        ${entregueSelect}
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
@@ -290,7 +307,8 @@ async function tryFastList(
         COALESCE(a.funcao, '') AS cargo,
         COALESCE(a.unidade_hospitalar, '') AS unidade,
         '' AS regional,
-        COALESCE(a.demissao, '') AS demissao
+        COALESCE(a.demissao, '') AS demissao,
+        ${entregueSelect}
       FROM stg_alterdata_v2 a
       ${whereSql}
       ORDER BY a.colaborador ASC
@@ -380,13 +398,14 @@ async function tryFastList(
           funcao: func,
           unidade: un || '—',
           regional: regOut || '—',
+          entregue: !!(r as any).entregue,
         } as Row;
       })
       .filter((r) => r.id || r.nome || r.unidade);
 
     return { rows, total };
   } catch (e) {
-    console.error('entregas/fast-list error (mv_alterdata_flat)', e);
+    console.error('entregas/fast-list error (stg_alterdata_v2)', e);
     return null;
   }
 }
@@ -396,13 +415,15 @@ export async function GET(req: Request) {
   const regional = url.searchParams.get('regional') || '';
   const unidade  = url.searchParams.get('unidade')  || '';
   const q        = url.searchParams.get('q')        || '';
+  const entregue = (url.searchParams.get('entregue') || '').toLowerCase();
+  const entregueFilter = (entregue === 'pendente' || entregue === 'entregue' ? entregue : '') as '' | 'pendente' | 'entregue';
   const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
     const hasQ = !!q.trim();
     if (!hasQ) {
-      const fast = await tryFastList(regional, unidade, page, pageSize);
+      const fast = await tryFastList(regional, unidade, page, pageSize, entregueFilter);
       if (fast && Array.isArray(fast.rows) && fast.rows.length > 0) {
         return NextResponse.json({
           rows: fast.rows,
@@ -539,6 +560,26 @@ export async function GET(req: Request) {
     }
     if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
+
+    // 6b) Filtro Pendente/Entregue (epi_entregas) e flag entregue por linha
+    let cpfsEntregues = new Set<string>();
+    try {
+      const ent: any[] = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT DISTINCT regexp_replace(COALESCE(TRIM(cpf),''), '[^0-9]', '', 'g') AS cpf
+        FROM epi_entregas
+        WHERE regexp_replace(COALESCE(TRIM(cpf),''), '[^0-9]', '', 'g') != ''
+      `);
+      for (const x of ent) {
+        const c = String(x?.cpf ?? '').replace(/\D/g, '').slice(-11);
+        if (c) cpfsEntregues.add(c);
+      }
+    } catch (_) {}
+    if (entregueFilter === 'pendente') {
+      rows = rows.filter(r => !cpfsEntregues.has(r.id));
+    } else if (entregueFilter === 'entregue') {
+      rows = rows.filter(r => cpfsEntregues.has(r.id));
+    }
+    rows = rows.map(r => ({ ...r, entregue: cpfsEntregues.has(r.id) }));
 
     // 7) Pagina
     rows.sort((a,b)=> a.nome.localeCompare(b.nome));

@@ -2,9 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
-import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
 
-type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
+type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; entregue?: boolean; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
 type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number}>; };
 
@@ -117,6 +117,7 @@ export default function EntregasPage() {
     regional: '',
     unidade: '',
     q: '',
+    entregue: '' as '' | 'pendente' | 'entregue',
     page: 1,
     pageSize: 25,
   });
@@ -179,6 +180,9 @@ export default function EntregasPage() {
       ...patch,
       page: patch.page !== undefined && patch.page !== null ? patch.page : 1,
     }));
+  }
+  function setFilterEntregue(value: '' | 'pendente' | 'entregue') {
+    setFilter({ entregue: value, page: 1 });
   }
 
 
@@ -291,6 +295,7 @@ async function checkManualCpf(cpfRaw: string) {
       params.set('regional', state.regional);
       if (state.unidade) params.set('unidade', state.unidade);
       if (state.q) params.set('q', state.q);
+      if (state.entregue) params.set('entregue', state.entregue);
       params.set('page', String(state.page));
       params.set('pageSize', String(state.pageSize));
       const { json: j2 } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
@@ -447,7 +452,7 @@ async function checkManualCpf(cpfRaw: string) {
       }
     })();
     return () => { on = false };
-  }, [state.regional, state.unidade, state.q, state.page, state.pageSize]);
+  }, [state.regional, state.unidade, state.q, state.entregue, state.page, state.pageSize]);
 
   function openStatusModal(row: Row) {
     const current = statusMap[row.id];
@@ -566,6 +571,20 @@ async function doDeliver() {
 
       // Limpa seleção
       setSelectedEpis({});
+
+      // Atualiza a lista para refletir "Entregue" na sinalização
+      try {
+        const params = new URLSearchParams();
+        params.set('regional', state.regional);
+        if (state.unidade) params.set('unidade', state.unidade);
+        if (state.q) params.set('q', state.q);
+        if (state.entregue) params.set('entregue', state.entregue);
+        params.set('page', String(state.page));
+        params.set('pageSize', String(state.pageSize));
+        const { json: listJ } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
+        setRows((listJ?.rows || []) as Row[]);
+        setTotal(Number(listJ?.total ?? 0));
+      } catch (_) {}
       
       showToast(`Entregas registradas com sucesso! ${selectedItems.length} EPI(s) entregue(s).`, 'success');
     } catch (e) {
@@ -810,8 +829,8 @@ const visibleRows = useMemo(() => {
                 <div className="h-px flex-1 bg-border" />
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="max-w-[200px]">
                   <label className="text-xs font-medium block mb-1.5 text-text">Regional</label>
                   <select
                     value={state.regional}
@@ -819,7 +838,7 @@ const visibleRows = useMemo(() => {
                     className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                     aria-label="Selecione a Regional"
                   >
-                    <option value="">Selecione a Regional…</option>
+                    <option value="">Selecione…</option>
                     {regionais.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
@@ -834,6 +853,19 @@ const visibleRows = useMemo(() => {
                   >
                     <option value="">(todas)</option>
                     {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1.5 text-text">Entrega</label>
+                  <select
+                    value={state.entregue || ''}
+                    onChange={e => setFilterEntregue((e.target.value || '') as '' | 'pendente' | 'entregue')}
+                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                    aria-label="Filtrar por situação de entrega"
+                  >
+                    <option value="">Todos</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="entregue">Entregue</option>
                   </select>
                 </div>
                 <div>
@@ -935,7 +967,7 @@ const visibleRows = useMemo(() => {
             {state.regional && (
               <div className="rounded-xl border border-border bg-panel overflow-hidden">
                 <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
-                  <table className="min-w-full text-sm align-middle">
+                  <table className="min-w-full text-[11px] align-middle">
                     <thead className="sticky top-0 bg-panel z-10">
                       <tr>
                         <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
@@ -953,6 +985,9 @@ const visibleRows = useMemo(() => {
                         <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
                           Regional
                         </th>
+                        <th className="px-2 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm" title="Situação da entrega">
+                          Entrega
+                        </th>
                         <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
                           Ações
                         </th>
@@ -961,7 +996,7 @@ const visibleRows = useMemo(() => {
                     <tbody>
                       {loading && (
                         <tr>
-                          <td colSpan={6} className="px-3 py-8 text-center text-muted">
+                          <td colSpan={7} className="px-3 py-8 text-center text-muted">
                             <div className="flex flex-col items-center gap-2">
                               <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                               <span className="text-xs">Carregando colaboradores…</span>
@@ -992,10 +1027,10 @@ const visibleRows = useMemo(() => {
                                 )}
                               </div>
                             </td>
-                            <td className="px-3 py-2.5 whitespace-nowrap text-text" title={maskCPF(r.id)}>{maskCPF(r.id)}</td>
-                            <td className="px-3 py-2.5 text-text" title={r.funcao || '—'}>{r.funcao || '—'}</td>
-                            <td className="px-3 py-2.5 text-text" title={r.unidade || '—'}>{r.unidade || '—'}</td>
-                            <td className="px-3 py-2.5 text-text" title={r.regional || '—'}>{r.regional || '—'}</td>
+                            <td className="px-3 py-2.5 text-center whitespace-nowrap text-text" title={maskCPF(r.id)}>{maskCPF(r.id)}</td>
+                            <td className="px-3 py-2.5 text-center text-text" title={r.funcao || '—'}>{r.funcao || '—'}</td>
+                            <td className="px-3 py-2.5 text-center text-text" title={r.unidade || '—'}>{r.unidade || '—'}</td>
+                            <td className="px-3 py-2.5 text-center text-text" title={r.regional || '—'}>{r.regional || '—'}</td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center justify-end gap-2">
                                 <button
@@ -1028,7 +1063,7 @@ const visibleRows = useMemo(() => {
                       })}
                       {!loading && visibleRows.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-3 py-8 text-center text-muted">
+                          <td colSpan={7} className="px-3 py-8 text-center text-muted">
                             <div className="flex flex-col items-center gap-2">
                               <span className="text-sm">Nenhum colaborador encontrado.</span>
                               <span className="text-xs opacity-70">Ajuste os filtros ou selecione outra regional.</span>
