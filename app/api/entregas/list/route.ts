@@ -5,6 +5,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
+import { findBestUnitMatch } from '@/lib/unitMatcher';
 import prisma from '@/lib/prisma';
 
 type Row = {
@@ -258,11 +259,62 @@ async function tryFastList(
       // Mas sem JOIN não tem como filtrar por regional, então não filtra
     }
     
+    // Busca unidades do banco para fazer matching flexível
+    let matchedUnidade: string | null = null;
+    if (uniTrim && useJoin) {
+      try {
+        // Busca todas as unidades do banco para fazer matching
+        const allUnits = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT DISTINCT 
+            COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade
+          FROM stg_alterdata_v2 a
+          LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+          WHERE COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') != ''
+        `);
+        const unitList = allUnits.map(u => u.unidade).filter(Boolean);
+        matchedUnidade = findBestUnitMatch(uniTrim, unitList);
+        if (matchedUnidade) {
+          console.log(`[List API] Match de unidade: "${uniTrim}" -> "${matchedUnidade}"`);
+        }
+      } catch (e) {
+        console.warn('[List API] Erro ao buscar unidades para matching:', e);
+      }
+    }
+    
     if (uniTrim) {
+      const unidadeParaBuscar = matchedUnidade || uniTrim;
       if (useJoin) {
-        wh.push(`(UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${esc(uniTrim)}')) OR UPPER(TRIM(a.unidade_hospitalar)) = UPPER(TRIM('${esc(uniTrim)}')))`);
+        // Busca flexível: tenta exato primeiro, depois LIKE para variações
+        // Inclui tanto o nome original quanto o matched
+        const unidadesParaBuscar = matchedUnidade && matchedUnidade !== uniTrim 
+          ? [matchedUnidade, uniTrim] 
+          : [unidadeParaBuscar];
+        
+        const conditions = unidadesParaBuscar.map(uni => {
+          const escUni = esc(uni);
+          return `(
+            UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) = UPPER(TRIM('${escUni}'))
+            OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${escUni}'))
+            OR UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) LIKE UPPER(TRIM('%${escUni}%'))
+            OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${escUni}%'))
+          )`;
+        });
+        
+        wh.push(`(${conditions.join(' OR ')})`);
       } else {
-        wh.push(`UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${esc(uniTrim)}'))`);
+        const unidadesParaBuscar = matchedUnidade && matchedUnidade !== uniTrim 
+          ? [matchedUnidade, uniTrim] 
+          : [unidadeParaBuscar];
+        
+        const conditions = unidadesParaBuscar.map(uni => {
+          const escUni = esc(uni);
+          return `(
+            UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${escUni}'))
+            OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${escUni}%'))
+          )`;
+        });
+        
+        wh.push(`(${conditions.join(' OR ')})`);
       }
     }
 
@@ -343,7 +395,11 @@ async function tryFastList(
         total, 
         useJoin,
         hasTable: hasTable?.[0]?.exists,
-        hasUnidReg: hasUnidReg?.[0]?.exists 
+        hasUnidReg: hasUnidReg?.[0]?.exists,
+        regional: regTrim,
+        unidade: uniTrim,
+        matchedUnidade,
+        whereSql: whereSql.substring(0, 200)
       });
     } catch (queryError: any) {
       console.error('[tryFastList] Erro na query SQL:', queryError?.message || queryError);
@@ -550,15 +606,49 @@ export async function GET(req: Request) {
 
     // 6) Filtros (regional precisa ser exata, mas compara com prettyRegional)
     const nreg = regional.trim();
-    const nuni = normUp(unidade);
+    const nuni = unidade.trim();
     const nq   = normUp(q);
+    
+    // Busca unidades para matching flexível no fallback também
+    let matchedUnidadeFallback: string | null = null;
+    if (nuni) {
+      try {
+        const allUnits = rows.map(r => r.unidade).filter(Boolean);
+        matchedUnidadeFallback = findBestUnitMatch(nuni, allUnits);
+        if (matchedUnidadeFallback) {
+          console.log(`[List API Fallback] Match de unidade: "${nuni}" -> "${matchedUnidadeFallback}"`);
+        }
+      } catch (e) {
+        console.warn('[List API Fallback] Erro ao fazer matching de unidade:', e);
+      }
+    }
+    
     if (nreg) {
       rows = rows.filter(r => {
         // Compara diretamente com a regional formatada (Norte, Sul, etc.)
         return r.regional === nreg || normUp(r.regional) === normUp(nreg);
       });
     }
-    if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
+    
+    // Filtro de unidade com matching flexível
+    if (nuni) {
+      if (matchedUnidadeFallback) {
+        // Usa a unidade encontrada pelo matching
+        rows = rows.filter(r => {
+          const rUniNorm = normUp(r.unidade);
+          const matchedNorm = normUp(matchedUnidadeFallback!);
+          return rUniNorm === matchedNorm || rUniNorm.includes(matchedNorm) || matchedNorm.includes(rUniNorm);
+        });
+      } else {
+        // Fallback: busca por similaridade
+        rows = rows.filter(r => {
+          const rUniNorm = normUp(r.unidade);
+          const nuniNorm = normUp(nuni);
+          return rUniNorm === nuniNorm || rUniNorm.includes(nuniNorm) || nuniNorm.includes(rUniNorm);
+        });
+      }
+    }
+    
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
 
     // 6b) Filtro Pendente/Entregue (epi_entregas) e flag entregue por linha
