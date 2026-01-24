@@ -625,28 +625,7 @@ const visibleRows = useMemo(() => {
         </div>
       </div>
       
-      {/* Quick Stats - Só mostra quando tem dados */}
-      {state.regional && visibleRows.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-xl border border-border bg-panel p-3">
-            <div className="text-xs text-muted uppercase tracking-wide mb-1">Total filtrado</div>
-            <div className="text-2xl font-bold text-text">{quickStats.total.toLocaleString('pt-BR')}</div>
-            <div className="text-xs text-muted mt-1">colaboradores na lista</div>
-          </div>
-          <div className="rounded-xl border border-border bg-panel p-3">
-            <div className="text-xs text-muted uppercase tracking-wide mb-1">Ativos</div>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{quickStats.ativos.toLocaleString('pt-BR')}</div>
-            <div className="text-xs text-muted mt-1">colaboradores ativos</div>
-          </div>
-          <div className="rounded-xl border border-border bg-panel p-3">
-            <div className="text-xs text-muted uppercase tracking-wide mb-1">Com observações</div>
-            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{quickStats.comPendencias.toLocaleString('pt-BR')}</div>
-            <div className="text-xs text-muted mt-1">com status diferente</div>
-          </div>
-        </div>
-      )}
-
-      {/* Tracker de Progresso - META vs REAL */}
+      {/* Tracker de Progresso - META vs REAL (substitui os Quick Stats) */}
       {state.regional && metaData && metaData.meta > 0 && (() => {
         const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
         const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -659,82 +638,58 @@ const visibleRows = useMemo(() => {
         });
         
         // Calcula REAL atual (percentual de entregas realizadas vs meta total)
+        // O REAL mostra o mesmo valor em todas as colunas (percentual atual total)
         const totalEntregue = metaData.total;
-        const percentualReal = metaData.meta > 0 ? (totalEntregue / metaData.meta) * 100 : 0;
+        const percentualRealAtual = metaData.meta > 0 ? (totalEntregue / metaData.meta) * 100 : 0;
         
-        // Filtra progresso por mês se selecionado
+        // Filtra progresso por mês se selecionado (para os botões)
         const progressoFiltrado = mesSelecionado 
           ? { [mesSelecionado]: metaData.progresso[mesSelecionado] || 0 }
           : metaData.progresso;
         
         const totalFiltrado = Object.values(progressoFiltrado).reduce((acc, val) => acc + val, 0);
-        const percentualRealFiltrado = metaData.meta > 0 ? (totalFiltrado / metaData.meta) * 100 : 0;
 
         return (
-          <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-text">Progresso de Entregas - {state.regional}</h3>
-                <p className="text-xs text-muted mt-0.5">
-                  Meta: {metaData.meta.toLocaleString('pt-BR')} itens • Realizado: {totalFiltrado.toLocaleString('pt-BR')} itens
-                </p>
+          <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
+            {/* Linha META */}
+            <div className="flex items-center gap-2">
+              <div className="w-20 font-bold text-sm text-text">META</div>
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {meses.map((mes, idx) => (
+                  <div key={mes} className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded">
+                    {metasIncrementais[idx].toFixed(2)}%
+                  </div>
+                ))}
               </div>
-              {mesSelecionado && (
-                <button
-                  onClick={() => setMesSelecionado(null)}
-                  className="text-xs text-muted hover:text-text"
-                >
-                  Limpar filtro
-                </button>
-              )}
             </div>
 
-            {/* Linha META */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-16 font-medium text-muted">META</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {meses.map((mes, idx) => (
-                    <div key={mes} className="text-center text-[10px] font-medium text-muted">
-                      {metasIncrementais[idx].toFixed(2)}%
+            {/* Linha REAL */}
+            <div className="flex items-center gap-2">
+              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {meses.map((mes, idx) => {
+                  const metaIncremental = metasIncrementais[idx];
+                  const estaAcima = percentualRealAtual >= metaIncremental;
+                  
+                  return (
+                    <div
+                      key={mes}
+                      className={`text-center text-xs font-bold py-1.5 rounded ${
+                        estaAcima
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-red-500 text-white'
+                      }`}
+                      title={`${mesesNomes[idx]}: ${percentualRealAtual.toFixed(2)}% (Meta: ${metaIncremental.toFixed(2)}%)`}
+                    >
+                      {percentualRealAtual.toFixed(2)}%
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Linha REAL */}
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-16 font-medium text-text">REAL</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {meses.map((mes, idx) => {
-                    // Calcula percentual acumulado até este mês
-                    const acumuladoAteMes = meses.slice(0, idx + 1).reduce((acc, m) => {
-                      return acc + (progressoFiltrado[m] || 0);
-                    }, 0);
-                    const percentualAcumulado = metaData.meta > 0 ? (acumuladoAteMes / metaData.meta) * 100 : 0;
-                    const metaIncremental = metasIncrementais[idx];
-                    const estaAcima = percentualAcumulado >= metaIncremental;
-                    
-                    return (
-                      <div
-                        key={mes}
-                        className={`text-center text-[10px] font-semibold py-1 rounded ${
-                          estaAcima
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                            : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                        }`}
-                        title={`${mesesNomes[idx]}: ${percentualAcumulado.toFixed(2)}% (Meta: ${metaIncremental.toFixed(2)}%)`}
-                      >
-                        {percentualAcumulado.toFixed(2)}%
-                      </div>
-                    );
-                  })}
-                </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* Botões mensais */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
               <button
                 onClick={() => setMesSelecionado(null)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -1075,178 +1030,83 @@ const visibleRows = useMemo(() => {
       {/* Aba: Diagnóstico */}
       {tab === 'diag' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-            {!rows.length && (
-              <p className="text-muted">
-                Nenhum colaborador carregado ainda. Selecione uma regional e unidade na aba de lista.
+          {!state.regional ? (
+            <div className="rounded-xl border border-border bg-panel p-8 text-center">
+              <p className="text-muted text-sm">
+                Selecione uma Regional na aba de Lista para ver o diagnóstico por unidade hospitalar.
               </p>
-            )}
-
-            {rows.length > 0 && diagResumo && (
-              <div className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Colaboradores na lista
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {total.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Dentro da meta
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {diagResumo.dentroMeta.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Fora da meta
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {diagResumo.foraMeta.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Regionais com entregas
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-text">
-                      {diagResumo.regionaisLista.length}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Situação dos colaboradores
-                    </p>
-                    <div className="overflow-hidden rounded-lg border border-border bg-card">
-                      <table className="min-w-full text-xs">
-                        <thead className="bg-panel">
-                          <tr>
-                            <th className="px-3 py-2 text-left border-b border-border">Situação</th>
-                            <th className="px-3 py-2 text-right border-b border-border">Qtd</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.entries(STATUS_LABELS).map(([code, label]) => (
-                            <tr key={code} className="odd:bg-panel/40">
-                              <td className="px-3 py-1.5 border-b border-border">
-                                {label}
-                              </td>
-                              <td className="px-3 py-1.5 text-right border-b border-border">
-                                {diagResumo.counts[code as StatusCode]?.toLocaleString() ?? 0}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                      Distribuição por regional
-                    </p>
-                    <div className="overflow-hidden rounded-lg border border-border bg-card">
-                      <table className="min-w-full text-xs">
-                        <thead className="bg-panel">
-                          <tr>
-                            <th className="px-3 py-2 text-left border-b border-border">Regional</th>
-                            <th className="px-3 py-2 text-right border-b border-border">Colaboradores</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {diagResumo.regionaisLista.map(([reg, count]) => (
-                            <tr key={reg} className="odd:bg-panel/40">
-                              <td className="px-3 py-1.5 border-b border-border">
-                                {reg || '—'}
-                              </td>
-                              <td className="px-3 py-1.5 text-right border-b border-border">
-                                {count.toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tabela por Unidade Hospitalar */}
-            {state.regional && unidadesData && unidadesData.length > 0 && (
-              <div className="space-y-2 mt-6">
-                <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
-                  Diagnóstico por Unidade Hospitalar
-                </p>
-                <div className="overflow-x-auto rounded-lg border border-border bg-card">
-                  <table className="min-w-full text-xs">
-                    <thead className="bg-emerald-600 text-white">
-                      <tr>
-                        <th className="px-3 py-2 text-left border-b border-emerald-700">Unidade</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Qte Prevista</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Janeiro</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Fevereiro</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Março</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Abril</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Maio</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Junho</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Julho</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Agosto</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Setembro</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Outubro</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Novembro</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Dezembro</th>
-                        <th className="px-3 py-2 text-right border-b border-emerald-700">Total Realizada</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {unidadesData.map((unidade, idx) => (
-                        <tr key={unidade.unidade} className={idx % 2 === 0 ? 'bg-panel/40' : ''}>
-                          <td className="px-3 py-1.5 border-b border-border font-medium">{unidade.unidade}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.qtePrevista.toLocaleString('pt-BR')}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['01']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['02']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['03']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['04']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['05']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['06']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['07']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['08']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['09']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['10']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['11']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['12']?.toLocaleString('pt-BR') || '0'}</td>
-                          <td className="px-3 py-1.5 text-right border-b border-border font-semibold">{unidade.totalRealizada.toLocaleString('pt-BR')}</td>
-                        </tr>
-                      ))}
-                      {/* Linha TOTAL */}
-                      <tr className="bg-emerald-50 dark:bg-emerald-900/20 font-semibold">
-                        <td className="px-3 py-1.5 border-t-2 border-emerald-600">TOTAL</td>
-                        <td className="px-3 py-1.5 text-right border-t-2 border-emerald-600">
-                          {unidadesData.reduce((acc, u) => acc + u.qtePrevista, 0).toLocaleString('pt-BR')}
-                        </td>
-                        {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(mes => (
-                          <td key={mes} className="px-3 py-1.5 text-right border-t-2 border-emerald-600">
-                            {unidadesData.reduce((acc, u) => acc + (u.meses[mes] || 0), 0).toLocaleString('pt-BR')}
-                          </td>
-                        ))}
-                        <td className="px-3 py-1.5 text-right border-t-2 border-emerald-600">
-                          {unidadesData.reduce((acc, u) => acc + u.totalRealizada, 0).toLocaleString('pt-BR')}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : unidadesData === null ? (
+            <div className="rounded-xl border border-border bg-panel p-8 text-center">
+              <p className="text-muted text-sm">Carregando dados...</p>
+            </div>
+          ) : unidadesData.length === 0 ? (
+            <div className="rounded-xl border border-border bg-panel p-8 text-center">
+              <p className="text-muted text-sm">
+                Nenhuma unidade encontrada para a Regional selecionada.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border bg-card">
+              <table className="min-w-full text-xs">
+                <thead className="bg-emerald-600 text-white">
+                  <tr>
+                    <th className="px-3 py-2 text-left border-b border-emerald-700 font-semibold">Unidade</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Qte Prevista</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Janeiro</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Fevereiro</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Março</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Abril</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Maio</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Junho</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Julho</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Agosto</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Setembro</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Outubro</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Novembro</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Dezembro</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Total Realizada</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unidadesData.map((unidade, idx) => (
+                    <tr key={unidade.unidade} className={idx % 2 === 0 ? 'bg-panel/40' : 'bg-card'}>
+                      <td className="px-3 py-2 border-b border-border font-medium text-text">{unidade.unidade}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.qtePrevista.toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['01']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['02']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['03']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['04']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['05']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['06']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['07']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['08']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['09']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['10']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['11']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['12']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-right border-b border-border font-semibold text-text">{unidade.totalRealizada.toLocaleString('pt-BR')}</td>
+                    </tr>
+                  ))}
+                  {/* Linha TOTAL */}
+                  <tr className="bg-emerald-50 dark:bg-emerald-900/20 font-semibold">
+                    <td className="px-3 py-2 border-t-2 border-emerald-600 text-text">TOTAL</td>
+                    <td className="px-3 py-2 text-right border-t-2 border-emerald-600 text-text">
+                      {unidadesData.reduce((acc, u) => acc + u.qtePrevista, 0).toLocaleString('pt-BR')}
+                    </td>
+                    {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(mes => (
+                      <td key={mes} className="px-3 py-2 text-right border-t-2 border-emerald-600 text-text">
+                        {unidadesData.reduce((acc, u) => acc + (u.meses[mes] || 0), 0).toLocaleString('pt-BR')}
+                      </td>
+                    ))}
+                    <td className="px-3 py-2 text-right border-t-2 border-emerald-600 text-text">
+                      {unidadesData.reduce((acc, u) => acc + u.totalRealizada, 0).toLocaleString('pt-BR')}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

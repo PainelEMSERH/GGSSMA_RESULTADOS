@@ -138,9 +138,10 @@ export async function GET(req: Request) {
       }
 
       // Processa entregas por mês (apenas obrigatórios)
+      // IMPORTANTE: Soma apenas EPIs obrigatórios entregues, baseado no campo deliveries JSONB
       for (const entrega of entregas) {
         const item = String(entrega.item || '').trim();
-        if (!item || !isEpiObrigatorio(item)) continue;
+        if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios contam
 
         const deliveries = Array.isArray(entrega.deliveries) ? entrega.deliveries : [];
         
@@ -150,9 +151,15 @@ export async function GET(req: Request) {
           const dateStr = String(del.date).substring(0, 10);
           const [year, month] = dateStr.split('-');
           
+          // Valida formato de data
+          if (!year || !month || year.length !== 4 || month.length !== 2) continue;
+          
           if (parseInt(year, 10) === ano) {
             const mesKey = month.padStart(2, '0');
-            meses[mesKey] = (meses[mesKey] || 0) + Number(del.qty || 0);
+            const qty = Number(del.qty || 0);
+            if (qty > 0) {
+              meses[mesKey] = (meses[mesKey] || 0) + qty;
+            }
           }
         }
       }
