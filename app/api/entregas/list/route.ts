@@ -85,7 +85,13 @@ async function fetchRawRows(origin: string, page: number, limit: number, req: Re
   if (!r.ok) throw new Error(`alterdata/raw-rows ${r.status}`);
   const data = await r.json().catch(()=>({}));
   const rows = Array.isArray(data?.rows) ? data.rows : [];
-  const flat = rows.map((it: any) => ({ row_no: it.row_no, ...(it.data || {}) }));
+  // Achatamento: se tem data (JSONB), espalha; senão usa o objeto direto
+  const flat = rows.map((it: any) => {
+    if (it.data && typeof it.data === 'object') {
+      return { row_no: it.row_no, ...it.data };
+    }
+    return { row_no: it.row_no, ...it };
+  });
   const total = Number(data?.total || flat.length);
   const lim = Number(data?.limit || limit);
   return { rows: flat, total, limit: lim };
@@ -207,41 +213,84 @@ async function tryFastList(
   try {
     const DEMISSAO_LIMITE = '2026-01-01'; // Colaboradores ativos em 2026 ou demitidos após 01/01/2026
 
+    // Verifica se stg_alterdata_v2 existe
+    const hasTable: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_alterdata_v2'
+      ) AS exists
+    `);
+    
+    if (!hasTable?.[0]?.exists) {
+      return null; // Tabela não existe, usa fallback
+    }
+
+    // Verifica se stg_unid_reg existe
+    const hasUnidReg: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_unid_reg'
+      ) AS exists
+    `);
+    const useJoin = hasUnidReg?.[0]?.exists;
+
     const wh: string[] = [];
     const regTrim = (regional || '').trim();
     const uniTrim = (unidade || '').trim();
 
-    if (regTrim) {
-      wh.push(`regional = '${esc(regTrim)}'`);
+    if (regTrim && useJoin) {
+      wh.push(`UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${esc(regTrim)}'))`);
     }
-    if (uniTrim) {
-      wh.push(`unidade = '${esc(uniTrim)}'`);
+    if (uniTrim && useJoin) {
+      wh.push(`UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${esc(uniTrim)}'))`);
     }
 
     // Aplica regra de demissão direto no banco: mantém sem demissão ou demitidos a partir de 2026
-    wh.push(`(demissao IS NULL OR demissao = '' OR demissao >= '${DEMISSAO_LIMITE}')`);
+    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR a.demissao >= '${DEMISSAO_LIMITE}')`);
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
     const offset = (page - 1) * pageSize;
 
-    const rowsSql = `
-      SELECT
-        cpf,
-        nome,
-        funcao,
-        cargo,
-        unidade,
-        regional,
-        demissao
-      FROM mv_alterdata_flat
+    // Busca direto de stg_alterdata_v2 com JOIN em stg_unid_reg para pegar unidade e regional
+    const rowsSql = useJoin ? `
+      SELECT DISTINCT
+        COALESCE(a.cpf, '') AS cpf,
+        COALESCE(a.colaborador, '') AS nome,
+        COALESCE(a.funcao, '') AS funcao,
+        COALESCE(a.funcao, '') AS cargo,
+        COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade,
+        COALESCE(NULLIF(TRIM(u.regional_responsavel), ''), '') AS regional,
+        COALESCE(a.demissao, '') AS demissao
+      FROM stg_alterdata_v2 a
+      LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
-      ORDER BY nome ASC
+      ORDER BY a.colaborador ASC
+      LIMIT ${pageSize} OFFSET ${offset}
+    ` : `
+      SELECT
+        COALESCE(cpf, '') AS cpf,
+        COALESCE(colaborador, '') AS nome,
+        COALESCE(funcao, '') AS funcao,
+        COALESCE(funcao, '') AS cargo,
+        COALESCE(unidade_hospitalar, '') AS unidade,
+        '' AS regional,
+        COALESCE(demissao, '') AS demissao
+      FROM stg_alterdata_v2
+      ${whereSql}
+      ORDER BY colaborador ASC
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
-    const countSql = `
+    const countSql = useJoin ? `
+      SELECT COUNT(DISTINCT a.cpf)::int AS total
+      FROM stg_alterdata_v2 a
+      LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+      ${whereSql}
+    ` : `
       SELECT COUNT(*)::int AS total
-      FROM mv_alterdata_flat
+      FROM stg_alterdata_v2
       ${whereSql}
     `;
 
@@ -261,27 +310,25 @@ async function tryFastList(
       .map((r: any) => {
         const idRaw = r.cpf ?? r.CPF ?? '';
         const id = onlyDigits(idRaw).slice(-11);
-        const nome = String(r.nome ?? r.NOME ?? '');
-        const func = String(r.funcao ?? r.cargo ?? r.FUNCAO ?? r.CARGO ?? '');
+        const nome = String(r.nome ?? r.colaborador ?? r.NOME ?? '').trim();
+        const func = String(r.funcao ?? r.cargo ?? r.FUNCAO ?? r.CARGO ?? '').trim();
         
-        // Busca unidade de várias formas (case-insensitive)
+        // Busca unidade: vem do JOIN (nmdepartamento) ou da tabela (unidade_hospitalar)
         let un = '';
-        const unKeys = ['unidade', 'UNIDADE', 'Unidade', 'unidade_hospitalar', 'UNIDADE_HOSPITALAR', 'lotacao', 'LOTACAO', 'setor', 'SETOR'];
-        for (const key of unKeys) {
-          if (r[key] && String(r[key]).trim()) {
-            un = String(r[key]).trim();
-            break;
-          }
+        if (r.unidade && String(r.unidade).trim()) {
+          un = String(r.unidade).trim();
+        } else if (r.nmdepartamento && String(r.nmdepartamento).trim()) {
+          un = String(r.nmdepartamento).trim();
+        } else if (r.unidade_hospitalar && String(r.unidade_hospitalar).trim()) {
+          un = String(r.unidade_hospitalar).trim();
         }
 
-        // Busca regional de várias formas, depois tenta mapear pela unidade
+        // Busca regional: vem do JOIN (regional_responsavel)
         let reg = '';
-        const regKeys = ['regional', 'REGIONAL', 'Regional', 'regiao', 'REGIAO', 'gerencia', 'GERENCIA'];
-        for (const key of regKeys) {
-          if (r[key] && String(r[key]).trim()) {
-            reg = String(r[key]).trim();
-            break;
-          }
+        if (r.regional && String(r.regional).trim()) {
+          reg = String(r.regional).trim();
+        } else if (r.regional_responsavel && String(r.regional_responsavel).trim()) {
+          reg = String(r.regional_responsavel).trim();
         }
         
         // Se não encontrou regional, tenta mapear pela unidade
@@ -337,12 +384,12 @@ export async function GET(req: Request) {
     let acc = mirror.rows.slice();
 
     // 2) Detecta chaves - prioriza nomes exatos primeiro
-    const cpfKey  = pickKeyByName(acc, ['cpf','CPF','matric','matricula','Matrícula','cpffunc','cpffuncionario']);
-    const nomeKey = pickKeyByName(acc, ['nome','Nome','colab','Colaborador','colaborador','funcionario']);
-    const funcKey = pickKeyByName(acc, ['funcao','Função','func','cargo','Cargo','FUNCAO','CARGO']);
-    const unidKey = pickKeyByName(acc, ['unidade','Unidade','unidade_hospitalar','Unidade Hospitalar','unid','lotac','setor','hosp','posto','local','UNIDADE']);
-    const regKey  = pickKeyByName(acc, ['regional','Regional','regiao','região','gerencia','REGIONAL']); // se existir direto no dataset
-    const demKey  = pickKeyByName(acc, ['demissao','Demissão','demiss','dt_demissao','demissao_colab','DEMISSAO']);
+    const cpfKey  = pickKeyByName(acc, ['cpf','CPF','matric','matricula','Matrícula','Matricula','MATRICULA','cpffunc','cpffuncionario']);
+    const nomeKey = pickKeyByName(acc, ['colaborador','Colaborador','COLABORADOR','nome','Nome','NOME','colab','funcionario']);
+    const funcKey = pickKeyByName(acc, ['funcao','Função','FUNÇÃO','FUNCAO','func','cargo','Cargo','CARGO']);
+    const unidKey = pickKeyByName(acc, ['unidade_hospitalar','Unidade Hospitalar','UNIDADE_HOSPITALAR','unidade','Unidade','UNIDADE','unid','lotac','lotacao','LOTACAO','setor','hosp','posto','local','nmdepartamento','NMDEPARTAMENTO','departamento','DEPARTAMENTO']);
+    const regKey  = pickKeyByName(acc, ['regional','Regional','regiao','região','REGIAO','gerencia','GERENCIA','REGIONAL','regional_responsavel','REGIONAL_RESPONSAVEL']);
+    const demKey  = pickKeyByName(acc, ['demissao','Demissão','DEMISSÃO','DEMISSAO','demiss','dt_demissao','demissao_colab']);
 
     // 3) Carrega mapa auxiliar unidade -> regional
     const unidDBMap = await loadUnidMapFromDB();
@@ -353,17 +400,31 @@ export async function GET(req: Request) {
     const DEMISSAO_LIMITE = '2026-01-01'; // Colaboradores ativos em 2026 ou demitidos após 01/01/2026
 
     let rowsAll: InternalRow[] = acc.map((r: any) => {
-      const idRaw = cpfKey ? (r as any)[cpfKey] : '';
+      // CPF: prioriza a chave detectada, depois tenta 'cpf' ou 'CPF'
+      const idRaw = (cpfKey && (r as any)[cpfKey]) 
+        ? String((r as any)[cpfKey]) 
+        : String((r as any)['cpf'] ?? (r as any)['CPF'] ?? '');
       const id = onlyDigits(idRaw).slice(-11);
-      const nome = String((nomeKey && (r as any)[nomeKey]) ?? '');
-      const func = String((funcKey && (r as any)[funcKey]) ?? '');
-      // Busca unidade de várias formas possíveis
+      
+      // Nome: prioriza a chave detectada, depois tenta 'colaborador' ou 'Colaborador'
+      const nome = (nomeKey && (r as any)[nomeKey]) 
+        ? String((r as any)[nomeKey]).trim()
+        : String((r as any)['colaborador'] ?? (r as any)['Colaborador'] ?? (r as any)['nome'] ?? (r as any)['Nome'] ?? '').trim();
+      
+      // Função: prioriza a chave detectada, depois tenta 'funcao' ou 'Função'
+      const func = (funcKey && (r as any)[funcKey]) 
+        ? String((r as any)[funcKey]).trim()
+        : String((r as any)['funcao'] ?? (r as any)['Função'] ?? (r as any)['cargo'] ?? (r as any)['Cargo'] ?? '').trim();
+      // Busca unidade: prioriza unidade_hospitalar (coluna do stg_alterdata_v2)
       let un = '';
       if (unidKey && (r as any)[unidKey]) {
         un = String((r as any)[unidKey]).trim();
       } else {
-        // Tenta outras chaves comuns
-        const unidHints = ['unidade', 'unid', 'lotacao', 'setor', 'hosp', 'posto', 'local', 'unidade_hospitalar', 'Unidade Hospitalar', 'UNIDADE', 'LOTACAO', 'SETOR'];
+        // Tenta unidade_hospitalar primeiro (coluna real em stg_alterdata_v2)
+        const unidHints = ['unidade_hospitalar', 'Unidade Hospitalar', 'UNIDADE_HOSPITALAR',
+                           'unidade', 'Unidade', 'UNIDADE', 'unid', 'lotacao', 'LOTACAO', 'lotac', 
+                           'setor', 'SETOR', 'hosp', 'posto', 'local', 
+                           'nmdepartamento', 'NMDEPARTAMENTO', 'departamento', 'DEPARTAMENTO'];
         for (const hint of unidHints) {
           if ((r as any)[hint] && String((r as any)[hint]).trim()) {
             un = String((r as any)[hint]).trim();
@@ -371,14 +432,17 @@ export async function GET(req: Request) {
           }
         }
       }
+      
       const demRaw = demKey ? String(((r as any)[demKey] ?? '') as any) : '';
-      // Regional por prioridade: coluna direta -> lib/unidReg -> tabela stg_unid_reg
+      
+      // Regional: primeiro tenta buscar direto, depois mapeia pela unidade
       let reg = '';
       if (regKey && (r as any)[regKey]) {
         reg = String((r as any)[regKey]).trim();
       } else {
-        // Tenta outras chaves comuns
-        const regHints = ['regional', 'regiao', 'gerencia', 'Regional', 'REGIONAL', 'REGIAO', 'GERENCIA'];
+        // Tenta outras chaves comuns (mas geralmente não vem direto do Alterdata)
+        const regHints = ['regional', 'Regional', 'REGIONAL', 'regiao', 'REGIAO', 'região', 
+                          'gerencia', 'GERENCIA', 'regional_responsavel', 'REGIONAL_RESPONSAVEL'];
         for (const hint of regHints) {
           if ((r as any)[hint] && String((r as any)[hint]).trim()) {
             reg = String((r as any)[hint]).trim();
@@ -386,12 +450,15 @@ export async function GET(req: Request) {
           }
         }
       }
+      
       // Se não encontrou regional, tenta mapear pela unidade
       if (!reg && un) {
         const canon = canonUnidade(un);
         reg = (UNID_TO_REGIONAL as any)[canon] || unidDBMap[canon] || '';
       }
+      
       const regOut = prettyRegional(reg);
+      
       return {
         id,
         nome,
