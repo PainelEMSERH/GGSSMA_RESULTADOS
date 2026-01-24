@@ -1,6 +1,7 @@
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { UNID_TO_REGIONAL, canonUnidade } from '@/lib/unidReg';
@@ -240,22 +241,35 @@ async function tryFastList(
     const regTrim = (regional || '').trim();
     const uniTrim = (unidade || '').trim();
 
+    // Filtros de regional e unidade
     if (regTrim && useJoin) {
-      wh.push(`UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${esc(regTrim)}'))`);
+      wh.push(`(UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${esc(regTrim)}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+        SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${esc(regTrim)}'))
+      ))`);
+    } else if (regTrim && !useJoin) {
+      // Sem JOIN, tenta mapear pela unidade usando o mapa em memória
+      // Mas sem JOIN não tem como filtrar por regional, então não filtra
     }
-    if (uniTrim && useJoin) {
-      wh.push(`UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${esc(uniTrim)}'))`);
+    
+    if (uniTrim) {
+      if (useJoin) {
+        wh.push(`(UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${esc(uniTrim)}')) OR UPPER(TRIM(a.unidade_hospitalar)) = UPPER(TRIM('${esc(uniTrim)}')))`);
+      } else {
+        wh.push(`UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${esc(uniTrim)}'))`);
+      }
     }
 
-    // Aplica regra de demissão direto no banco: mantém sem demissão ou demitidos a partir de 2026
-    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR a.demissao >= '${DEMISSAO_LIMITE}')`);
+    // Aplica regra de demissão: mantém sem demissão ou demitidos a partir de 2026
+    // Temporariamente mais permissivo para debug - depois ajustamos
+    // wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
     const offset = (page - 1) * pageSize;
 
     // Busca direto de stg_alterdata_v2 com JOIN em stg_unid_reg para pegar unidade e regional
+    // LEFT JOIN garante que mesmo sem correspondência em stg_unid_reg, os dados aparecem
     const rowsSql = useJoin ? `
-      SELECT DISTINCT
+      SELECT
         COALESCE(a.cpf, '') AS cpf,
         COALESCE(a.colaborador, '') AS nome,
         COALESCE(a.funcao, '') AS funcao,
@@ -270,38 +284,59 @@ async function tryFastList(
       LIMIT ${pageSize} OFFSET ${offset}
     ` : `
       SELECT
-        COALESCE(cpf, '') AS cpf,
-        COALESCE(colaborador, '') AS nome,
-        COALESCE(funcao, '') AS funcao,
-        COALESCE(funcao, '') AS cargo,
-        COALESCE(unidade_hospitalar, '') AS unidade,
+        COALESCE(a.cpf, '') AS cpf,
+        COALESCE(a.colaborador, '') AS nome,
+        COALESCE(a.funcao, '') AS funcao,
+        COALESCE(a.funcao, '') AS cargo,
+        COALESCE(a.unidade_hospitalar, '') AS unidade,
         '' AS regional,
-        COALESCE(demissao, '') AS demissao
-      FROM stg_alterdata_v2
+        COALESCE(a.demissao, '') AS demissao
+      FROM stg_alterdata_v2 a
       ${whereSql}
-      ORDER BY colaborador ASC
+      ORDER BY a.colaborador ASC
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
     const countSql = useJoin ? `
-      SELECT COUNT(DISTINCT a.cpf)::int AS total
+      SELECT COUNT(*)::int AS total
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
     ` : `
       SELECT COUNT(*)::int AS total
-      FROM stg_alterdata_v2
+      FROM stg_alterdata_v2 a
       ${whereSql}
     `;
 
-    const [rowsRaw, totalRes] = await Promise.all([
-      prisma.$queryRawUnsafe<any[]>(rowsSql),
-      prisma.$queryRawUnsafe<any[]>(countSql),
-    ]);
-
-    const total = Number((totalRes as any)?.[0]?.total ?? 0);
-    if (!Array.isArray(rowsRaw)) {
-      return { rows: [], total: 0 };
+    let rowsRaw: any[] = [];
+    let total = 0;
+    
+    try {
+      const [rowsResult, totalResult] = await Promise.all([
+        prisma.$queryRawUnsafe<any[]>(rowsSql),
+        prisma.$queryRawUnsafe<any[]>(countSql),
+      ]);
+      
+      rowsRaw = Array.isArray(rowsResult) ? rowsResult : [];
+      total = Number((totalResult as any)?.[0]?.total ?? 0);
+      
+      console.log('[tryFastList] Resultado:', { 
+        rowsCount: rowsRaw.length, 
+        total, 
+        useJoin,
+        hasTable: hasTable?.[0]?.exists,
+        hasUnidReg: hasUnidReg?.[0]?.exists 
+      });
+    } catch (queryError: any) {
+      console.error('[tryFastList] Erro na query SQL:', queryError?.message || queryError);
+      console.error('[tryFastList] SQL rows:', rowsSql.substring(0, 200));
+      return null; // Retorna null para usar fallback
+    }
+    
+    // Se não retornou dados, retorna null para usar fallback
+    if (!Array.isArray(rowsRaw) || rowsRaw.length === 0) {
+      console.log('[tryFastList] Nenhum resultado, usando fallback');
+      return null;
     }
 
     const unidDBMap = await loadUnidMapFromDB();
@@ -368,15 +403,16 @@ export async function GET(req: Request) {
     const hasQ = !!q.trim();
     if (!hasQ) {
       const fast = await tryFastList(regional, unidade, page, pageSize);
-      if (fast && Array.isArray(fast.rows)) {
+      if (fast && Array.isArray(fast.rows) && fast.rows.length > 0) {
         return NextResponse.json({
           rows: fast.rows,
           total: fast.total,
           page,
           pageSize,
-          source: 'mv_alterdata_flat',
+          source: 'stg_alterdata_v2+join',
         });
       }
+      // Se fast retornou null ou vazio, continua com fallback
     }
 
     // 1) Carrega todas as páginas do raw-rows (com cache em memória)
