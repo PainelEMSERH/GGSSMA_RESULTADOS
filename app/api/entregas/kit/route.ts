@@ -57,14 +57,18 @@ export async function GET(req: NextRequest) {
 
     // Resolve a melhor função usando Matcher Inteligente (Alias, Motorista, etc)
     let finalFuncKey = funcKey;
+    let targetFuncName = funcaoRaw; // Nome da função para buscar no banco
     try {
       const allFunctionsRaw = await prisma.$queryRawUnsafe<any[]>(`
-        SELECT DISTINCT alterdata_funcao FROM stg_epi_map WHERE alterdata_funcao IS NOT NULL
+        SELECT DISTINCT COALESCE(funcao_normalizada, alterdata_funcao) AS func_name 
+        FROM stg_epi_map 
+        WHERE alterdata_funcao IS NOT NULL
       `);
-      const allFunctions = allFunctionsRaw.map(f => f.alterdata_funcao);
+      const allFunctions = allFunctionsRaw.map(f => f.func_name).filter(Boolean);
       
       const matchedFunc = findBestFunctionMatch(funcaoRaw, allFunctions);
       if (matchedFunc) {
+        targetFuncName = matchedFunc;
         finalFuncKey = normFuncKey(matchedFunc);
         if (finalFuncKey !== funcKey) {
           console.log(`[Kit API] Match de função: "${funcaoRaw}" -> "${matchedFunc}"`);
@@ -74,166 +78,105 @@ export async function GET(req: NextRequest) {
       console.warn('[Kit API] Erro ao buscar lista de funções para match:', err);
     }
 
-    // Busca PCG da unidade hospitalar
-    const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
-    let pcgUnidade: string | null = null;
-    let pcgHospitalIlha: string | null = null;
-    
-    // Busca PCG do HOSPITAL DA ILHA (sempre necessário para fallback)
-    try {
-      let fallbackResult: any[] = await prisma.$queryRawUnsafe(`
-        SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-        FROM stg_epi_map
-        WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
-          AND COALESCE(codigo_alterdata, '') != ''
-        LIMIT 1
-      `);
-      
-      // Se não achar exato, tenta com LIKE
-      if (!fallbackResult.length) {
-        console.log('[Kit API] Fallback exato não encontrado, tentando LIKE...');
-        fallbackResult = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL DA ILHA%'
-            AND COALESCE(codigo_alterdata, '') != ''
-          LIMIT 1
-        `);
-      }
-      
-      // Rede de segurança: Se ainda não achou Hospital da Ilha, pega QUALQUER Hospital (exceto SVO)
-      if (!fallbackResult.length) {
-        console.log('[Kit API] Fallback Hospital da Ilha não encontrado, tentando qualquer HOSPITAL...');
-        fallbackResult = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL%'
-            AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%SVO%'
-            AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%VERIFICA%'
-            AND COALESCE(codigo_alterdata, '') != ''
-          LIMIT 1
-        `);
-      }
-
-      if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
-        pcgHospitalIlha = String(fallbackResult[0].pcg).trim();
-        console.log(`[Kit API] PCG do Hospital da Ilha encontrado: ${pcgHospitalIlha}`);
-      } else {
-        console.warn('[Kit API] CRÍTICO: PCG do Hospital da Ilha NÃO encontrado nem com LIKE.');
-      }
-    } catch (e) {
-      console.warn('[Kit API] Erro ao buscar PCG de HOSPITAL DA ILHA:', e);
-    }
-
-    // Busca PCG da unidade solicitada usando Matcher Inteligente
+    // Busca unidade correspondente (se houver)
+    let matchedUnit: string | null = null;
     if (unidadeRaw) {
       try {
-        // 1. Busca todas as unidades do mapa para comparar
         const allUnits = await prisma.$queryRawUnsafe<any[]>(`
-          SELECT DISTINCT unidade_hospitalar FROM stg_epi_map WHERE unidade_hospitalar IS NOT NULL
+          SELECT DISTINCT unidade_hospitalar FROM stg_epi_map 
+          WHERE unidade_hospitalar IS NOT NULL AND unidade_hospitalar != ''
         `);
-        const unitList = allUnits.map(u => u.unidade_hospitalar);
-        
-        // 2. Encontra o nome correto no banco
-        const matchedUnit = findBestUnitMatch(unidadeRaw, unitList);
-        
+        const unitList = allUnits.map(u => u.unidade_hospitalar).filter(Boolean);
+        matchedUnit = findBestUnitMatch(unidadeRaw, unitList);
         if (matchedUnit) {
           console.log(`[Kit API] Match de unidade: "${unidadeRaw}" -> "${matchedUnit}"`);
-          
-          // 3. Busca o PCG usando o nome encontrado
-          const pcgResult: any[] = await prisma.$queryRawUnsafe(`
-            SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-            FROM stg_epi_map
-            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${matchedUnit.replace(/'/g, "''")}'))
-              AND COALESCE(codigo_alterdata, '') != ''
-            LIMIT 1
-          `);
-          
-          if (pcgResult.length > 0 && pcgResult[0].pcg) {
-            pcgUnidade = String(pcgResult[0].pcg).trim();
-            console.log(`[Kit API] PCG encontrado para unidade match: ${pcgUnidade}`);
-          }
-        } else {
-          console.warn(`[Kit API] Nenhuma unidade correspondente encontrada no banco para: "${unidadeRaw}"`);
         }
-      } catch (pcgError) {
-        console.warn('[Kit API] Erro ao buscar PCG da unidade:', pcgError);
+      } catch (e) {
+        console.warn('[Kit API] Erro ao buscar unidades:', e);
       }
     }
-    
-    // Define o PCG alvo: da unidade ou o fallback (Hospital da Ilha)
-    const targetPcg = pcgUnidade || pcgHospitalIlha;
-    
-    console.log(`[Kit API] Unidade: "${unidadeRaw}", PCG Unidade: ${pcgUnidade}, PCG Fallback: ${pcgHospitalIlha}, Target: ${targetPcg}`);
 
-    // Busca todos os kits da função (com PCG)
+    // Busca kits usando a NOVA estrutura
+    // Prioridade:
+    // 1. Função normalizada + Unidade específica
+    // 2. Função normalizada + PCG UNIVERSAL
+    // 3. Função alterdata + Unidade específica
+    // 4. Função alterdata + PCG UNIVERSAL
     const rows: any[] = await prisma.$queryRawUnsafe(
       `
       SELECT
-        COALESCE(codigo_alterdata::text, '') AS pcg,
-        COALESCE(alterdata_funcao::text, '') AS func,
-        COALESCE(nome_site::text, '')        AS site,
-        COALESCE(unidade_hospitalar::text, '') AS unidade_hosp,
-        COALESCE(epi_item::text, '')         AS item,
-        COALESCE(quantidade::numeric, 1)     AS qtd
+        COALESCE(funcao_normalizada, alterdata_funcao, '') AS func_normalizada,
+        COALESCE(alterdata_funcao, '') AS func_alterdata,
+        COALESCE(epi_item, '') AS item,
+        COALESCE(quantidade::numeric, 0) AS qtd,
+        COALESCE(pcg, '') AS pcg,
+        COALESCE(unidade_hospitalar, '') AS unidade_hosp
       FROM stg_epi_map
+      WHERE (
+        UPPER(TRIM(COALESCE(funcao_normalizada, ''))) = UPPER(TRIM('${targetFuncName.replace(/'/g, "''")}'))
+        OR UPPER(TRIM(COALESCE(alterdata_funcao, ''))) = UPPER(TRIM('${funcaoRaw.replace(/'/g, "''")}'))
+      )
       `
     );
 
-    // Prioridade 1: Função + PCG alvo + unidade específica
-    const porUnidadeComPcg: KitRow[] = [];
-    // Prioridade 2: Função + PCG alvo (genérico do PCG)
-    const porPcgGenerico: KitRow[] = [];
-    // Prioridade 3: Função + PCG Hospital da Ilha (se diferente do alvo)
-    const porPcgFallback: KitRow[] = [];
+    // Filtra e prioriza os resultados
+    const porUnidadeEspecifica: KitRow[] = [];
+    const porPcgUniversal: KitRow[] = [];
+    const porUnidadeGenerica: KitRow[] = [];
 
     for (const r of rows) {
-      const fKey = normFuncKey(r.func);
-      if (!fKey || fKey !== finalFuncKey) continue;
-
       const itemName = String(r.item || '').trim();
-      if (!itemName) continue;
+      if (!itemName || itemName.toUpperCase() === 'SEM EPI') continue; // Ignora "SEM EPI"
 
-      const qtd = Number(r.qtd || 1) || 1;
+      const qtd = Number(r.qtd || 0);
+      if (qtd <= 0) continue; // Ignora quantidade zero
+
       const pcg = String(r.pcg || '').trim();
-      const site = String(r.site || '').trim();
       const unidadeHosp = String(r.unidade_hosp || '').trim();
-      const siteKey = site ? normUnidKey(site) : '';
-      const unidadeHospKey = unidadeHosp ? normUnidKey(unidadeHosp) : '';
+      const funcNorm = String(r.func_normalizada || '').trim();
+      const funcAlt = String(r.func_alterdata || '').trim();
+
+      // Verifica se a função bate (prioriza normalizada)
+      const funcMatch = 
+        (funcNorm && normFuncKey(funcNorm) === finalFuncKey) ||
+        (funcAlt && normFuncKey(funcAlt) === finalFuncKey);
+      
+      if (!funcMatch) continue;
 
       const base: KitRow = {
         item: itemName,
         quantidade: qtd,
-        nome_site: site || null,
+        nome_site: null,
       };
 
-      // Prioridade 1: Unidade específica (Ignora PCG, pois a unidade pode ter multiplos PCGs)
-      if (unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
-        porUnidadeComPcg.push(base);
+      // Prioridade 1: Unidade específica (se unidade foi informada e bate)
+      if (matchedUnit && unidadeHosp && normUnidKey(unidadeHosp) === normUnidKey(matchedUnit)) {
+        porUnidadeEspecifica.push(base);
       }
-      // Prioridade 2: PCG alvo (genérico, para outras unidades usarem este PCG)
-      else if (targetPcg && pcg === targetPcg) {
-        porPcgGenerico.push(base);
+      // Prioridade 2: PCG UNIVERSAL (fallback global)
+      else if (pcg === 'PCG UNIVERSAL') {
+        porPcgUniversal.push(base);
       }
-      // Prioridade 3: PCG Hospital da Ilha (fallback se função não existir no alvo)
-      else if (pcgHospitalIlha && pcg === pcgHospitalIlha) {
-        porPcgFallback.push(base);
+      // Prioridade 3: Outra unidade (genérico, mas não universal)
+      else if (unidadeHosp) {
+        porUnidadeGenerica.push(base);
       }
     }
 
     // Escolhe a fonte conforme prioridade
     let fonte: KitRow[];
-    if (porUnidadeComPcg.length > 0) {
-      fonte = porUnidadeComPcg;
-      console.log(`[Kit API] Usando kit específico da unidade com PCG ${targetPcg} (${porUnidadeComPcg.length} itens)`);
-    } else if (porPcgGenerico.length > 0) {
-      fonte = porPcgGenerico;
-      console.log(`[Kit API] Usando kit genérico do PCG ${targetPcg} (${porPcgGenerico.length} itens)`);
-    } else if (porPcgFallback.length > 0) {
-      fonte = porPcgFallback;
-      console.log(`[Kit API] Usando kit fallback do PCG ${pcgHospitalIlha} (${porPcgFallback.length} itens)`);
+    if (porUnidadeEspecifica.length > 0) {
+      fonte = porUnidadeEspecifica;
+      console.log(`[Kit API] Usando kit específico da unidade "${matchedUnit}" (${porUnidadeEspecifica.length} itens)`);
+    } else if (porPcgUniversal.length > 0) {
+      fonte = porPcgUniversal;
+      console.log(`[Kit API] Usando kit PCG UNIVERSAL (${porPcgUniversal.length} itens)`);
+    } else if (porUnidadeGenerica.length > 0) {
+      fonte = porUnidadeGenerica;
+      console.log(`[Kit API] Usando kit genérico de outra unidade (${porUnidadeGenerica.length} itens)`);
     } else {
       fonte = [];
+      console.log(`[Kit API] Nenhum kit encontrado para "${funcaoRaw}"`);
     }
 
     // Remove duplicatas de item (pega maior quantidade)
