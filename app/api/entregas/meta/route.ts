@@ -58,23 +58,28 @@ export async function GET(req: Request) {
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 
-    // Busca colaboradores e seus kits esperados
+    // Busca colaboradores e seus kits esperados (agrupa por CPF para evitar duplicatas)
     const sql = useJoin ? `
-      SELECT DISTINCT
+      SELECT 
         COALESCE(a.cpf, '') AS cpf,
-        COALESCE(a.funcao, '') AS funcao
+        MAX(COALESCE(a.funcao, '')) AS funcao
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
+      AND COALESCE(a.cpf, '') != ''
+      GROUP BY COALESCE(a.cpf, '')
     ` : `
-      SELECT DISTINCT
+      SELECT 
         COALESCE(a.cpf, '') AS cpf,
-        COALESCE(a.funcao, '') AS funcao
+        MAX(COALESCE(a.funcao, '')) AS funcao
       FROM stg_alterdata_v2 a
       ${whereSql}
+      AND COALESCE(a.cpf, '') != ''
+      GROUP BY COALESCE(a.cpf, '')
     `;
 
     const colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
+    console.log(`[Meta API] Colaboradores únicos encontrados: ${colaboradores.length}`);
 
     // Busca kits esperados por função (apenas EPIs obrigatórios)
     let totalMeta = 0;
@@ -108,30 +113,51 @@ export async function GET(req: Request) {
         }
       }
 
-      // Para cada colaborador, busca seu kit baseado na função
+      // Mapa de função -> kit (para evitar buscar múltiplas vezes e duplicar)
+      const kitPorFuncao = new Map<string, Array<{ item: string; qtd: number }>>();
+      const cpfsProcessados = new Set<string>();
+      
+      // Para cada colaborador, busca seu kit baseado na função (apenas uma vez por CPF)
       for (const colab of colaboradores) {
         const cpf = String(colab.cpf || '').replace(/\D/g, '').slice(-11);
         const funcao = String(colab.funcao || '').trim();
-        if (!cpf || !funcao) continue;
+        
+        // Evita processar o mesmo CPF duas vezes (pode ter duplicatas)
+        if (cpf && cpfsProcessados.has(cpf)) continue;
+        if (cpf) cpfsProcessados.add(cpf);
+        
+        if (!funcao) continue;
 
-        // Busca kit do colaborador pela função (apenas obrigatórios)
-        const kitColab = kitRows.filter((r: any) => {
-          const rFuncao = String(r.funcao || '').trim();
-          const item = String(r.item || '').trim();
-          // Se tem cpf na resposta, compara por cpf; senão compara por função
-          if (r.cpf) {
-            const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
-            return rCpf === cpf && item && isEpiObrigatorio(item);
-          } else {
-            return rFuncao === funcao && item && isEpiObrigatorio(item);
-          }
-        });
+        // Busca kit da função (usa cache)
+        let kitColab: Array<{ item: string; qtd: number }> = [];
+        if (kitPorFuncao.has(funcao)) {
+          kitColab = kitPorFuncao.get(funcao)!;
+        } else {
+          // Busca kit do colaborador pela função (apenas obrigatórios)
+          kitColab = kitRows
+            .filter((r: any) => {
+              const rFuncao = String(r.funcao || '').trim();
+              const item = String(r.item || '').trim();
+              // Se tem cpf na resposta, compara por cpf; senão compara por função
+              if (r.cpf) {
+                const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
+                return rCpf === cpf && item && isEpiObrigatorio(item);
+              } else {
+                return rFuncao === funcao && item && isEpiObrigatorio(item);
+              }
+            })
+            .map((r: any) => ({
+              item: String(r.item || '').trim(),
+              qtd: Number(r.qtd || 0)
+            }));
+          
+          kitPorFuncao.set(funcao, kitColab);
+        }
 
-        // Soma quantidade de EPIs obrigatórios
+        // Soma quantidade de EPIs obrigatórios (uma vez por colaborador)
         for (const item of kitColab) {
-          const qtd = Number(item.qtd || 0);
-          if (qtd > 0) {
-            totalMeta += qtd;
+          if (item.qtd > 0) {
+            totalMeta += item.qtd;
           }
         }
       }

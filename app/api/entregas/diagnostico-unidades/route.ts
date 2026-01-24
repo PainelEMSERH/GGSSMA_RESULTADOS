@@ -129,6 +129,12 @@ export async function GET(req: Request) {
       );
     `);
 
+    // Busca todas as entregas de uma vez (otimização de performance)
+    const todasEntregas = await prisma.$queryRawUnsafe<any[]>(`
+      SELECT cpf, item, deliveries
+      FROM epi_entregas
+    `).catch(() => []);
+
     // Para cada unidade, calcula meta e entregas por mês
     const unidades: Array<{
       unidade: string;
@@ -161,16 +167,22 @@ export async function GET(req: Request) {
       if (cpfs.length === 0) continue;
 
       // Calcula meta (Qte Prevista) - soma de EPIs obrigatórios
-      // Busca função dos colaboradores da unidade
+      // IMPORTANTE: Soma apenas uma vez por colaborador único (por CPF), não duplica
+      let qtePrevista = 0;
+      const cpfsProcessados = new Set<string>();
+      
+      // Busca função dos colaboradores da unidade (agrupa por CPF para evitar duplicatas)
       const cpfsComFuncaoSql = `
-        SELECT DISTINCT 
+        SELECT 
           COALESCE(a.cpf, '') AS cpf,
-          COALESCE(a.funcao, '') AS funcao
+          MAX(COALESCE(a.funcao, '')) AS funcao
         FROM stg_alterdata_v2 a
         LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
         WHERE (UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')) 
                OR UPPER(TRIM(a.unidade_hospitalar)) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')))
           AND (a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')
+          AND COALESCE(a.cpf, '') != ''
+        GROUP BY COALESCE(a.cpf, '')
       `;
       
       let cpfsComFuncao: any[] = [];
@@ -180,44 +192,53 @@ export async function GET(req: Request) {
         console.error(`Erro ao buscar CPFs com função da unidade ${unidadeNome}:`, err);
       }
       
-      let qtePrevista = 0;
+      // Mapa de função -> kit (para evitar buscar múltiplas vezes)
+      const kitPorFuncao = new Map<string, number>(); // Armazena soma total do kit da função
+      
       for (const colab of cpfsComFuncao) {
         const cpf = String(colab.cpf || '').replace(/\D/g, '').slice(-11);
         const funcao = String(colab.funcao || '').trim();
-        if (!cpf && !funcao) continue;
-
-        // Busca kit do colaborador (por CPF se disponível, senão por função)
-        const kitColab = kitRows.filter((r: any) => {
-          const item = String(r.item || '').trim();
-          if (!item || !isEpiObrigatorio(item)) return false;
-          
-          if (r.cpf) {
-            const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
-            return rCpf === cpf;
-          } else if (r.funcao) {
-            const rFuncao = String(r.funcao || '').trim();
-            return rFuncao === funcao;
-          }
-          return false;
-        });
         
-        for (const item of kitColab) {
-          qtePrevista += Number(item.qtd || 0);
+        // Evita processar o mesmo CPF duas vezes (garantia extra)
+        if (cpf && cpfsProcessados.has(cpf)) {
+          console.log(`[Diagnóstico] CPF duplicado ignorado: ${cpf}`);
+          continue;
         }
-      }
+        if (cpf) cpfsProcessados.add(cpf);
+        
+        if (!funcao) continue;
 
-      // Busca entregas da unidade
-      let entregas: any[] = [];
-      try {
-        entregas = await prisma.$queryRawUnsafe<any[]>(`
-          SELECT cpf, item, deliveries
-          FROM epi_entregas
-          WHERE cpf = ANY($1::text[])
-        `, cpfs);
-      } catch (entregaError) {
-        console.error(`Erro ao buscar entregas da unidade ${unidadeNome}:`, entregaError);
-        // Continua sem entregas, mas vai retornar meses zerados
+        // Busca soma do kit da função (cache)
+        let somaKitFuncao = 0;
+        if (kitPorFuncao.has(funcao)) {
+          somaKitFuncao = kitPorFuncao.get(funcao)!;
+        } else {
+          // Busca kit do colaborador (por função) e soma
+          const kitColab = kitRows
+            .filter((r: any) => {
+              const item = String(r.item || '').trim();
+              if (!item || !isEpiObrigatorio(item)) return false;
+              
+              const rFuncao = String(r.funcao || '').trim();
+              return rFuncao === funcao;
+            });
+          
+          // Soma quantidade de EPIs obrigatórios do kit da função
+          somaKitFuncao = kitColab.reduce((acc, r) => acc + Number(r.qtd || 0), 0);
+          kitPorFuncao.set(funcao, somaKitFuncao);
+        }
+        
+        // Soma o kit completo do colaborador (uma vez por CPF)
+        qtePrevista += somaKitFuncao;
       }
+      
+      console.log(`[Diagnóstico] Unidade ${unidadeNome}: ${cpfsProcessados.size} colaboradores únicos, meta = ${qtePrevista}`);
+
+      // Filtra entregas da unidade (já carregadas acima)
+      const entregas = todasEntregas.filter((e: any) => {
+        const eCpf = String(e.cpf || '').replace(/\D/g, '').slice(-11);
+        return cpfs.includes(eCpf);
+      });
 
       // Inicializa meses
       const meses: Record<string, number> = {};

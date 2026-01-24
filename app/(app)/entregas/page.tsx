@@ -778,32 +778,25 @@ const visibleRows = useMemo(() => {
               </div>
             </div>
 
-            {/* Botões mensais */}
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
-              <button
-                onClick={() => setMesSelecionado(null)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  !mesSelecionado
-                    ? 'bg-emerald-600 text-white dark:bg-emerald-500'
-                    : 'bg-panel border border-border text-text hover:bg-muted'
-                }`}
-              >
-                Qte Prevista
-              </button>
-              {meses.map((mes, idx) => (
-                <button
-                  key={mes}
-                  onClick={() => setMesSelecionado(mesSelecionado === mes ? null : mes)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    mesSelecionado === mes
-                      ? 'bg-emerald-600 text-white dark:bg-emerald-500'
-                      : 'bg-panel border border-border text-text hover:bg-muted'
-                  }`}
-                  title={`${mesesNomes[idx]}: ${(progressoFiltrado[mes] || 0).toLocaleString('pt-BR')} itens entregues`}
-                >
-                  {mesesNomes[idx]}
-                </button>
-              ))}
+            {/* Botões mensais - alinhados com as colunas acima */}
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <div className="w-20"></div>
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {meses.map((mes, idx) => (
+                  <button
+                    key={mes}
+                    onClick={() => setMesSelecionado(mesSelecionado === mes ? null : mes)}
+                    className={`px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
+                      mesSelecionado === mes
+                        ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                        : 'bg-panel border border-border text-text hover:bg-muted'
+                    }`}
+                    title={`${mesesNomes[idx]}: ${(progressoFiltrado[mes] || 0).toLocaleString('pt-BR')} itens entregues`}
+                  >
+                    {mesesNomes[idx].substring(0, 3)}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         );
