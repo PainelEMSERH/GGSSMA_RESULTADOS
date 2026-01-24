@@ -58,115 +58,145 @@ export async function GET(req: Request) {
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 
-    // Busca colaboradores e seus kits esperados (agrupa por CPF para evitar duplicatas)
+    // Busca TODOS os colaboradores (sem GROUP BY - mantém duplicatas se CPF aparecer 2x)
     const sql = useJoin ? `
       SELECT 
         COALESCE(a.cpf, '') AS cpf,
-        MAX(COALESCE(a.funcao, '')) AS funcao
+        COALESCE(a.funcao, '') AS funcao,
+        COALESCE(a.unidade_hospitalar, '') AS unidade_hospitalar
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
       AND COALESCE(a.cpf, '') != ''
-      GROUP BY COALESCE(a.cpf, '')
+      AND COALESCE(a.funcao, '') != ''
     ` : `
       SELECT 
         COALESCE(a.cpf, '') AS cpf,
-        MAX(COALESCE(a.funcao, '')) AS funcao
+        COALESCE(a.funcao, '') AS funcao,
+        COALESCE(a.unidade_hospitalar, '') AS unidade_hospitalar
       FROM stg_alterdata_v2 a
       ${whereSql}
       AND COALESCE(a.cpf, '') != ''
-      GROUP BY COALESCE(a.cpf, '')
+      AND COALESCE(a.funcao, '') != ''
     `;
 
     const colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
-    console.log(`[Meta API] Colaboradores únicos encontrados: ${colaboradores.length}`);
+    console.log(`[Meta API] Colaboradores encontrados: ${colaboradores.length} (pode ter CPFs duplicados se demitido e voltou em 2026)`);
 
-    // Busca kits esperados por função (apenas EPIs obrigatórios)
+    // Busca kits de stg_epi_map (mesma fonte do botão "Entregar")
+    let kitRows: any[] = [];
+    try {
+      kitRows = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT
+          COALESCE(alterdata_funcao::text, '') AS funcao,
+          COALESCE(nome_site::text, '') AS site,
+          COALESCE(epi_item::text, '') AS item,
+          COALESCE(quantidade::numeric, 1) AS qtd
+        FROM stg_epi_map
+      `);
+      console.log(`[Meta API] Kits encontrados em stg_epi_map: ${kitRows.length}`);
+    } catch (mapError: any) {
+      console.error('[Meta API] Erro ao buscar de stg_epi_map:', mapError?.message || mapError);
+      return NextResponse.json({
+        ok: false,
+        error: `Erro ao buscar kits: ${String(mapError)}`,
+        meta: 0,
+      });
+    }
+
+    // Funções auxiliares (mesmas do /api/entregas/kit)
+    function normKey(s: any): string {
+      return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    }
+    
+    function normFuncKey(s: any): string {
+      const raw = (s ?? '').toString();
+      const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
+      return normKey(cleaned);
+    }
+    
+    function normUnidKey(s: any): string {
+      const raw = (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const withoutStops = raw.replace(/\b(hospital|hosp|de|da|das|do|dos)\b/g, ' ');
+      return withoutStops.replace(/[^a-z0-9]/gi, '');
+    }
+
+    // Cache de kits por função+unidade (para performance)
+    const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey" -> soma de itens obrigatórios
     let totalMeta = 0;
 
-    try {
-      // Busca kits da tabela stg_epi_map (mais confiável que a view)
-      let kitRows: any[] = [];
-      try {
-        kitRows = await prisma.$queryRawUnsafe<any[]>(`
-          SELECT
-            COALESCE(alterdata_funcao::text, '') AS funcao,
-            COALESCE(epi_item::text, '') AS item,
-            COALESCE(quantidade::numeric, 0) AS qtd
-          FROM stg_epi_map
-        `);
-        console.log(`[Meta API] Kits encontrados em stg_epi_map: ${kitRows.length}`);
-      } catch (mapError: any) {
-        console.error('[Meta API] Erro ao buscar de stg_epi_map:', mapError?.message || mapError);
-        // Tenta buscar da view como fallback
-        try {
-          kitRows = await prisma.$queryRaw<any[]>`
-            SELECT
-              COALESCE(cpf::text, '') AS cpf,
-              COALESCE(epi_nome::text, '') AS item,
-              COALESCE(quantidade::numeric, 0) AS qtd
-            FROM vw_entregas_epi_unidade
-          `;
-          console.log(`[Meta API] Kits encontrados na view: ${kitRows.length}`);
-        } catch (viewError: any) {
-          console.error('[Meta API] Erro ao buscar da view também:', viewError?.message || viewError);
-        }
-      }
-
-      // Mapa de função -> kit (para evitar buscar múltiplas vezes e duplicar)
-      const kitPorFuncao = new Map<string, Array<{ item: string; qtd: number }>>();
-      const cpfsProcessados = new Set<string>();
+    // Para cada colaborador (mesmo CPF pode aparecer 2x se demitido e voltou em 2026)
+    for (const colab of colaboradores) {
+      const funcao = String(colab.funcao || '').trim();
+      const unidadeHosp = String(colab.unidade_hospitalar || '').trim();
       
-      // Para cada colaborador, busca seu kit baseado na função (apenas uma vez por CPF)
-      for (const colab of colaboradores) {
-        const cpf = String(colab.cpf || '').replace(/\D/g, '').slice(-11);
-        const funcao = String(colab.funcao || '').trim();
+      if (!funcao) continue;
+      
+      const funcKey = normFuncKey(funcao);
+      const unidadeKey = normUnidKey(unidadeHosp);
+      const cacheKey = `${funcKey}|${unidadeKey}`;
+      
+      // Busca soma do kit (usa cache)
+      let somaKit = 0;
+      if (kitCache.has(cacheKey)) {
+        somaKit = kitCache.get(cacheKey)!;
+      } else {
+        // Busca kit da função (mesma lógica do /api/entregas/kit)
+        const all: Array<{ item: string; qtd: number }> = [];
+        const genericos: Array<{ item: string; qtd: number }> = [];
+        const porUnidade: Array<{ item: string; qtd: number }> = [];
         
-        // Evita processar o mesmo CPF duas vezes (pode ter duplicatas)
-        if (cpf && cpfsProcessados.has(cpf)) continue;
-        if (cpf) cpfsProcessados.add(cpf);
-        
-        if (!funcao) continue;
-
-        // Busca kit da função (usa cache)
-        let kitColab: Array<{ item: string; qtd: number }> = [];
-        if (kitPorFuncao.has(funcao)) {
-          kitColab = kitPorFuncao.get(funcao)!;
-        } else {
-          // Busca kit do colaborador pela função (apenas obrigatórios)
-          kitColab = kitRows
-            .filter((r: any) => {
-              const rFuncao = String(r.funcao || '').trim();
-              const item = String(r.item || '').trim();
-              // Se tem cpf na resposta, compara por cpf; senão compara por função
-              if (r.cpf) {
-                const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
-                return rCpf === cpf && item && isEpiObrigatorio(item);
-              } else {
-                return rFuncao === funcao && item && isEpiObrigatorio(item);
-              }
-            })
-            .map((r: any) => ({
-              item: String(r.item || '').trim(),
-              qtd: Number(r.qtd || 0)
-            }));
+        for (const r of kitRows) {
+          const rFuncKey = normFuncKey(r.funcao);
+          if (rFuncKey !== funcKey) continue;
           
-          kitPorFuncao.set(funcao, kitColab);
-        }
-
-        // Soma quantidade de EPIs obrigatórios (uma vez por colaborador)
-        for (const item of kitColab) {
-          if (item.qtd > 0) {
-            totalMeta += item.qtd;
+          const item = String(r.item || '').trim();
+          if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
+          
+          const qtd = Number(r.qtd || 1) || 1;
+          const site = String(r.site || '').trim();
+          const siteKey = site ? normUnidKey(site) : '';
+          
+          const itemData = { item, qtd };
+          all.push(itemData);
+          
+          if (!siteKey) {
+            genericos.push(itemData);
+          } else if (unidadeKey && siteKey === unidadeKey) {
+            porUnidade.push(itemData);
           }
         }
+        
+        // Prioriza: por unidade > genérico > todos (mesma lógica do /api/entregas/kit)
+        let fonte: Array<{ item: string; qtd: number }> = [];
+        if (porUnidade.length > 0) {
+          fonte = porUnidade;
+        } else if (genericos.length > 0) {
+          fonte = genericos;
+        } else {
+          fonte = all;
+        }
+        
+        // Remove duplicatas de item (pega maior quantidade)
+        const byItem = new Map<string, number>();
+        for (const itemData of fonte) {
+          const itemKey = normKey(itemData.item);
+          const existing = byItem.get(itemKey);
+          if (!existing || itemData.qtd > existing) {
+            byItem.set(itemKey, itemData.qtd);
+          }
+        }
+        
+        // Soma todos os itens obrigatórios do kit
+        somaKit = Array.from(byItem.values()).reduce((acc, qtd) => acc + qtd, 0);
+        kitCache.set(cacheKey, somaKit);
       }
       
-      console.log(`[Meta API] Meta calculada: ${totalMeta} para ${colaboradores.length} colaboradores`);
-    } catch (kitError) {
-      console.error('[Meta API] Erro ao buscar kits:', kitError);
-      // Se não conseguir buscar kits, retorna 0 mas ainda retorna ok: true
+      // Adiciona à meta (conta cada linha, mesmo se CPF duplicado)
+      totalMeta += somaKit;
     }
+    
+    console.log(`[Meta API] Meta calculada: ${totalMeta} itens para ${colaboradores.length} colaboradores`);
 
     return NextResponse.json({
       ok: true,

@@ -84,34 +84,25 @@ export async function GET(req: Request) {
       });
     }
 
-    // Busca kits esperados (apenas obrigatórios)
+    // Busca kits de stg_epi_map (mesma fonte do botão "Entregar")
     let kitRows: any[] = [];
     try {
-      // Tenta buscar de stg_epi_map primeiro (mais confiável)
-      try {
-        kitRows = await prisma.$queryRawUnsafe<any[]>(`
-          SELECT
-            COALESCE(alterdata_funcao::text, '') AS funcao,
-            COALESCE(epi_item::text, '') AS item,
-            COALESCE(quantidade::numeric, 0) AS qtd
-          FROM stg_epi_map
-        `);
-        console.log(`[Diagnóstico] Kits encontrados em stg_epi_map: ${kitRows.length}`);
-      } catch (mapError: any) {
-        console.error('[Diagnóstico] Erro ao buscar de stg_epi_map:', mapError?.message || mapError);
-        // Fallback para view
-        kitRows = await prisma.$queryRaw<any[]>`
-          SELECT
-            COALESCE(cpf::text, '') AS cpf,
-            COALESCE(epi_nome::text, '') AS item,
-            COALESCE(quantidade::numeric, 0) AS qtd
-          FROM vw_entregas_epi_unidade
-        `;
-        console.log(`[Diagnóstico] Kits encontrados na view: ${kitRows.length}`);
-      }
-    } catch (kitError) {
-      console.error('[Diagnóstico] Erro ao buscar kits:', kitError);
-      // Continua sem kits, mas vai retornar qtePrevista = 0
+      kitRows = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT
+          COALESCE(alterdata_funcao::text, '') AS funcao,
+          COALESCE(nome_site::text, '') AS site,
+          COALESCE(epi_item::text, '') AS item,
+          COALESCE(quantidade::numeric, 1) AS qtd
+        FROM stg_epi_map
+      `);
+      console.log(`[Diagnóstico] Kits encontrados em stg_epi_map: ${kitRows.length}`);
+    } catch (mapError: any) {
+      console.error('[Diagnóstico] Erro ao buscar de stg_epi_map:', mapError?.message || mapError);
+      return NextResponse.json({
+        ok: false,
+        error: `Erro ao buscar kits: ${String(mapError)}`,
+        unidades: [],
+      });
     }
 
     // Garante tabela de entregas
@@ -167,72 +158,123 @@ export async function GET(req: Request) {
       if (cpfs.length === 0) continue;
 
       // Calcula meta (Qte Prevista) - soma de EPIs obrigatórios
-      // IMPORTANTE: Soma apenas uma vez por colaborador único (por CPF), não duplica
+      // IMPORTANTE: NÃO agrupa por CPF - se CPF aparece 2x (demitido e voltou em 2026), conta 2x
       let qtePrevista = 0;
-      const cpfsProcessados = new Set<string>();
       
-      // Busca função dos colaboradores da unidade (agrupa por CPF para evitar duplicatas)
-      const cpfsComFuncaoSql = `
+      // Busca TODOS os colaboradores da unidade (sem GROUP BY - mantém duplicatas se houver)
+      const colaboradoresSql = `
         SELECT 
           COALESCE(a.cpf, '') AS cpf,
-          MAX(COALESCE(a.funcao, '')) AS funcao
+          COALESCE(a.funcao, '') AS funcao,
+          COALESCE(a.unidade_hospitalar, '') AS unidade_hospitalar
         FROM stg_alterdata_v2 a
         LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
         WHERE (UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')) 
                OR UPPER(TRIM(a.unidade_hospitalar)) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')))
           AND (a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')
           AND COALESCE(a.cpf, '') != ''
-        GROUP BY COALESCE(a.cpf, '')
+          AND COALESCE(a.funcao, '') != ''
       `;
       
-      let cpfsComFuncao: any[] = [];
+      let colaboradores: any[] = [];
       try {
-        cpfsComFuncao = await prisma.$queryRawUnsafe<any[]>(cpfsComFuncaoSql);
+        colaboradores = await prisma.$queryRawUnsafe<any[]>(colaboradoresSql);
       } catch (err) {
-        console.error(`Erro ao buscar CPFs com função da unidade ${unidadeNome}:`, err);
+        console.error(`Erro ao buscar colaboradores da unidade ${unidadeNome}:`, err);
       }
       
-      // Mapa de função -> kit (para evitar buscar múltiplas vezes)
-      const kitPorFuncao = new Map<string, number>(); // Armazena soma total do kit da função
+      // Funções auxiliares (mesmas do /api/entregas/kit)
+      function normKey(s: any): string {
+        return (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+      }
       
-      for (const colab of cpfsComFuncao) {
-        const cpf = String(colab.cpf || '').replace(/\D/g, '').slice(-11);
+      function normFuncKey(s: any): string {
+        const raw = (s ?? '').toString();
+        const cleaned = raw.replace(/\(A\)/gi, '').replace(/\s+/g, ' ');
+        return normKey(cleaned);
+      }
+      
+      function normUnidKey(s: any): string {
+        const raw = (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const withoutStops = raw.replace(/\b(hospital|hosp|de|da|das|do|dos)\b/g, ' ');
+        return withoutStops.replace(/[^a-z0-9]/gi, '');
+      }
+      
+      // Cache de kits por função+unidade (para performance)
+      const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey" -> soma de itens obrigatórios
+      
+      // Para cada colaborador (mesmo CPF pode aparecer 2x)
+      for (const colab of colaboradores) {
         const funcao = String(colab.funcao || '').trim();
-        
-        // Evita processar o mesmo CPF duas vezes (garantia extra)
-        if (cpf && cpfsProcessados.has(cpf)) {
-          console.log(`[Diagnóstico] CPF duplicado ignorado: ${cpf}`);
-          continue;
-        }
-        if (cpf) cpfsProcessados.add(cpf);
+        const unidadeHosp = String(colab.unidade_hospitalar || '').trim();
         
         if (!funcao) continue;
-
-        // Busca soma do kit da função (cache)
-        let somaKitFuncao = 0;
-        if (kitPorFuncao.has(funcao)) {
-          somaKitFuncao = kitPorFuncao.get(funcao)!;
+        
+        const funcKey = normFuncKey(funcao);
+        const unidadeKey = normUnidKey(unidadeHosp);
+        const cacheKey = `${funcKey}|${unidadeKey}`;
+        
+        // Busca soma do kit (usa cache)
+        let somaKit = 0;
+        if (kitCache.has(cacheKey)) {
+          somaKit = kitCache.get(cacheKey)!;
         } else {
-          // Busca kit do colaborador (por função) e soma
-          const kitColab = kitRows
-            .filter((r: any) => {
-              const item = String(r.item || '').trim();
-              if (!item || !isEpiObrigatorio(item)) return false;
-              
-              const rFuncao = String(r.funcao || '').trim();
-              return rFuncao === funcao;
-            });
+          // Busca kit da função (mesma lógica do /api/entregas/kit)
+          const all: Array<{ item: string; qtd: number }> = [];
+          const genericos: Array<{ item: string; qtd: number }> = [];
+          const porUnidade: Array<{ item: string; qtd: number }> = [];
           
-          // Soma quantidade de EPIs obrigatórios do kit da função
-          somaKitFuncao = kitColab.reduce((acc, r) => acc + Number(r.qtd || 0), 0);
-          kitPorFuncao.set(funcao, somaKitFuncao);
+          for (const r of kitRows) {
+            const rFuncKey = normFuncKey(r.funcao);
+            if (rFuncKey !== funcKey) continue;
+            
+            const item = String(r.item || '').trim();
+            if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
+            
+            const qtd = Number(r.qtd || 1) || 1;
+            const site = String(r.site || '').trim();
+            const siteKey = site ? normUnidKey(site) : '';
+            
+            const itemData = { item, qtd };
+            all.push(itemData);
+            
+            if (!siteKey) {
+              genericos.push(itemData);
+            } else if (unidadeKey && siteKey === unidadeKey) {
+              porUnidade.push(itemData);
+            }
+          }
+          
+          // Prioriza: por unidade > genérico > todos (mesma lógica do /api/entregas/kit)
+          let fonte: Array<{ item: string; qtd: number }> = [];
+          if (porUnidade.length > 0) {
+            fonte = porUnidade;
+          } else if (genericos.length > 0) {
+            fonte = genericos;
+          } else {
+            fonte = all;
+          }
+          
+          // Remove duplicatas de item (pega maior quantidade)
+          const byItem = new Map<string, number>();
+          for (const itemData of fonte) {
+            const itemKey = normKey(itemData.item);
+            const existing = byItem.get(itemKey);
+            if (!existing || itemData.qtd > existing) {
+              byItem.set(itemKey, itemData.qtd);
+            }
+          }
+          
+          // Soma todos os itens obrigatórios do kit
+          somaKit = Array.from(byItem.values()).reduce((acc, qtd) => acc + qtd, 0);
+          kitCache.set(cacheKey, somaKit);
         }
         
-        // Soma o kit completo do colaborador (uma vez por CPF)
-        qtePrevista += somaKitFuncao;
+        // Adiciona à meta (conta cada linha, mesmo se CPF duplicado)
+        qtePrevista += somaKit;
       }
       
-      console.log(`[Diagnóstico] Unidade ${unidadeNome}: ${cpfsProcessados.size} colaboradores únicos, meta = ${qtePrevista}`);
+      console.log(`[Diagnóstico] Unidade ${unidadeNome}: ${colaboradores.length} colaboradores (pode ter CPFs duplicados), meta = ${qtePrevista} itens`);
 
       // Filtra entregas da unidade (já carregadas acima)
       const entregas = todasEntregas.filter((e: any) => {
