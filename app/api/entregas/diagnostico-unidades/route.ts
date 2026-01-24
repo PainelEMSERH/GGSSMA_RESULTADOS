@@ -205,9 +205,27 @@ export async function GET(req: Request) {
       // Cache de kits por função+unidade+PCG (para performance)
       const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey|pcg" -> soma de itens obrigatórios
       
-      // Busca PCG da unidade (uma vez para todos os colaboradores). Se não houver PCG na unidade, considera HOSPITAL DA ILHA.
+      // Busca PCG da unidade e do fallback
       const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
       let pcgUnidade: string | null = null;
+      let pcgHospitalIlha: string | null = null;
+
+      // Busca PCG do HOSPITAL DA ILHA (sempre necessário para fallback)
+      try {
+        const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
+            AND COALESCE(codigo_alterdata, '') != ''
+          LIMIT 1
+        `);
+        if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
+          pcgHospitalIlha = String(fallbackResult[0].pcg).trim();
+        }
+      } catch (e) {
+        console.warn(`[Diagnóstico] Erro ao buscar PCG de ${UNIDADE_FALLBACK_PCG}:`, e);
+      }
+
       if (unidadeNome) {
         try {
           const pcgResult: any[] = await prisma.$queryRawUnsafe(`
@@ -225,23 +243,8 @@ export async function GET(req: Request) {
           console.warn(`[Diagnóstico] Erro ao buscar PCG da unidade ${unidadeNome}:`, pcgError);
         }
       }
-      if (!pcgUnidade) {
-        try {
-          const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
-            SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-            FROM stg_epi_map
-            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
-              AND COALESCE(codigo_alterdata, '') != ''
-            LIMIT 1
-          `);
-          if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
-            pcgUnidade = String(fallbackResult[0].pcg).trim();
-            console.log(`[Diagnóstico] Sem PCG na unidade ${unidadeNome}; usando PCG de ${UNIDADE_FALLBACK_PCG}: ${pcgUnidade}`);
-          }
-        } catch (e) {
-          console.warn(`[Diagnóstico] Erro ao buscar PCG de ${UNIDADE_FALLBACK_PCG}:`, e);
-        }
-      }
+      
+      const targetPcg = pcgUnidade || pcgHospitalIlha;
       
       // Para cada colaborador (mesmo CPF pode aparecer 2x)
       for (const colab of colaboradores) {
@@ -252,7 +255,7 @@ export async function GET(req: Request) {
         
         const funcKey = normFuncKey(funcao);
         const unidadeKey = normUnidKey(unidadeHosp);
-        const cacheKey = `${funcKey}|${unidadeKey}|${pcgUnidade || 'null'}`;
+        const cacheKey = `${funcKey}|${unidadeKey}|${targetPcg || 'null'}`;
         
         // Busca soma do kit (usa cache)
         let somaKit = 0;
@@ -260,12 +263,12 @@ export async function GET(req: Request) {
           somaKit = kitCache.get(cacheKey)!;
         } else {
           // Busca kit da função considerando PCG (mesma lógica do /api/entregas/kit)
-          // Prioridade 1: Função + PCG da unidade + unidade específica
+          // Prioridade 1: Função + PCG alvo + unidade específica
           const porUnidadeComPcg: Array<{ item: string; qtd: number }> = [];
-          // Prioridade 2: Função + PCG da unidade (genérico do PCG)
+          // Prioridade 2: Função + PCG alvo (genérico do PCG)
           const porPcgGenerico: Array<{ item: string; qtd: number }> = [];
-          // Prioridade 3: Função em qualquer PCG (fallback)
-          const porFuncaoQualquerPcg: Array<{ item: string; qtd: number }> = [];
+          // Prioridade 3: Função + PCG Hospital da Ilha (fallback)
+          const porPcgFallback: Array<{ item: string; qtd: number }> = [];
           
           for (const r of kitRows) {
             const rFuncKey = normFuncKey(r.funcao);
@@ -283,17 +286,17 @@ export async function GET(req: Request) {
             
             const itemData = { item, qtd };
             
-            // Prioridade 1: PCG da unidade + unidade específica
-            if (pcgUnidade && pcg === pcgUnidade && unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
+            // Prioridade 1: PCG alvo + unidade específica
+            if (targetPcg && pcg === targetPcg && unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
               porUnidadeComPcg.push(itemData);
             }
-            // Prioridade 2: PCG da unidade (genérico)
-            else if (pcgUnidade && pcg === pcgUnidade) {
+            // Prioridade 2: PCG alvo (genérico)
+            else if (targetPcg && pcg === targetPcg) {
               porPcgGenerico.push(itemData);
             }
-            // Prioridade 3: Qualquer PCG com a função (fallback)
-            else {
-              porFuncaoQualquerPcg.push(itemData);
+            // Prioridade 3: PCG Hospital da Ilha (fallback)
+            else if (pcgHospitalIlha && pcg === pcgHospitalIlha && pcg !== targetPcg) {
+              porPcgFallback.push(itemData);
             }
           }
           
@@ -303,8 +306,8 @@ export async function GET(req: Request) {
             fonte = porUnidadeComPcg;
           } else if (porPcgGenerico.length > 0) {
             fonte = porPcgGenerico;
-          } else if (porFuncaoQualquerPcg.length > 0) {
-            fonte = porFuncaoQualquerPcg;
+          } else if (porPcgFallback.length > 0) {
+            fonte = porPcgFallback;
           }
           
           // Remove duplicatas de item (pega maior quantidade)

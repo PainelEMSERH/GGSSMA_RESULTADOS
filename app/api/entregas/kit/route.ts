@@ -53,9 +53,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, items: [] });
     }
 
-    // Busca PCG da unidade hospitalar. Se não houver PCG na unidade, considera HOSPITAL DA ILHA.
+    // Busca PCG da unidade hospitalar
     const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
     let pcgUnidade: string | null = null;
+    let pcgHospitalIlha: string | null = null;
+    
+    // Busca PCG do HOSPITAL DA ILHA (sempre necessário para fallback)
+    try {
+      const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
+        SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+        FROM stg_epi_map
+        WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
+          AND COALESCE(codigo_alterdata, '') != ''
+        LIMIT 1
+      `);
+      if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
+        pcgHospitalIlha = String(fallbackResult[0].pcg).trim();
+      }
+    } catch (e) {
+      console.warn('[Kit API] Erro ao buscar PCG de HOSPITAL DA ILHA:', e);
+    }
+
+    // Busca PCG da unidade solicitada
     if (unidadeRaw) {
       try {
         const pcgResult: any[] = await prisma.$queryRawUnsafe(`
@@ -73,23 +92,9 @@ export async function GET(req: NextRequest) {
         console.warn('[Kit API] Erro ao buscar PCG da unidade:', pcgError);
       }
     }
-    if (!pcgUnidade) {
-      try {
-        const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
-            AND COALESCE(codigo_alterdata, '') != ''
-          LIMIT 1
-        `);
-        if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
-          pcgUnidade = String(fallbackResult[0].pcg).trim();
-          console.log(`[Kit API] Sem PCG na unidade; usando PCG de ${UNIDADE_FALLBACK_PCG}: ${pcgUnidade}`);
-        }
-      } catch (e) {
-        console.warn('[Kit API] Erro ao buscar PCG de HOSPITAL DA ILHA:', e);
-      }
-    }
+    
+    // Define o PCG alvo: da unidade ou o fallback (Hospital da Ilha)
+    const targetPcg = pcgUnidade || pcgHospitalIlha;
 
     // Busca todos os kits da função (com PCG)
     const rows: any[] = await prisma.$queryRawUnsafe(
@@ -105,12 +110,12 @@ export async function GET(req: NextRequest) {
       `
     );
 
-    // Prioridade 1: Função + PCG da unidade + unidade específica
+    // Prioridade 1: Função + PCG alvo + unidade específica
     const porUnidadeComPcg: KitRow[] = [];
-    // Prioridade 2: Função + PCG da unidade (genérico do PCG)
+    // Prioridade 2: Função + PCG alvo (genérico do PCG)
     const porPcgGenerico: KitRow[] = [];
-    // Prioridade 3: Função em qualquer PCG (fallback)
-    const porFuncaoQualquerPcg: KitRow[] = [];
+    // Prioridade 3: Função + PCG Hospital da Ilha (se diferente do alvo)
+    const porPcgFallback: KitRow[] = [];
 
     for (const r of rows) {
       const fKey = normFuncKey(r.func);
@@ -132,17 +137,17 @@ export async function GET(req: NextRequest) {
         nome_site: site || null,
       };
 
-      // Prioridade 1: PCG da unidade + unidade específica
-      if (pcgUnidade && pcg === pcgUnidade && unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
+      // Prioridade 1: PCG alvo + unidade específica
+      if (targetPcg && pcg === targetPcg && unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
         porUnidadeComPcg.push(base);
       }
-      // Prioridade 2: PCG da unidade (genérico)
-      else if (pcgUnidade && pcg === pcgUnidade) {
+      // Prioridade 2: PCG alvo (genérico)
+      else if (targetPcg && pcg === targetPcg) {
         porPcgGenerico.push(base);
       }
-      // Prioridade 3: Qualquer PCG com a função (fallback)
-      else {
-        porFuncaoQualquerPcg.push(base);
+      // Prioridade 3: PCG Hospital da Ilha (fallback se função não existir no alvo)
+      else if (pcgHospitalIlha && pcg === pcgHospitalIlha && pcg !== targetPcg) {
+        porPcgFallback.push(base);
       }
     }
 
@@ -150,13 +155,13 @@ export async function GET(req: NextRequest) {
     let fonte: KitRow[];
     if (porUnidadeComPcg.length > 0) {
       fonte = porUnidadeComPcg;
-      console.log(`[Kit API] Usando kit específico da unidade com PCG ${pcgUnidade} (${porUnidadeComPcg.length} itens)`);
+      console.log(`[Kit API] Usando kit específico da unidade com PCG ${targetPcg} (${porUnidadeComPcg.length} itens)`);
     } else if (porPcgGenerico.length > 0) {
       fonte = porPcgGenerico;
-      console.log(`[Kit API] Usando kit genérico do PCG ${pcgUnidade} (${porPcgGenerico.length} itens)`);
-    } else if (porFuncaoQualquerPcg.length > 0) {
-      fonte = porFuncaoQualquerPcg;
-      console.log(`[Kit API] Usando kit de qualquer PCG (fallback) (${porFuncaoQualquerPcg.length} itens)`);
+      console.log(`[Kit API] Usando kit genérico do PCG ${targetPcg} (${porPcgGenerico.length} itens)`);
+    } else if (porPcgFallback.length > 0) {
+      fonte = porPcgFallback;
+      console.log(`[Kit API] Usando kit fallback do PCG ${pcgHospitalIlha} (${porPcgFallback.length} itens)`);
     } else {
       fonte = [];
     }
