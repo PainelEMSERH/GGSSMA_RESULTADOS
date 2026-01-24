@@ -527,11 +527,16 @@ export async function GET(req: Request) {
 
     let rows: Row[] = rowsAll.filter(keepByDemissao).map(({ _demissao, ...rest }) => rest);
 
-    // 6) Filtros (regional leniente: aceita vazio/—)
-    const nreg = normUp(regional);
+    // 6) Filtros (regional precisa ser exata, mas compara com prettyRegional)
+    const nreg = regional.trim();
     const nuni = normUp(unidade);
     const nq   = normUp(q);
-    if (nreg) rows = rows.filter(r => !nreg || normUp(r.regional) === nreg || r.regional === '—');
+    if (nreg) {
+      rows = rows.filter(r => {
+        // Compara diretamente com a regional formatada (Norte, Sul, etc.)
+        return r.regional === nreg || normUp(r.regional) === normUp(nreg);
+      });
+    }
     if (nuni) rows = rows.filter(r => normUp(r.unidade) === nuni);
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
 

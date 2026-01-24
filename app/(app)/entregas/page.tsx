@@ -324,26 +324,33 @@ async function checkManualCpf(cpfRaw: string) {
     }
 
     let on = true;
+    setMetaData(null); // Reseta enquanto carrega
     (async () => {
-      const params = new URLSearchParams();
-      params.set('regional', state.regional);
-      if (state.unidade) params.set('unidade', state.unidade);
+      try {
+        const params = new URLSearchParams();
+        params.set('regional', state.regional);
+        if (state.unidade) params.set('unidade', state.unidade);
 
-      // Busca meta
-      const { json: metaJson } = await fetchJSON(`/api/entregas/meta?${params.toString()}`, { cache: 'no-store' });
-      if (!on) return;
+        // Busca meta
+        const { json: metaJson } = await fetchJSON(`/api/entregas/meta?${params.toString()}`, { cache: 'no-store' });
+        if (!on) return;
 
-      // Busca progresso
-      const { json: progJson } = await fetchJSON(`/api/entregas/progresso?${params.toString()}`, { cache: 'no-store' });
-      if (!on) return;
+        // Busca progresso
+        const { json: progJson } = await fetchJSON(`/api/entregas/progresso?${params.toString()}`, { cache: 'no-store' });
+        if (!on) return;
 
-      if (metaJson?.ok && progJson?.ok) {
-        setMetaData({
-          meta: Number(metaJson.meta || 0),
-          progresso: progJson.meses || {},
-          total: Number(progJson.total || 0),
-        });
-      } else {
+        if (metaJson?.ok && progJson?.ok) {
+          setMetaData({
+            meta: Number(metaJson.meta || 0),
+            progresso: progJson.meses || {},
+            total: Number(progJson.total || 0),
+          });
+        } else {
+          console.error('Erro ao carregar meta/progresso:', { metaJson, progJson });
+          setMetaData(null);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar meta/progresso:', error);
         setMetaData(null);
       }
     })();
@@ -358,17 +365,24 @@ async function checkManualCpf(cpfRaw: string) {
     }
 
     let on = true;
+    setUnidadesData(null); // Reseta enquanto carrega
     (async () => {
-      const params = new URLSearchParams();
-      params.set('regional', state.regional);
+      try {
+        const params = new URLSearchParams();
+        params.set('regional', state.regional);
 
-      const { json } = await fetchJSON(`/api/entregas/diagnostico-unidades?${params.toString()}`, { cache: 'no-store' });
-      if (!on) return;
+        const { json } = await fetchJSON(`/api/entregas/diagnostico-unidades?${params.toString()}`, { cache: 'no-store' });
+        if (!on) return;
 
-      if (json?.ok && Array.isArray(json.unidades)) {
-        setUnidadesData(json.unidades);
-      } else {
-        setUnidadesData(null);
+        if (json?.ok && Array.isArray(json.unidades)) {
+          setUnidadesData(json.unidades);
+        } else {
+          console.error('Erro ao carregar unidades:', json);
+          setUnidadesData([]);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar unidades:', error);
+        setUnidadesData([]);
       }
     })();
     return () => { on = false; };
@@ -625,8 +639,39 @@ const visibleRows = useMemo(() => {
         </div>
       </div>
       
-      {/* Tracker de Progresso - META vs REAL (substitui os Quick Stats) */}
-      {state.regional && metaData && metaData.meta > 0 && (() => {
+      {/* Abas */}
+      <div className="border-b border-border">
+        <nav className="-mb-px flex gap-4 text-xs">
+          <button
+            type="button"
+            onClick={() => setTab('lista')}
+            className={`border-b-2 px-3 py-2 ${
+              tab === 'lista'
+                ? 'border-emerald-500 text-emerald-500'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
+            Lista de colaboradores
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('diag')}
+            className={`border-b-2 px-3 py-2 ${
+              tab === 'diag'
+                ? 'border-emerald-500 text-emerald-500'
+                : 'border-transparent text-muted hover:text-text'
+            }`}
+          >
+            Diagnóstico
+          </button>
+        </nav>
+      </div>
+
+      {/* Aba: Lista */}
+      {tab === 'lista' && (
+        <>
+          {/* Tracker de Progresso - META vs REAL (no topo da aba Lista) */}
+          {state.regional && metaData && metaData.meta > 0 && (() => {
         const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
         const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
         const mesAtual = new Date().getMonth(); // 0-11
@@ -719,38 +764,7 @@ const visibleRows = useMemo(() => {
         );
       })()}
 
-      {/* Abas */}
-      <div className="border-b border-border">
-        <nav className="-mb-px flex gap-4 text-xs">
-          <button
-            type="button"
-            onClick={() => setTab('lista')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'lista'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Lista de colaboradores
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('diag')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'diag'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Diagnóstico
-          </button>
-        </nav>
-      </div>
-
-      {/* Aba: Lista */}
-      {tab === 'lista' && (
-        <>
-            {/* Filtros Principais */}
+          {/* Filtros Principais */}
             <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <div className="h-px flex-1 bg-border" />
@@ -1038,7 +1052,10 @@ const visibleRows = useMemo(() => {
             </div>
           ) : unidadesData === null ? (
             <div className="rounded-xl border border-border bg-panel p-8 text-center">
-              <p className="text-muted text-sm">Carregando dados...</p>
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-muted text-sm">Carregando dados...</p>
+              </div>
             </div>
           ) : unidadesData.length === 0 ? (
             <div className="rounded-xl border border-border bg-panel p-8 text-center">

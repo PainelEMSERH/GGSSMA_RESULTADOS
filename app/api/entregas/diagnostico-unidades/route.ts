@@ -59,19 +59,45 @@ export async function GET(req: Request) {
       ORDER BY unidade ASC
     `;
 
-    const unidadesRaw = await prisma.$queryRawUnsafe<any[]>(unidadesSql);
+    let unidadesRaw: any[] = [];
+    try {
+      unidadesRaw = await prisma.$queryRawUnsafe<any[]>(unidadesSql);
+    } catch (sqlError) {
+      console.error('Erro ao buscar unidades:', sqlError);
+      return NextResponse.json({
+        ok: false,
+        error: `Erro ao buscar unidades: ${String(sqlError)}`,
+        unidades: [],
+      });
+    }
+    
     const unidadesList = Array.from(new Set(
       unidadesRaw.map((u: any) => String(u.unidade || '').trim()).filter(Boolean)
     ));
+    
+    if (unidadesList.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        unidades: [],
+        ano,
+        message: 'Nenhuma unidade encontrada para esta regional',
+      });
+    }
 
     // Busca kits esperados (apenas obrigatórios)
-    const kitRows = await prisma.$queryRaw<any[]>`
-      SELECT
-        COALESCE(cpf::text, '') AS cpf,
-        COALESCE(epi_nome::text, '') AS item,
-        COALESCE(quantidade::numeric, 0) AS qtd
-      FROM vw_entregas_epi_unidade
-    `;
+    let kitRows: any[] = [];
+    try {
+      kitRows = await prisma.$queryRaw<any[]>`
+        SELECT
+          COALESCE(cpf::text, '') AS cpf,
+          COALESCE(epi_nome::text, '') AS item,
+          COALESCE(quantidade::numeric, 0) AS qtd
+        FROM vw_entregas_epi_unidade
+      `;
+    } catch (kitError) {
+      console.error('Erro ao buscar kits:', kitError);
+      // Continua sem kits, mas vai retornar qtePrevista = 0
+    }
 
     // Garante tabela de entregas
     await prisma.$executeRawUnsafe(`
@@ -107,7 +133,14 @@ export async function GET(req: Request) {
           AND (a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')
       `;
 
-      const cpfsRaw = await prisma.$queryRawUnsafe<any[]>(cpfsSql);
+      let cpfsRaw: any[] = [];
+      try {
+        cpfsRaw = await prisma.$queryRawUnsafe<any[]>(cpfsSql);
+      } catch (cpfError) {
+        console.error(`Erro ao buscar CPFs da unidade ${unidadeNome}:`, cpfError);
+        continue; // Pula esta unidade se der erro
+      }
+      
       const cpfs = cpfsRaw.map((c: any) => String(c.cpf || '').replace(/\D/g, '').slice(-11)).filter(Boolean);
 
       if (cpfs.length === 0) continue;
@@ -125,11 +158,17 @@ export async function GET(req: Request) {
       }
 
       // Busca entregas da unidade
-      const entregas = await prisma.$queryRawUnsafe<any[]>(`
-        SELECT cpf, item, deliveries
-        FROM epi_entregas
-        WHERE cpf = ANY($1::text[])
-      `, cpfs);
+      let entregas: any[] = [];
+      try {
+        entregas = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT cpf, item, deliveries
+          FROM epi_entregas
+          WHERE cpf = ANY($1::text[])
+        `, cpfs);
+      } catch (entregaError) {
+        console.error(`Erro ao buscar entregas da unidade ${unidadeNome}:`, entregaError);
+        // Continua sem entregas, mas vai retornar meses zerados
+      }
 
       // Inicializa meses
       const meses: Record<string, number> = {};
