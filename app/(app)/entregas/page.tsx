@@ -156,20 +156,6 @@ export default function EntregasPage() {
   function removeToast(id: string) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }
-  
-  // Quick stats
-  const quickStats = useMemo(() => {
-    const ativos = visibleRows.filter(r => {
-      const st = statusMap[r.id];
-      return (st?.code || 'ATIVO') === 'ATIVO';
-    }).length;
-    const comPendencias = visibleRows.filter(r => {
-      // Aqui poderia verificar se tem pendências, mas por enquanto só conta os não-ativos
-      const st = statusMap[r.id];
-      return st && st.code !== 'ATIVO';
-    }).length;
-    return { total: visibleRows.length, ativos, comPendencias };
-  }, [visibleRows, statusMap]);
 
 
   function setFilter(patch: Partial<typeof state>) {
@@ -525,6 +511,20 @@ const visibleRows = useMemo(() => {
       return true;
     });
   }, [rows, statusMap, showExcluded]);
+
+  // Quick stats - calculado após visibleRows estar disponível
+  const quickStats = useMemo(() => {
+    const ativos = visibleRows.filter(r => {
+      const st = statusMap[r.id];
+      return (st?.code || 'ATIVO') === 'ATIVO';
+    }).length;
+    const comPendencias = visibleRows.filter(r => {
+      // Aqui poderia verificar se tem pendências, mas por enquanto só conta os não-ativos
+      const st = statusMap[r.id];
+      return st && st.code !== 'ATIVO';
+    }).length;
+    return { total: visibleRows.length, ativos, comPendencias };
+  }, [visibleRows, statusMap]);
 
 
 
