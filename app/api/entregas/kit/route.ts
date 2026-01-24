@@ -53,32 +53,60 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, items: [] });
     }
 
+    // Busca PCG da unidade hospitalar (se disponível)
+    let pcgUnidade: string | null = null;
+    if (unidadeRaw) {
+      try {
+        const pcgResult: any[] = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${unidadeRaw.replace(/'/g, "''")}'))
+            AND COALESCE(codigo_alterdata, '') != ''
+          LIMIT 1
+        `);
+        if (pcgResult.length > 0 && pcgResult[0].pcg) {
+          pcgUnidade = String(pcgResult[0].pcg).trim();
+          console.log(`[Kit API] PCG encontrado para unidade ${unidadeRaw}: ${pcgUnidade}`);
+        }
+      } catch (pcgError) {
+        console.warn('[Kit API] Erro ao buscar PCG da unidade:', pcgError);
+      }
+    }
+
+    // Busca todos os kits da função (com PCG)
     const rows: any[] = await prisma.$queryRawUnsafe(
       `
       SELECT
+        COALESCE(codigo_alterdata::text, '') AS pcg,
         COALESCE(alterdata_funcao::text, '') AS func,
         COALESCE(nome_site::text, '')        AS site,
+        COALESCE(unidade_hospitalar::text, '') AS unidade_hosp,
         COALESCE(epi_item::text, '')         AS item,
         COALESCE(quantidade::numeric, 1)     AS qtd
       FROM stg_epi_map
       `
     );
 
-    const all: KitRow[] = [];
-    const genericos: KitRow[] = [];
-    const porUnidade: KitRow[] = [];
+    // Prioridade 1: Função + PCG da unidade + unidade específica
+    const porUnidadeComPcg: KitRow[] = [];
+    // Prioridade 2: Função + PCG da unidade (genérico do PCG)
+    const porPcgGenerico: KitRow[] = [];
+    // Prioridade 3: Função em qualquer PCG (fallback)
+    const porFuncaoQualquerPcg: KitRow[] = [];
 
     for (const r of rows) {
       const fKey = normFuncKey(r.func);
       if (!fKey || fKey !== funcKey) continue;
 
-      const site = String(r.site || '').trim();
-      const siteKey = site ? normUnidKey(site) : '';
-
       const itemName = String(r.item || '').trim();
       if (!itemName) continue;
 
       const qtd = Number(r.qtd || 1) || 1;
+      const pcg = String(r.pcg || '').trim();
+      const site = String(r.site || '').trim();
+      const unidadeHosp = String(r.unidade_hosp || '').trim();
+      const siteKey = site ? normUnidKey(site) : '';
+      const unidadeHospKey = unidadeHosp ? normUnidKey(unidadeHosp) : '';
 
       const base: KitRow = {
         item: itemName,
@@ -86,24 +114,36 @@ export async function GET(req: NextRequest) {
         nome_site: site || null,
       };
 
-      all.push(base);
-
-      if (!siteKey) {
-        genericos.push(base);
-      } else if (unidadeKey && siteKey === unidadeKey) {
-        porUnidade.push(base);
+      // Prioridade 1: PCG da unidade + unidade específica
+      if (pcgUnidade && pcg === pcgUnidade && unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
+        porUnidadeComPcg.push(base);
+      }
+      // Prioridade 2: PCG da unidade (genérico)
+      else if (pcgUnidade && pcg === pcgUnidade) {
+        porPcgGenerico.push(base);
+      }
+      // Prioridade 3: Qualquer PCG com a função (fallback)
+      else {
+        porFuncaoQualquerPcg.push(base);
       }
     }
 
+    // Escolhe a fonte conforme prioridade
     let fonte: KitRow[];
-    if (porUnidade.length > 0) {
-      fonte = porUnidade;
-    } else if (genericos.length > 0) {
-      fonte = genericos;
+    if (porUnidadeComPcg.length > 0) {
+      fonte = porUnidadeComPcg;
+      console.log(`[Kit API] Usando kit específico da unidade com PCG ${pcgUnidade} (${porUnidadeComPcg.length} itens)`);
+    } else if (porPcgGenerico.length > 0) {
+      fonte = porPcgGenerico;
+      console.log(`[Kit API] Usando kit genérico do PCG ${pcgUnidade} (${porPcgGenerico.length} itens)`);
+    } else if (porFuncaoQualquerPcg.length > 0) {
+      fonte = porFuncaoQualquerPcg;
+      console.log(`[Kit API] Usando kit de qualquer PCG (fallback) (${porFuncaoQualquerPcg.length} itens)`);
     } else {
-      fonte = all;
+      fonte = [];
     }
 
+    // Remove duplicatas de item (pega maior quantidade)
     const byItem = new Map<string, KitRow>();
 
     for (const base of fonte) {

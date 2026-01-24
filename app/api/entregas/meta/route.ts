@@ -83,13 +83,15 @@ export async function GET(req: Request) {
     const colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
     console.log(`[Meta API] Colaboradores encontrados: ${colaboradores.length} (pode ter CPFs duplicados se demitido e voltou em 2026)`);
 
-    // Busca kits de stg_epi_map (mesma fonte do botão "Entregar")
+    // Busca kits de stg_epi_map (mesma fonte do botão "Entregar") - COM PCG
     let kitRows: any[] = [];
     try {
       kitRows = await prisma.$queryRawUnsafe<any[]>(`
         SELECT
+          COALESCE(codigo_alterdata::text, '') AS pcg,
           COALESCE(alterdata_funcao::text, '') AS funcao,
           COALESCE(nome_site::text, '') AS site,
+          COALESCE(unidade_hospitalar::text, '') AS unidade_hosp,
           COALESCE(epi_item::text, '') AS item,
           COALESCE(quantidade::numeric, 1) AS qtd
         FROM stg_epi_map
@@ -121,8 +123,40 @@ export async function GET(req: Request) {
       return withoutStops.replace(/[^a-z0-9]/gi, '');
     }
 
-    // Cache de kits por função+unidade (para performance)
-    const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey" -> soma de itens obrigatórios
+    // Cache de PCG por unidade (otimização: busca uma vez por unidade única)
+    const pcgPorUnidade = new Map<string, string | null>();
+    const unidadesUnicas = new Set<string>();
+    for (const colab of colaboradores) {
+      const unidadeHosp = String(colab.unidade_hospitalar || '').trim();
+      if (unidadeHosp) unidadesUnicas.add(unidadeHosp);
+    }
+    
+    // Busca PCG de todas as unidades de uma vez
+    if (unidadesUnicas.size > 0) {
+      try {
+        const unidadesList = Array.from(unidadesUnicas).map(u => `'${u.replace(/'/g, "''")}'`).join(',');
+        const pcgResults: any[] = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT
+            UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) AS unidade,
+            COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) IN (${unidadesList})
+            AND COALESCE(codigo_alterdata, '') != ''
+        `);
+        for (const r of pcgResults) {
+          const unid = String(r.unidade || '').trim();
+          const pcg = String(r.pcg || '').trim();
+          if (unid && pcg) {
+            pcgPorUnidade.set(unid, pcg);
+          }
+        }
+      } catch (pcgError) {
+        console.warn('[Meta API] Erro ao buscar PCGs das unidades:', pcgError);
+      }
+    }
+
+    // Cache de kits por função+unidade+PCG (para performance)
+    const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey|pcg" -> soma de itens obrigatórios
     let totalMeta = 0;
 
     // Para cada colaborador (mesmo CPF pode aparecer 2x se demitido e voltou em 2026)
@@ -134,17 +168,25 @@ export async function GET(req: Request) {
       
       const funcKey = normFuncKey(funcao);
       const unidadeKey = normUnidKey(unidadeHosp);
-      const cacheKey = `${funcKey}|${unidadeKey}`;
+      
+      // Busca PCG da unidade hospitalar (usa cache)
+      const unidadeHospUpper = unidadeHosp.toUpperCase().trim();
+      const pcgUnidade = pcgPorUnidade.get(unidadeHospUpper) || null;
+      
+      const cacheKey = `${funcKey}|${unidadeKey}|${pcgUnidade || 'null'}`;
       
       // Busca soma do kit (usa cache)
       let somaKit = 0;
       if (kitCache.has(cacheKey)) {
         somaKit = kitCache.get(cacheKey)!;
       } else {
-        // Busca kit da função (mesma lógica do /api/entregas/kit)
-        const all: Array<{ item: string; qtd: number }> = [];
-        const genericos: Array<{ item: string; qtd: number }> = [];
-        const porUnidade: Array<{ item: string; qtd: number }> = [];
+        // Busca kit da função considerando PCG (mesma lógica do /api/entregas/kit)
+        // Prioridade 1: Função + PCG da unidade + unidade específica
+        const porUnidadeComPcg: Array<{ item: string; qtd: number }> = [];
+        // Prioridade 2: Função + PCG da unidade (genérico do PCG)
+        const porPcgGenerico: Array<{ item: string; qtd: number }> = [];
+        // Prioridade 3: Função em qualquer PCG (fallback)
+        const porFuncaoQualquerPcg: Array<{ item: string; qtd: number }> = [];
         
         for (const r of kitRows) {
           const rFuncKey = normFuncKey(r.funcao);
@@ -154,27 +196,36 @@ export async function GET(req: Request) {
           if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
           
           const qtd = Number(r.qtd || 1) || 1;
+          const pcg = String(r.pcg || '').trim();
           const site = String(r.site || '').trim();
+          const unidadeHospMap = String(r.unidade_hosp || '').trim();
           const siteKey = site ? normUnidKey(site) : '';
+          const unidadeHospKey = unidadeHospMap ? normUnidKey(unidadeHospMap) : '';
           
           const itemData = { item, qtd };
-          all.push(itemData);
           
-          if (!siteKey) {
-            genericos.push(itemData);
-          } else if (unidadeKey && siteKey === unidadeKey) {
-            porUnidade.push(itemData);
+          // Prioridade 1: PCG da unidade + unidade específica
+          if (pcgUnidade && pcg === pcgUnidade && unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
+            porUnidadeComPcg.push(itemData);
+          }
+          // Prioridade 2: PCG da unidade (genérico)
+          else if (pcgUnidade && pcg === pcgUnidade) {
+            porPcgGenerico.push(itemData);
+          }
+          // Prioridade 3: Qualquer PCG com a função (fallback)
+          else {
+            porFuncaoQualquerPcg.push(itemData);
           }
         }
         
-        // Prioriza: por unidade > genérico > todos (mesma lógica do /api/entregas/kit)
+        // Escolhe a fonte conforme prioridade
         let fonte: Array<{ item: string; qtd: number }> = [];
-        if (porUnidade.length > 0) {
-          fonte = porUnidade;
-        } else if (genericos.length > 0) {
-          fonte = genericos;
-        } else {
-          fonte = all;
+        if (porUnidadeComPcg.length > 0) {
+          fonte = porUnidadeComPcg;
+        } else if (porPcgGenerico.length > 0) {
+          fonte = porPcgGenerico;
+        } else if (porFuncaoQualquerPcg.length > 0) {
+          fonte = porFuncaoQualquerPcg;
         }
         
         // Remove duplicatas de item (pega maior quantidade)
