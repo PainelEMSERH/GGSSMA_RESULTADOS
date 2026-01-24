@@ -331,27 +331,45 @@ async function checkManualCpf(cpfRaw: string) {
         params.set('regional', state.regional);
         if (state.unidade) params.set('unidade', state.unidade);
 
+        console.log('[Tracker] Buscando meta e progresso para:', state.regional);
+
         // Busca meta
-        const { json: metaJson } = await fetchJSON(`/api/entregas/meta?${params.toString()}`, { cache: 'no-store' });
+        const metaResponse = await fetch(`/api/entregas/meta?${params.toString()}`, { cache: 'no-store' });
+        const metaJson = await metaResponse.json().catch(() => ({}));
         if (!on) return;
+
+        console.log('[Tracker] Meta response:', metaJson);
 
         // Busca progresso
-        const { json: progJson } = await fetchJSON(`/api/entregas/progresso?${params.toString()}`, { cache: 'no-store' });
+        const progResponse = await fetch(`/api/entregas/progresso?${params.toString()}`, { cache: 'no-store' });
+        const progJson = await progResponse.json().catch(() => ({}));
         if (!on) return;
 
+        console.log('[Tracker] Progresso response:', progJson);
+
+        // Sempre define metaData, mesmo se houver erro (para mostrar o tracker)
         if (metaJson?.ok && progJson?.ok) {
+          const meta = Number(metaJson.meta || 0);
+          const total = Number(progJson.total || 0);
+          console.log('[Tracker] Dados carregados:', { meta, total, meses: progJson.meses });
+          
           setMetaData({
-            meta: Number(metaJson.meta || 0),
+            meta,
             progresso: progJson.meses || {},
-            total: Number(progJson.total || 0),
+            total,
           });
         } else {
-          console.error('Erro ao carregar meta/progresso:', { metaJson, progJson });
-          setMetaData(null);
+          console.error('[Tracker] Erro ao carregar meta/progresso:', { metaJson, progJson });
+          // Define com valores padrão para sempre mostrar o tracker
+          setMetaData({ 
+            meta: Number(metaJson?.meta || 0), 
+            progresso: progJson?.meses || {}, 
+            total: Number(progJson?.total || 0) 
+          });
         }
       } catch (error) {
-        console.error('Erro ao buscar meta/progresso:', error);
-        setMetaData(null);
+        console.error('[Tracker] Erro ao buscar meta/progresso:', error);
+        setMetaData({ meta: 0, progresso: {}, total: 0 });
       }
     })();
     return () => { on = false; };
@@ -371,17 +389,24 @@ async function checkManualCpf(cpfRaw: string) {
         const params = new URLSearchParams();
         params.set('regional', state.regional);
 
-        const { json } = await fetchJSON(`/api/entregas/diagnostico-unidades?${params.toString()}`, { cache: 'no-store' });
+        console.log('[Diagnóstico] Buscando unidades para:', state.regional);
+
+        const response = await fetch(`/api/entregas/diagnostico-unidades?${params.toString()}`, { cache: 'no-store' });
+        const json = await response.json().catch(() => ({ ok: false, error: 'Erro ao parsear JSON' }));
+        
         if (!on) return;
 
+        console.log('[Diagnóstico] Response:', json);
+
         if (json?.ok && Array.isArray(json.unidades)) {
+          console.log('[Diagnóstico] Unidades carregadas:', json.unidades.length);
           setUnidadesData(json.unidades);
         } else {
-          console.error('Erro ao carregar unidades:', json);
+          console.error('[Diagnóstico] Erro ao carregar unidades:', json);
           setUnidadesData([]);
         }
       } catch (error) {
-        console.error('Erro ao buscar unidades:', error);
+        console.error('[Diagnóstico] Erro ao buscar unidades:', error);
         setUnidadesData([]);
       }
     })();
@@ -671,7 +696,26 @@ const visibleRows = useMemo(() => {
       {tab === 'lista' && (
         <>
           {/* Tracker de Progresso - META vs REAL (no topo da aba Lista) */}
-          {state.regional && metaData && metaData.meta > 0 && (() => {
+          {state.regional && (() => {
+            // Se ainda está carregando, mostra loading
+            if (metaData === null && state.regional) {
+              return (
+                <div className="rounded-xl border border-border bg-panel p-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs text-muted">Carregando meta e progresso...</span>
+                  </div>
+                </div>
+              );
+            }
+            
+            // Se não tem dados ainda, não mostra nada (já mostrou loading acima)
+            if (!metaData) {
+              return null;
+            }
+            
+            // Mostra tracker sempre que tem metaData (mesmo se meta for 0)
+            // Se meta for 0, mostra 0% em todas as colunas
         const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
         const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
         const mesAtual = new Date().getMonth(); // 0-11
@@ -684,8 +728,9 @@ const visibleRows = useMemo(() => {
         
         // Calcula REAL atual (percentual de entregas realizadas vs meta total)
         // O REAL mostra o mesmo valor em todas as colunas (percentual atual total)
-        const totalEntregue = metaData.total;
-        const percentualRealAtual = metaData.meta > 0 ? (totalEntregue / metaData.meta) * 100 : 0;
+        const totalEntregue = metaData.total || 0;
+        const metaTotal = metaData.meta || 0;
+        const percentualRealAtual = metaTotal > 0 ? (totalEntregue / metaTotal) * 100 : 0;
         
         // Filtra progresso por mês se selecionado (para os botões)
         const progressoFiltrado = mesSelecionado 

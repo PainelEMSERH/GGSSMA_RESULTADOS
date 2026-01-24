@@ -78,44 +78,68 @@ export async function GET(req: Request) {
 
     // Busca kits esperados por função (apenas EPIs obrigatórios)
     let totalMeta = 0;
-    const kitMap: Record<string, number> = {};
 
     try {
-      const kitRows = await prisma.$queryRaw<any[]>`
-        SELECT
-          COALESCE(cpf::text, '') AS cpf,
-          COALESCE(epi_nome::text, '') AS item,
-          COALESCE(quantidade::numeric, 0) AS qtd
-        FROM vw_entregas_epi_unidade
-      `;
-
-      for (const r of kitRows) {
-        const item = String(r.item || '').trim();
-        if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
-        
-        const qtd = Number(r.qtd || 0) || 0;
-        kitMap[item] = (kitMap[item] || 0) + qtd;
+      // Busca kits da tabela stg_epi_map (mais confiável que a view)
+      let kitRows: any[] = [];
+      try {
+        kitRows = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT
+            COALESCE(alterdata_funcao::text, '') AS funcao,
+            COALESCE(epi_item::text, '') AS item,
+            COALESCE(quantidade::numeric, 0) AS qtd
+          FROM stg_epi_map
+        `);
+        console.log(`[Meta API] Kits encontrados em stg_epi_map: ${kitRows.length}`);
+      } catch (mapError: any) {
+        console.error('[Meta API] Erro ao buscar de stg_epi_map:', mapError?.message || mapError);
+        // Tenta buscar da view como fallback
+        try {
+          kitRows = await prisma.$queryRaw<any[]>`
+            SELECT
+              COALESCE(cpf::text, '') AS cpf,
+              COALESCE(epi_nome::text, '') AS item,
+              COALESCE(quantidade::numeric, 0) AS qtd
+            FROM vw_entregas_epi_unidade
+          `;
+          console.log(`[Meta API] Kits encontrados na view: ${kitRows.length}`);
+        } catch (viewError: any) {
+          console.error('[Meta API] Erro ao buscar da view também:', viewError?.message || viewError);
+        }
       }
 
-      // Para cada colaborador, soma os EPIs obrigatórios do seu kit
+      // Para cada colaborador, busca seu kit baseado na função
       for (const colab of colaboradores) {
         const cpf = String(colab.cpf || '').replace(/\D/g, '').slice(-11);
-        if (!cpf) continue;
+        const funcao = String(colab.funcao || '').trim();
+        if (!cpf || !funcao) continue;
 
-        // Busca kit do colaborador
+        // Busca kit do colaborador pela função (apenas obrigatórios)
         const kitColab = kitRows.filter((r: any) => {
-          const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
-          return rCpf === cpf && isEpiObrigatorio(String(r.item || '').trim());
+          const rFuncao = String(r.funcao || '').trim();
+          const item = String(r.item || '').trim();
+          // Se tem cpf na resposta, compara por cpf; senão compara por função
+          if (r.cpf) {
+            const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
+            return rCpf === cpf && item && isEpiObrigatorio(item);
+          } else {
+            return rFuncao === funcao && item && isEpiObrigatorio(item);
+          }
         });
 
         // Soma quantidade de EPIs obrigatórios
         for (const item of kitColab) {
-          totalMeta += Number(item.qtd || 0);
+          const qtd = Number(item.qtd || 0);
+          if (qtd > 0) {
+            totalMeta += qtd;
+          }
         }
       }
+      
+      console.log(`[Meta API] Meta calculada: ${totalMeta} para ${colaboradores.length} colaboradores`);
     } catch (kitError) {
-      console.error('Erro ao buscar kits:', kitError);
-      // Se não conseguir buscar kits, retorna 0
+      console.error('[Meta API] Erro ao buscar kits:', kitError);
+      // Se não conseguir buscar kits, retorna 0 mas ainda retorna ok: true
     }
 
     return NextResponse.json({

@@ -87,15 +87,30 @@ export async function GET(req: Request) {
     // Busca kits esperados (apenas obrigatórios)
     let kitRows: any[] = [];
     try {
-      kitRows = await prisma.$queryRaw<any[]>`
-        SELECT
-          COALESCE(cpf::text, '') AS cpf,
-          COALESCE(epi_nome::text, '') AS item,
-          COALESCE(quantidade::numeric, 0) AS qtd
-        FROM vw_entregas_epi_unidade
-      `;
+      // Tenta buscar de stg_epi_map primeiro (mais confiável)
+      try {
+        kitRows = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT
+            COALESCE(alterdata_funcao::text, '') AS funcao,
+            COALESCE(epi_item::text, '') AS item,
+            COALESCE(quantidade::numeric, 0) AS qtd
+          FROM stg_epi_map
+        `);
+        console.log(`[Diagnóstico] Kits encontrados em stg_epi_map: ${kitRows.length}`);
+      } catch (mapError: any) {
+        console.error('[Diagnóstico] Erro ao buscar de stg_epi_map:', mapError?.message || mapError);
+        // Fallback para view
+        kitRows = await prisma.$queryRaw<any[]>`
+          SELECT
+            COALESCE(cpf::text, '') AS cpf,
+            COALESCE(epi_nome::text, '') AS item,
+            COALESCE(quantidade::numeric, 0) AS qtd
+          FROM vw_entregas_epi_unidade
+        `;
+        console.log(`[Diagnóstico] Kits encontrados na view: ${kitRows.length}`);
+      }
     } catch (kitError) {
-      console.error('Erro ao buscar kits:', kitError);
+      console.error('[Diagnóstico] Erro ao buscar kits:', kitError);
       // Continua sem kits, mas vai retornar qtePrevista = 0
     }
 
@@ -146,12 +161,46 @@ export async function GET(req: Request) {
       if (cpfs.length === 0) continue;
 
       // Calcula meta (Qte Prevista) - soma de EPIs obrigatórios
+      // Busca função dos colaboradores da unidade
+      const cpfsComFuncaoSql = `
+        SELECT DISTINCT 
+          COALESCE(a.cpf, '') AS cpf,
+          COALESCE(a.funcao, '') AS funcao
+        FROM stg_alterdata_v2 a
+        LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+        WHERE (UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')) 
+               OR UPPER(TRIM(a.unidade_hospitalar)) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')))
+          AND (a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')
+      `;
+      
+      let cpfsComFuncao: any[] = [];
+      try {
+        cpfsComFuncao = await prisma.$queryRawUnsafe<any[]>(cpfsComFuncaoSql);
+      } catch (err) {
+        console.error(`Erro ao buscar CPFs com função da unidade ${unidadeNome}:`, err);
+      }
+      
       let qtePrevista = 0;
-      for (const cpf of cpfs) {
+      for (const colab of cpfsComFuncao) {
+        const cpf = String(colab.cpf || '').replace(/\D/g, '').slice(-11);
+        const funcao = String(colab.funcao || '').trim();
+        if (!cpf && !funcao) continue;
+
+        // Busca kit do colaborador (por CPF se disponível, senão por função)
         const kitColab = kitRows.filter((r: any) => {
-          const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
-          return rCpf === cpf && isEpiObrigatorio(String(r.item || '').trim());
+          const item = String(r.item || '').trim();
+          if (!item || !isEpiObrigatorio(item)) return false;
+          
+          if (r.cpf) {
+            const rCpf = String(r.cpf || '').replace(/\D/g, '').slice(-11);
+            return rCpf === cpf;
+          } else if (r.funcao) {
+            const rFuncao = String(r.funcao || '').trim();
+            return rFuncao === funcao;
+          }
+          return false;
         });
+        
         for (const item of kitColab) {
           qtePrevista += Number(item.qtd || 0);
         }
