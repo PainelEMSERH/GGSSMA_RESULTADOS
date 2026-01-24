@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
 import { findBestUnitMatch } from '@/lib/unitMatcher';
+import { findBestFunctionMatch } from '@/lib/functionMatcher';
 
 /**
  * Retorna dados de entregas por unidade hospitalar
@@ -106,6 +107,17 @@ export async function GET(req: Request) {
         error: `Erro ao buscar kits: ${String(mapError)}`,
         unidades: [],
       });
+    }
+
+    // Busca todas as funções do mapa para comparar (cache de funções)
+    let allFunctionsList: string[] = [];
+    try {
+      const allFuncs = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT DISTINCT alterdata_funcao FROM stg_epi_map WHERE alterdata_funcao IS NOT NULL
+      `);
+      allFunctionsList = allFuncs.map(f => f.alterdata_funcao);
+    } catch (e) {
+      console.warn('[Diagnóstico] Erro ao carregar lista de funções:', e);
     }
 
     // Garante tabela de entregas
@@ -275,7 +287,16 @@ export async function GET(req: Request) {
         
         const funcKey = normFuncKey(funcao);
         const unidadeKey = normUnidKey(unidadeHosp);
-        const cacheKey = `${funcKey}|${unidadeKey}|${targetPcg || 'null'}`;
+        // Resolve a melhor função usando Matcher Inteligente (Alias, Motorista, etc)
+        let finalFuncKey = funcKey;
+        if (allFunctionsList.length > 0) {
+          const matchedFunc = findBestFunctionMatch(funcao, allFunctionsList);
+          if (matchedFunc) {
+            finalFuncKey = normFuncKey(matchedFunc);
+          }
+        }
+        
+        const cacheKey = `${finalFuncKey}|${unidadeKey}|${targetPcg || 'null'}`;
         
         // Busca soma do kit (usa cache)
         let somaKit = 0;
@@ -292,7 +313,7 @@ export async function GET(req: Request) {
           
           for (const r of kitRows) {
             const rFuncKey = normFuncKey(r.funcao);
-            if (rFuncKey !== funcKey) continue;
+            if (rFuncKey !== finalFuncKey) continue;
             
             const item = String(r.item || '').trim();
             if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios

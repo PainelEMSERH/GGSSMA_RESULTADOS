@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { findBestUnitMatch } from '@/lib/unitMatcher';
+import { findBestFunctionMatch } from '@/lib/functionMatcher';
 
 type KitRow = { item: string; quantidade: number; nome_site: string | null };
 
@@ -52,6 +53,25 @@ export async function GET(req: NextRequest) {
 
     if (!funcKey) {
       return NextResponse.json({ ok: true, items: [] });
+    }
+
+    // Resolve a melhor função usando Matcher Inteligente (Alias, Motorista, etc)
+    let finalFuncKey = funcKey;
+    try {
+      const allFunctionsRaw = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT DISTINCT alterdata_funcao FROM stg_epi_map WHERE alterdata_funcao IS NOT NULL
+      `);
+      const allFunctions = allFunctionsRaw.map(f => f.alterdata_funcao);
+      
+      const matchedFunc = findBestFunctionMatch(funcaoRaw, allFunctions);
+      if (matchedFunc) {
+        finalFuncKey = normFuncKey(matchedFunc);
+        if (finalFuncKey !== funcKey) {
+          console.log(`[Kit API] Match de função: "${funcaoRaw}" -> "${matchedFunc}"`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Kit API] Erro ao buscar lista de funções para match:', err);
     }
 
     // Busca PCG da unidade hospitalar
@@ -169,7 +189,7 @@ export async function GET(req: NextRequest) {
 
     for (const r of rows) {
       const fKey = normFuncKey(r.func);
-      if (!fKey || fKey !== funcKey) continue;
+      if (!fKey || fKey !== finalFuncKey) continue;
 
       const itemName = String(r.item || '').trim();
       if (!itemName) continue;
