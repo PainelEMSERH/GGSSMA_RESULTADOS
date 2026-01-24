@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
         if (matchedUnit) {
           console.log(`[Kit API] Match de unidade: "${unidadeRaw}" -> "${matchedUnit}"`);
         } else {
-          console.log(`[Kit API] Nenhum match de unidade encontrado para: "${unidadeRaw}"`);
+          console.log(`[Kit API] Nenhum match de unidade encontrado para: "${unidadeRaw}" - será usado PCG UNIVERSAL como fallback`);
         }
       } catch (e) {
         console.warn('[Kit API] Erro ao buscar unidades:', e);
@@ -148,9 +148,10 @@ export async function GET(req: NextRequest) {
     );
 
     // Filtra e prioriza os resultados
+    // REGRA CRÍTICA: Só usa itens da unidade específica OU PCG UNIVERSAL
+    // NUNCA mistura itens de unidades diferentes
     const porUnidadeEspecifica: KitRow[] = [];
     const porPcgUniversal: KitRow[] = [];
-    const porUnidadeGenerica: KitRow[] = [];
 
     for (const r of rows) {
       const itemName = String(r.item || '').trim();
@@ -171,12 +172,6 @@ export async function GET(req: NextRequest) {
       
       if (!funcMatch) continue;
 
-      const base: KitRow = {
-        item: itemName,
-        quantidade: qtd,
-        nome_site: null,
-      };
-
       // Determina se é PCG UNIVERSAL baseado na coluna pcg
       const isPcgUniversal = pcg === 'PCG UNIVERSAL';
       const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
@@ -186,48 +181,62 @@ export async function GET(req: NextRequest) {
       // Isso significa que é um kit específico para aquela unidade
       const pcgIsUnitName = !isPcgUniversal && !isSemMapeamento && pcg && pcg.trim() !== '';
       
-      // Prioridade 1: Unidade específica (se unidade foi informada e bate)
+      // Prioridade 1: Unidade específica (se unidade foi informada e bate EXATAMENTE)
       // Verifica tanto unidade_hospitalar quanto pcg (quando pcg é nome de unidade)
       if (matchedUnit) {
         const unidadeHospMatch = unidadeHosp && normUnidKey(unidadeHosp) === normUnidKey(matchedUnit);
         const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === normUnidKey(matchedUnit);
         
+        // SÓ adiciona se bater EXATAMENTE com a unidade do colaborador
         if ((unidadeHospMatch || pcgMatch) && !isPcgUniversal && !isSemMapeamento) {
-          porUnidadeEspecifica.push(base);
-          continue; // Pula para próximo item, não precisa verificar outras prioridades
+          porUnidadeEspecifica.push({
+            item: itemName,
+            quantidade: qtd,
+            nome_site: null,
+          });
+          console.log(`[Kit API] Item "${itemName}" adicionado à unidade específica "${matchedUnit}" (pcg="${pcg}", unidade_hosp="${unidadeHosp}")`);
+          continue; // Pula para próximo item, não verifica PCG UNIVERSAL
+        } else {
+          // Log para debug: por que não entrou na unidade específica
+          if (pcgIsUnitName || unidadeHosp) {
+            console.log(`[Kit API] Item "${itemName}" IGNORADO - não bate com unidade "${matchedUnit}" (pcg="${pcg}", unidade_hosp="${unidadeHosp}")`);
+          }
         }
       }
       
-      // Prioridade 2: Outra unidade (genérico, mas não universal) - antes do PCG UNIVERSAL
-      // Só entra aqui se não entrou na Prioridade 1
-      if (unidadeHosp && !isPcgUniversal && !isSemMapeamento && 
-          unidadeHosp !== 'PCG UNIVERSAL' && unidadeHosp !== 'SEM MAPEAMENTO NO PCG') {
-        porUnidadeGenerica.push(base);
-        continue; // Pula para próximo item
+      // Prioridade 2: PCG UNIVERSAL (fallback global) - SÓ se não encontrou unidade específica
+      // IMPORTANTE: Só adiciona PCG UNIVERSAL se:
+      // 1. É realmente PCG UNIVERSAL (pcg === 'PCG UNIVERSAL')
+      // 2. E unidade_hospitalar está NULL ou vazio (não é de outra unidade)
+      // 3. E NÃO encontrou nenhum item de unidade específica (porUnidadeEspecifica.length === 0)
+      if (isPcgUniversal && (!unidadeHosp || unidadeHosp === '' || unidadeHosp === 'PCG UNIVERSAL')) {
+        // Só adiciona PCG UNIVERSAL se NÃO encontrou itens de unidade específica
+        // Isso garante que não mistura itens de unidades diferentes
+        porPcgUniversal.push({
+          item: itemName,
+          quantidade: qtd,
+          nome_site: null,
+        });
       }
-      
-      // Prioridade 3: PCG UNIVERSAL (fallback global) - só se não encontrou por unidade
-      if (isPcgUniversal) {
-        porPcgUniversal.push(base);
-        console.log(`[Kit API] Item "${itemName}" adicionado ao PCG UNIVERSAL (unidade do colaborador: "${unidadeRaw || 'N/A'}")`);
-      }
+      // Se não é PCG UNIVERSAL e não bateu com a unidade, IGNORA (não adiciona em lugar nenhum)
     }
 
     // Escolhe a fonte conforme prioridade
-    // ORDEM: Unidade específica > Outra unidade > PCG UNIVERSAL
+    // ORDEM: Unidade específica > PCG UNIVERSAL
+    // NUNCA mistura itens de unidades diferentes
     let fonte: KitRow[];
     if (porUnidadeEspecifica.length > 0) {
+      // Se encontrou itens de unidade específica, USA APENAS ELES
+      // IGNORA completamente PCG UNIVERSAL para evitar misturar
       fonte = porUnidadeEspecifica;
-      console.log(`[Kit API] Usando kit específico da unidade "${matchedUnit}" (${porUnidadeEspecifica.length} itens)`);
-    } else if (porUnidadeGenerica.length > 0) {
-      fonte = porUnidadeGenerica;
-      console.log(`[Kit API] Usando kit genérico de outra unidade (${porUnidadeGenerica.length} itens)`);
+      console.log(`[Kit API] Usando kit específico da unidade "${matchedUnit}" (${porUnidadeEspecifica.length} itens) - IGNORANDO ${porPcgUniversal.length} itens de PCG UNIVERSAL`);
     } else if (porPcgUniversal.length > 0) {
+      // Só usa PCG UNIVERSAL se NÃO encontrou nenhum item de unidade específica
       fonte = porPcgUniversal;
-      console.log(`[Kit API] Usando kit PCG UNIVERSAL (fallback) (${porPcgUniversal.length} itens)`);
+      console.log(`[Kit API] Usando kit PCG UNIVERSAL (fallback) - nenhum item específico encontrado para "${matchedUnit || unidadeRaw || 'N/A'}" (${porPcgUniversal.length} itens)`);
     } else {
       fonte = [];
-      console.log(`[Kit API] Nenhum kit encontrado para "${funcaoRaw}"`);
+      console.log(`[Kit API] Nenhum kit encontrado para "${funcaoRaw}" na unidade "${unidadeRaw || 'N/A'}"`);
     }
 
     // Remove duplicatas de item (pega maior quantidade)

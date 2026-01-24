@@ -268,11 +268,9 @@ export async function GET(req: Request) {
           somaKit = kitCache.get(cacheKey)!;
         } else {
           // Busca kit da função (mesma lógica do /api/entregas/kit)
-          // Prioridade 1: Unidade específica
+          // REGRA CRÍTICA: Só usa itens da unidade específica OU PCG UNIVERSAL
+          // NUNCA mistura itens de unidades diferentes
           const porUnidadeEspecifica: Array<{ item: string; qtd: number }> = [];
-          // Prioridade 2: Outra unidade (genérico)
-          const porUnidadeGenerica: Array<{ item: string; qtd: number }> = [];
-          // Prioridade 3: PCG UNIVERSAL (fallback)
           const porPcgUniversal: Array<{ item: string; qtd: number }> = [];
           
           for (const r of kitRows) {
@@ -304,41 +302,39 @@ export async function GET(req: Request) {
             // Isso significa que é um kit específico para aquela unidade
             const pcgIsUnitName = !isPcgUniversal && !isSemMapeamento && pcg && pcg.trim() !== '';
             
-            const itemData = { item, qtd };
-            
-            // Prioridade 1: Unidade específica
+            // Prioridade 1: Unidade específica (se unidade foi informada e bate EXATAMENTE)
             // Verifica tanto unidade_hospitalar quanto pcg (quando pcg é nome de unidade)
             if (matchedUnit) {
               const unidadeHospMatch = unidadeHospMap && normUnidKey(unidadeHospMap) === normUnidKey(matchedUnit);
               const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === normUnidKey(matchedUnit);
               
+              // SÓ adiciona se bater EXATAMENTE com a unidade do colaborador
               if ((unidadeHospMatch || pcgMatch) && !isPcgUniversal && !isSemMapeamento) {
-                porUnidadeEspecifica.push(itemData);
-                continue; // Pula para próximo item, não precisa verificar outras prioridades
+                porUnidadeEspecifica.push({ item, qtd });
+                continue; // Pula para próximo item, não verifica PCG UNIVERSAL
               }
             }
             
-            // Prioridade 2: Outra unidade (genérico, mas não universal)
-            // Só entra aqui se não entrou na Prioridade 1
-            if (unidadeHospMap && !isPcgUniversal && !isSemMapeamento && 
-                unidadeHospMap !== 'PCG UNIVERSAL' && unidadeHospMap !== 'SEM MAPEAMENTO NO PCG') {
-              porUnidadeGenerica.push(itemData);
-              continue; // Pula para próximo item
+            // Prioridade 2: PCG UNIVERSAL (fallback global) - SÓ se não encontrou unidade específica
+            // IMPORTANTE: Só adiciona PCG UNIVERSAL se:
+            // 1. É realmente PCG UNIVERSAL (pcg === 'PCG UNIVERSAL')
+            // 2. E unidade_hospitalar está NULL ou vazio (não é de outra unidade)
+            if (isPcgUniversal && (!unidadeHospMap || unidadeHospMap === '' || unidadeHospMap === 'PCG UNIVERSAL')) {
+              porPcgUniversal.push({ item, qtd });
             }
-            
-            // Prioridade 3: PCG UNIVERSAL (fallback)
-            if (isPcgUniversal) {
-              porPcgUniversal.push(itemData);
-            }
+            // Se não é PCG UNIVERSAL e não bateu com a unidade, IGNORA (não adiciona em lugar nenhum)
           }
           
           // Escolhe a fonte conforme prioridade
+          // ORDEM: Unidade específica > PCG UNIVERSAL
+          // NUNCA mistura itens de unidades diferentes
           let fonte: Array<{ item: string; qtd: number }> = [];
           if (porUnidadeEspecifica.length > 0) {
+            // Se encontrou itens de unidade específica, USA APENAS ELES
+            // IGNORA completamente PCG UNIVERSAL para evitar misturar
             fonte = porUnidadeEspecifica;
-          } else if (porUnidadeGenerica.length > 0) {
-            fonte = porUnidadeGenerica;
           } else if (porPcgUniversal.length > 0) {
+            // Só usa PCG UNIVERSAL se NÃO encontrou nenhum item de unidade específica
             fonte = porPcgUniversal;
           }
           
