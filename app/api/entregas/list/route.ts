@@ -259,9 +259,9 @@ async function tryFastList(
       }
     }
 
-    // Aplica regra de demissão: mantém sem demissão ou demitidos a partir de 2026
-    // Temporariamente mais permissivo para debug - depois ajustamos
-    // wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
+    // Aplica regra de demissão: mantém sem demissão ou demitidos a partir de 2026-01-01
+    // Remove apenas demitidos antes de 2026-01-01
+    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
     const offset = (page - 1) * pageSize;

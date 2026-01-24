@@ -147,6 +147,21 @@ export default function EntregasPage() {
   // Sistema de Toast
   const [toasts, setToasts] = useState<Toast[]>([]);
   
+  // Tracker de progresso
+  const [metaData, setMetaData] = useState<{ meta: number; progresso: Record<string, number>; total: number } | null>(null);
+  const [mesSelecionado, setMesSelecionado] = useState<string | null>(null);
+  
+  // Tabela por unidade (Diagnóstico)
+  const [unidadesData, setUnidadesData] = useState<Array<{
+    unidade: string;
+    qtePrevista: number;
+    meses: Record<string, number>;
+    totalRealizada: number;
+  }> | null>(null);
+  
+  // Toggle para mostrar EPIs não-obrigatórios
+  const [mostrarNaoObrigatorios, setMostrarNaoObrigatorios] = useState(false);
+  
   function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
     const id = Date.now().toString() + Math.random().toString(36);
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -300,6 +315,64 @@ async function checkManualCpf(cpfRaw: string) {
     })();
     return () => { on = false };
   }, []);
+
+  // Carrega meta e progresso quando regional estiver selecionada
+  useEffect(() => {
+    if (!state.regional) {
+      setMetaData(null);
+      return;
+    }
+
+    let on = true;
+    (async () => {
+      const params = new URLSearchParams();
+      params.set('regional', state.regional);
+      if (state.unidade) params.set('unidade', state.unidade);
+
+      // Busca meta
+      const { json: metaJson } = await fetchJSON(`/api/entregas/meta?${params.toString()}`, { cache: 'no-store' });
+      if (!on) return;
+
+      // Busca progresso
+      const { json: progJson } = await fetchJSON(`/api/entregas/progresso?${params.toString()}`, { cache: 'no-store' });
+      if (!on) return;
+
+      if (metaJson?.ok && progJson?.ok) {
+        setMetaData({
+          meta: Number(metaJson.meta || 0),
+          progresso: progJson.meses || {},
+          total: Number(progJson.total || 0),
+        });
+      } else {
+        setMetaData(null);
+      }
+    })();
+    return () => { on = false; };
+  }, [state.regional, state.unidade]);
+
+  // Carrega dados por unidade quando regional estiver selecionada (para Diagnóstico)
+  useEffect(() => {
+    if (!state.regional || tab !== 'diag') {
+      setUnidadesData(null);
+      return;
+    }
+
+    let on = true;
+    (async () => {
+      const params = new URLSearchParams();
+      params.set('regional', state.regional);
+
+      const { json } = await fetchJSON(`/api/entregas/diagnostico-unidades?${params.toString()}`, { cache: 'no-store' });
+      if (!on) return;
+
+      if (json?.ok && Array.isArray(json.unidades)) {
+        setUnidadesData(json.unidades);
+      } else {
+        setUnidadesData(null);
+      }
+    })();
+    return () => { on = false; };
+  }, [state.regional, tab]);
 
   useEffect(() => {
     let on = true;
@@ -572,6 +645,124 @@ const visibleRows = useMemo(() => {
           </div>
         </div>
       )}
+
+      {/* Tracker de Progresso - META vs REAL */}
+      {state.regional && metaData && metaData.meta > 0 && (() => {
+        const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+        const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const mesAtual = new Date().getMonth(); // 0-11
+        const mesAtualKey = String(mesAtual + 1).padStart(2, '0');
+        
+        // Calcula metas incrementais (8,33%, 16,67%, etc.)
+        const metasIncrementais = meses.map((_, idx) => {
+          return ((idx + 1) / 12) * 100;
+        });
+        
+        // Calcula REAL atual (percentual de entregas realizadas vs meta total)
+        const totalEntregue = metaData.total;
+        const percentualReal = metaData.meta > 0 ? (totalEntregue / metaData.meta) * 100 : 0;
+        
+        // Filtra progresso por mês se selecionado
+        const progressoFiltrado = mesSelecionado 
+          ? { [mesSelecionado]: metaData.progresso[mesSelecionado] || 0 }
+          : metaData.progresso;
+        
+        const totalFiltrado = Object.values(progressoFiltrado).reduce((acc, val) => acc + val, 0);
+        const percentualRealFiltrado = metaData.meta > 0 ? (totalFiltrado / metaData.meta) * 100 : 0;
+
+        return (
+          <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-text">Progresso de Entregas - {state.regional}</h3>
+                <p className="text-xs text-muted mt-0.5">
+                  Meta: {metaData.meta.toLocaleString('pt-BR')} itens • Realizado: {totalFiltrado.toLocaleString('pt-BR')} itens
+                </p>
+              </div>
+              {mesSelecionado && (
+                <button
+                  onClick={() => setMesSelecionado(null)}
+                  className="text-xs text-muted hover:text-text"
+                >
+                  Limpar filtro
+                </button>
+              )}
+            </div>
+
+            {/* Linha META */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-16 font-medium text-muted">META</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {meses.map((mes, idx) => (
+                    <div key={mes} className="text-center text-[10px] font-medium text-muted">
+                      {metasIncrementais[idx].toFixed(2)}%
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Linha REAL */}
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-16 font-medium text-text">REAL</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {meses.map((mes, idx) => {
+                    // Calcula percentual acumulado até este mês
+                    const acumuladoAteMes = meses.slice(0, idx + 1).reduce((acc, m) => {
+                      return acc + (progressoFiltrado[m] || 0);
+                    }, 0);
+                    const percentualAcumulado = metaData.meta > 0 ? (acumuladoAteMes / metaData.meta) * 100 : 0;
+                    const metaIncremental = metasIncrementais[idx];
+                    const estaAcima = percentualAcumulado >= metaIncremental;
+                    
+                    return (
+                      <div
+                        key={mes}
+                        className={`text-center text-[10px] font-semibold py-1 rounded ${
+                          estaAcima
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                        }`}
+                        title={`${mesesNomes[idx]}: ${percentualAcumulado.toFixed(2)}% (Meta: ${metaIncremental.toFixed(2)}%)`}
+                      >
+                        {percentualAcumulado.toFixed(2)}%
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Botões mensais */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setMesSelecionado(null)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  !mesSelecionado
+                    ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                    : 'bg-panel border border-border text-text hover:bg-muted'
+                }`}
+              >
+                Qte Prevista
+              </button>
+              {meses.map((mes, idx) => (
+                <button
+                  key={mes}
+                  onClick={() => setMesSelecionado(mesSelecionado === mes ? null : mes)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    mesSelecionado === mes
+                      ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                      : 'bg-panel border border-border text-text hover:bg-muted'
+                  }`}
+                  title={`${mesesNomes[idx]}: ${(progressoFiltrado[mes] || 0).toLocaleString('pt-BR')} itens entregues`}
+                >
+                  {mesesNomes[idx]}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Abas */}
       <div className="border-b border-border">
@@ -987,6 +1178,74 @@ const visibleRows = useMemo(() => {
                 </div>
               </div>
             )}
+
+            {/* Tabela por Unidade Hospitalar */}
+            {state.regional && unidadesData && unidadesData.length > 0 && (
+              <div className="space-y-2 mt-6">
+                <p className="text-[11px] font-medium text-muted uppercase tracking-wide">
+                  Diagnóstico por Unidade Hospitalar
+                </p>
+                <div className="overflow-x-auto rounded-lg border border-border bg-card">
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-emerald-600 text-white">
+                      <tr>
+                        <th className="px-3 py-2 text-left border-b border-emerald-700">Unidade</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Qte Prevista</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Janeiro</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Fevereiro</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Março</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Abril</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Maio</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Junho</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Julho</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Agosto</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Setembro</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Outubro</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Novembro</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Dezembro</th>
+                        <th className="px-3 py-2 text-right border-b border-emerald-700">Total Realizada</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {unidadesData.map((unidade, idx) => (
+                        <tr key={unidade.unidade} className={idx % 2 === 0 ? 'bg-panel/40' : ''}>
+                          <td className="px-3 py-1.5 border-b border-border font-medium">{unidade.unidade}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.qtePrevista.toLocaleString('pt-BR')}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['01']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['02']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['03']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['04']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['05']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['06']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['07']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['08']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['09']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['10']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['11']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border">{unidade.meses['12']?.toLocaleString('pt-BR') || '0'}</td>
+                          <td className="px-3 py-1.5 text-right border-b border-border font-semibold">{unidade.totalRealizada.toLocaleString('pt-BR')}</td>
+                        </tr>
+                      ))}
+                      {/* Linha TOTAL */}
+                      <tr className="bg-emerald-50 dark:bg-emerald-900/20 font-semibold">
+                        <td className="px-3 py-1.5 border-t-2 border-emerald-600">TOTAL</td>
+                        <td className="px-3 py-1.5 text-right border-t-2 border-emerald-600">
+                          {unidadesData.reduce((acc, u) => acc + u.qtePrevista, 0).toLocaleString('pt-BR')}
+                        </td>
+                        {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(mes => (
+                          <td key={mes} className="px-3 py-1.5 text-right border-t-2 border-emerald-600">
+                            {unidadesData.reduce((acc, u) => acc + (u.meses[mes] || 0), 0).toLocaleString('pt-BR')}
+                          </td>
+                        ))}
+                        <td className="px-3 py-1.5 text-right border-t-2 border-emerald-600">
+                          {unidadesData.reduce((acc, u) => acc + u.totalRealizada, 0).toLocaleString('pt-BR')}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1152,6 +1411,32 @@ const visibleRows = useMemo(() => {
                       </div>
                     </div>
                     
+                    {/* Toggle para mostrar EPIs não-obrigatórios */}
+                    {(() => {
+                      const obrigatorios = kit.filter(k => isEpiObrigatorio(k.item));
+                      const naoObrigatorios = kit.filter(k => !isEpiObrigatorio(k.item));
+                      
+                      if (naoObrigatorios.length > 0) {
+                        return (
+                          <div className="mb-3 flex items-center justify-between">
+                            <div className="text-xs text-muted-foreground">
+                              {naoObrigatorios.length} EPI{naoObrigatorios.length !== 1 ? 's' : ''} não-obrigatório{naoObrigatorios.length !== 1 ? 's' : ''} oculto{naoObrigatorios.length !== 1 ? 's' : ''}
+                            </div>
+                            <label className="inline-flex items-center gap-2 cursor-pointer text-xs">
+                              <input
+                                type="checkbox"
+                                checked={mostrarNaoObrigatorios}
+                                onChange={(e) => setMostrarNaoObrigatorios(e.target.checked)}
+                                className="rounded border-border text-emerald-600 focus:ring-emerald-500"
+                              />
+                              <span className="text-muted-foreground">Mostrar EPIs não-obrigatórios</span>
+                            </label>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                    
                     {/* Agrupar EPIs: Obrigatórios primeiro */}
                     {(() => {
                       const obrigatorios = kit.filter(k => isEpiObrigatorio(k.item));
@@ -1244,7 +1529,7 @@ const visibleRows = useMemo(() => {
                             </div>
                           )}
                           
-                          {naoObrigatorios.length > 0 && (
+                          {naoObrigatorios.length > 0 && mostrarNaoObrigatorios && (
                             <div>
                               <div className="text-xs font-semibold text-muted-foreground mb-2">
                                 Outros EPIs ({naoObrigatorios.length})
