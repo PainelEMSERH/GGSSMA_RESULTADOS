@@ -177,17 +177,23 @@ export async function GET(req: NextRequest) {
         nome_site: null,
       };
 
+      // Determina se é PCG UNIVERSAL baseado na coluna pcg
+      const isPcgUniversal = pcg === 'PCG UNIVERSAL';
+      const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
+      
       // Prioridade 1: Unidade específica (se unidade foi informada e bate)
       // IMPORTANTE: Só usa PCG UNIVERSAL se NÃO encontrar pela unidade_hospitalar
-      if (matchedUnit && unidadeHosp && normUnidKey(unidadeHosp) === normUnidKey(matchedUnit)) {
+      if (matchedUnit && unidadeHosp && !isPcgUniversal && !isSemMapeamento && 
+          normUnidKey(unidadeHosp) === normUnidKey(matchedUnit)) {
         porUnidadeEspecifica.push(base);
       }
       // Prioridade 2: Outra unidade (genérico, mas não universal) - antes do PCG UNIVERSAL
-      else if (unidadeHosp && unidadeHosp !== 'PCG UNIVERSAL' && unidadeHosp !== 'SEM MAPEAMENTO NO PCG') {
+      else if (unidadeHosp && !isPcgUniversal && !isSemMapeamento && 
+               unidadeHosp !== 'PCG UNIVERSAL' && unidadeHosp !== 'SEM MAPEAMENTO NO PCG') {
         porUnidadeGenerica.push(base);
       }
       // Prioridade 3: PCG UNIVERSAL (fallback global) - só se não encontrou por unidade
-      else if (pcg === 'PCG UNIVERSAL') {
+      else if (isPcgUniversal) {
         porPcgUniversal.push(base);
       }
     }

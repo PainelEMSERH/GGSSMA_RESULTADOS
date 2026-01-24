@@ -86,16 +86,16 @@ export async function GET(req: Request) {
       });
     }
 
-    // Busca kits de stg_epi_map (mesma fonte do botão "Entregar") - COM PCG
+    // Busca kits de stg_epi_map (mesma fonte do botão "Entregar") - NOVA ESTRUTURA
     let kitRows: any[] = [];
     try {
       kitRows = await prisma.$queryRawUnsafe<any[]>(`
         SELECT
-          COALESCE(codigo_alterdata::text, '') AS pcg,
-          COALESCE(alterdata_funcao::text, '') AS funcao,
-          COALESCE(nome_site::text, '') AS site,
-          COALESCE(unidade_hospitalar::text, '') AS unidade_hosp,
-          COALESCE(epi_item::text, '') AS item,
+          COALESCE(pcg, '') AS pcg,
+          COALESCE(alterdata_funcao, '') AS funcao,
+          COALESCE(funcao_normalizada, alterdata_funcao, '') AS funcao_norm,
+          COALESCE(unidade_hospitalar, '') AS unidade_hosp,
+          COALESCE(epi_item, '') AS item,
           COALESCE(quantidade::numeric, 1) AS qtd
         FROM stg_epi_map
       `);
@@ -215,68 +215,23 @@ export async function GET(req: Request) {
         return withoutStops.replace(/[^a-z0-9]/gi, '');
       }
       
-      // Cache de kits por função+unidade+PCG (para performance)
-      const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey|pcg" -> soma de itens obrigatórios
-      
-      // Busca PCG da unidade e do fallback
-      const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
-      let pcgUnidade: string | null = null;
-      let pcgHospitalIlha: string | null = null;
+      // Cache de kits por função+unidade (para performance)
+      const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey" -> soma de itens obrigatórios
 
       // Busca todas as unidades do mapa para comparar
       let allUnitsList: string[] = [];
       try {
         const allUnits = await prisma.$queryRawUnsafe<any[]>(`
-          SELECT DISTINCT unidade_hospitalar FROM stg_epi_map WHERE unidade_hospitalar IS NOT NULL
+          SELECT DISTINCT unidade_hospitalar FROM stg_epi_map 
+          WHERE unidade_hospitalar IS NOT NULL 
+            AND TRIM(unidade_hospitalar) != ''
+            AND unidade_hospitalar != 'PCG UNIVERSAL'
+            AND unidade_hospitalar != 'SEM MAPEAMENTO NO PCG'
         `);
-        allUnitsList = allUnits.map(u => u.unidade_hospitalar);
+        allUnitsList = allUnits.map(u => u.unidade_hospitalar).filter(Boolean);
       } catch (e) {
         console.warn('[Diagnóstico] Erro ao carregar lista de unidades:', e);
       }
-
-      // Busca PCG do HOSPITAL DA ILHA (sempre necessário para fallback)
-      try {
-        const fallbackUnit = findBestUnitMatch(UNIDADE_FALLBACK_PCG, allUnitsList);
-        if (fallbackUnit) {
-          const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
-            SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-            FROM stg_epi_map
-            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${fallbackUnit.replace(/'/g, "''")}'))
-              AND COALESCE(codigo_alterdata, '') != ''
-            LIMIT 1
-          `);
-          if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
-            pcgHospitalIlha = String(fallbackResult[0].pcg).trim();
-          }
-        }
-      } catch (e) {
-        console.warn(`[Diagnóstico] Erro ao buscar PCG de ${UNIDADE_FALLBACK_PCG}:`, e);
-      }
-
-      if (unidadeNome) {
-        try {
-          const matchedUnit = findBestUnitMatch(unidadeNome, allUnitsList);
-          if (matchedUnit) {
-            const pcgResult: any[] = await prisma.$queryRawUnsafe(`
-              SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-              FROM stg_epi_map
-              WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${matchedUnit.replace(/'/g, "''")}'))
-                AND COALESCE(codigo_alterdata, '') != ''
-              LIMIT 1
-            `);
-            if (pcgResult.length > 0 && pcgResult[0].pcg) {
-              pcgUnidade = String(pcgResult[0].pcg).trim();
-              console.log(`[Diagnóstico] PCG encontrado para unidade ${unidadeNome} (via ${matchedUnit}): ${pcgUnidade}`);
-            }
-          } else {
-            console.warn(`[Diagnóstico] Nenhuma unidade correspondente no banco para: "${unidadeNome}"`);
-          }
-        } catch (pcgError) {
-          console.warn(`[Diagnóstico] Erro ao buscar PCG da unidade ${unidadeNome}:`, pcgError);
-        }
-      }
-      
-      const targetPcg = pcgUnidade || pcgHospitalIlha;
       
       // Para cada colaborador (mesmo CPF pode aparecer 2x)
       for (const colab of colaboradores) {
@@ -287,68 +242,89 @@ export async function GET(req: Request) {
         
         const funcKey = normFuncKey(funcao);
         const unidadeKey = normUnidKey(unidadeHosp);
+        
         // Resolve a melhor função usando Matcher Inteligente (Alias, Motorista, etc)
         let finalFuncKey = funcKey;
+        let targetFuncName = funcao;
         if (allFunctionsList.length > 0) {
           const matchedFunc = findBestFunctionMatch(funcao, allFunctionsList);
           if (matchedFunc) {
+            targetFuncName = matchedFunc;
             finalFuncKey = normFuncKey(matchedFunc);
           }
         }
         
-        const cacheKey = `${finalFuncKey}|${unidadeKey}|${targetPcg || 'null'}`;
+        // Busca unidade correspondente no EPI Map
+        let matchedUnit: string | null = null;
+        if (unidadeHosp) {
+          matchedUnit = findBestUnitMatch(unidadeHosp, allUnitsList);
+        }
+        
+        const cacheKey = `${finalFuncKey}|${matchedUnit || 'null'}`;
         
         // Busca soma do kit (usa cache)
         let somaKit = 0;
         if (kitCache.has(cacheKey)) {
           somaKit = kitCache.get(cacheKey)!;
         } else {
-          // Busca kit da função considerando PCG (mesma lógica do /api/entregas/kit)
-          // Prioridade 1: Função + PCG alvo + unidade específica
-          const porUnidadeComPcg: Array<{ item: string; qtd: number }> = [];
-          // Prioridade 2: Função + PCG alvo (genérico do PCG)
-          const porPcgGenerico: Array<{ item: string; qtd: number }> = [];
-          // Prioridade 3: Função + PCG Hospital da Ilha (fallback)
-          const porPcgFallback: Array<{ item: string; qtd: number }> = [];
+          // Busca kit da função (mesma lógica do /api/entregas/kit)
+          // Prioridade 1: Unidade específica
+          const porUnidadeEspecifica: Array<{ item: string; qtd: number }> = [];
+          // Prioridade 2: Outra unidade (genérico)
+          const porUnidadeGenerica: Array<{ item: string; qtd: number }> = [];
+          // Prioridade 3: PCG UNIVERSAL (fallback)
+          const porPcgUniversal: Array<{ item: string; qtd: number }> = [];
           
           for (const r of kitRows) {
-            const rFuncKey = normFuncKey(r.funcao);
-            if (rFuncKey !== finalFuncKey) continue;
+            const rFuncNorm = normFuncKey(r.funcao_norm || r.funcao);
+            const rFuncAlt = normFuncKey(r.funcao);
+            
+            // Verifica se a função bate
+            const funcMatch = 
+              (rFuncNorm && rFuncNorm === finalFuncKey) ||
+              (rFuncAlt && rFuncAlt === finalFuncKey);
+            
+            if (!funcMatch) continue;
             
             const item = String(r.item || '').trim();
-            if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
+            if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
             
             const qtd = Number(r.qtd || 1) || 1;
+            if (qtd <= 0) continue;
+            
             const pcg = String(r.pcg || '').trim();
-            const site = String(r.site || '').trim();
             const unidadeHospMap = String(r.unidade_hosp || '').trim();
-            const siteKey = site ? normUnidKey(site) : '';
-            const unidadeHospKey = unidadeHospMap ? normUnidKey(unidadeHospMap) : '';
+            
+            // Determina se é PCG UNIVERSAL baseado na coluna pcg
+            const isPcgUniversal = pcg === 'PCG UNIVERSAL';
+            const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
             
             const itemData = { item, qtd };
             
-            // Prioridade 1: Unidade específica (Ignora PCG, pois a unidade pode ter multiplos PCGs)
-            if (unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
-              porUnidadeComPcg.push(itemData);
+            // Prioridade 1: Unidade específica
+            if (matchedUnit && unidadeHospMap && !isPcgUniversal && !isSemMapeamento && 
+                normUnidKey(unidadeHospMap) === normUnidKey(matchedUnit)) {
+              porUnidadeEspecifica.push(itemData);
             }
-            // Prioridade 2: PCG alvo (genérico, para outras unidades usarem este PCG)
-            else if (targetPcg && pcg === targetPcg) {
-              porPcgGenerico.push(itemData);
+            // Prioridade 2: Outra unidade (genérico, mas não universal)
+            else if (unidadeHospMap && !isPcgUniversal && !isSemMapeamento && 
+                     unidadeHospMap !== 'PCG UNIVERSAL' && unidadeHospMap !== 'SEM MAPEAMENTO NO PCG') {
+              porUnidadeGenerica.push(itemData);
             }
-            // Prioridade 3: PCG Hospital da Ilha (fallback)
-            else if (pcgHospitalIlha && pcg === pcgHospitalIlha) {
-              porPcgFallback.push(itemData);
+            // Prioridade 3: PCG UNIVERSAL (fallback)
+            else if (isPcgUniversal) {
+              porPcgUniversal.push(itemData);
             }
           }
           
           // Escolhe a fonte conforme prioridade
           let fonte: Array<{ item: string; qtd: number }> = [];
-          if (porUnidadeComPcg.length > 0) {
-            fonte = porUnidadeComPcg;
-          } else if (porPcgGenerico.length > 0) {
-            fonte = porPcgGenerico;
-          } else if (porPcgFallback.length > 0) {
-            fonte = porPcgFallback;
+          if (porUnidadeEspecifica.length > 0) {
+            fonte = porUnidadeEspecifica;
+          } else if (porUnidadeGenerica.length > 0) {
+            fonte = porUnidadeGenerica;
+          } else if (porPcgUniversal.length > 0) {
+            fonte = porPcgUniversal;
           }
           
           // Remove duplicatas de item (pega maior quantidade)
