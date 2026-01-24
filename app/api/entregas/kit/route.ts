@@ -79,17 +79,45 @@ export async function GET(req: NextRequest) {
     }
 
     // Busca unidade correspondente (se houver)
+    // PRIORIDADE: Busca primeiro nas unidades do EPI Map, depois no Alterdata
     let matchedUnit: string | null = null;
     if (unidadeRaw) {
       try {
-        const allUnits = await prisma.$queryRawUnsafe<any[]>(`
+        // 1. Busca unidades do EPI Map (prioridade)
+        const epiUnits = await prisma.$queryRawUnsafe<any[]>(`
           SELECT DISTINCT unidade_hospitalar FROM stg_epi_map 
-          WHERE unidade_hospitalar IS NOT NULL AND unidade_hospitalar != ''
+          WHERE unidade_hospitalar IS NOT NULL 
+            AND TRIM(unidade_hospitalar) != ''
+            AND unidade_hospitalar != 'PCG UNIVERSAL'
+            AND unidade_hospitalar != 'SEM MAPEAMENTO NO PCG'
         `);
-        const unitList = allUnits.map(u => u.unidade_hospitalar).filter(Boolean);
-        matchedUnit = findBestUnitMatch(unidadeRaw, unitList);
+        const epiUnitList = epiUnits.map(u => u.unidade_hospitalar).filter(Boolean);
+        matchedUnit = findBestUnitMatch(unidadeRaw, epiUnitList);
+        
+        // 2. Se não encontrou no EPI Map, busca no Alterdata e tenta mapear
+        if (!matchedUnit) {
+          const alterdataUnits = await prisma.$queryRawUnsafe<any[]>(`
+            SELECT DISTINCT TRIM(unidade_hospitalar) as unidade
+            FROM stg_alterdata_v2
+            WHERE unidade_hospitalar IS NOT NULL 
+              AND TRIM(unidade_hospitalar) != ''
+          `);
+          const alterdataUnitList = alterdataUnits.map(u => u.unidade).filter(Boolean);
+          const matchedAlterdata = findBestUnitMatch(unidadeRaw, alterdataUnitList);
+          
+          // Se encontrou no Alterdata, tenta mapear para o EPI Map
+          if (matchedAlterdata) {
+            matchedUnit = findBestUnitMatch(matchedAlterdata, epiUnitList);
+            if (matchedUnit) {
+              console.log(`[Kit API] Match de unidade (via Alterdata): "${unidadeRaw}" -> "${matchedAlterdata}" -> "${matchedUnit}"`);
+            }
+          }
+        }
+        
         if (matchedUnit) {
           console.log(`[Kit API] Match de unidade: "${unidadeRaw}" -> "${matchedUnit}"`);
+        } else {
+          console.log(`[Kit API] Nenhum match de unidade encontrado para: "${unidadeRaw}"`);
         }
       } catch (e) {
         console.warn('[Kit API] Erro ao buscar unidades:', e);
@@ -150,30 +178,32 @@ export async function GET(req: NextRequest) {
       };
 
       // Prioridade 1: Unidade específica (se unidade foi informada e bate)
+      // IMPORTANTE: Só usa PCG UNIVERSAL se NÃO encontrar pela unidade_hospitalar
       if (matchedUnit && unidadeHosp && normUnidKey(unidadeHosp) === normUnidKey(matchedUnit)) {
         porUnidadeEspecifica.push(base);
       }
-      // Prioridade 2: PCG UNIVERSAL (fallback global)
+      // Prioridade 2: Outra unidade (genérico, mas não universal) - antes do PCG UNIVERSAL
+      else if (unidadeHosp && unidadeHosp !== 'PCG UNIVERSAL' && unidadeHosp !== 'SEM MAPEAMENTO NO PCG') {
+        porUnidadeGenerica.push(base);
+      }
+      // Prioridade 3: PCG UNIVERSAL (fallback global) - só se não encontrou por unidade
       else if (pcg === 'PCG UNIVERSAL') {
         porPcgUniversal.push(base);
-      }
-      // Prioridade 3: Outra unidade (genérico, mas não universal)
-      else if (unidadeHosp) {
-        porUnidadeGenerica.push(base);
       }
     }
 
     // Escolhe a fonte conforme prioridade
+    // ORDEM: Unidade específica > Outra unidade > PCG UNIVERSAL
     let fonte: KitRow[];
     if (porUnidadeEspecifica.length > 0) {
       fonte = porUnidadeEspecifica;
       console.log(`[Kit API] Usando kit específico da unidade "${matchedUnit}" (${porUnidadeEspecifica.length} itens)`);
-    } else if (porPcgUniversal.length > 0) {
-      fonte = porPcgUniversal;
-      console.log(`[Kit API] Usando kit PCG UNIVERSAL (${porPcgUniversal.length} itens)`);
     } else if (porUnidadeGenerica.length > 0) {
       fonte = porUnidadeGenerica;
       console.log(`[Kit API] Usando kit genérico de outra unidade (${porUnidadeGenerica.length} itens)`);
+    } else if (porPcgUniversal.length > 0) {
+      fonte = porPcgUniversal;
+      console.log(`[Kit API] Usando kit PCG UNIVERSAL (fallback) (${porPcgUniversal.length} itens)`);
     } else {
       fonte = [];
       console.log(`[Kit API] Nenhum kit encontrado para "${funcaoRaw}"`);
