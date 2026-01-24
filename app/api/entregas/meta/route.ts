@@ -155,6 +155,19 @@ export async function GET(req: Request) {
           LIMIT 1
         `);
       }
+      
+      // Rede de segurança: Se ainda não achou Hospital da Ilha, pega QUALQUER Hospital (exceto SVO)
+      if (!fallback.length) {
+        fallback = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL%'
+            AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%SVO%'
+            AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%VERIFICA%'
+            AND COALESCE(codigo_alterdata, '') != ''
+          LIMIT 1
+        `);
+      }
 
       if (fallback.length > 0 && fallback[0].pcg) {
         pcgHospitalIlha = String(fallback[0].pcg).trim();
