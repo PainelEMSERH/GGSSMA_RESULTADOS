@@ -299,20 +299,35 @@ export async function GET(req: Request) {
             const isPcgUniversal = pcg === 'PCG UNIVERSAL';
             const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
             
+            // Se pcg tem um nome de unidade (não é PCG UNIVERSAL nem SEM MAPEAMENTO), 
+            // então unidade_hospitalar também deve ter esse valor
+            // Isso significa que é um kit específico para aquela unidade
+            const pcgIsUnitName = !isPcgUniversal && !isSemMapeamento && pcg && pcg.trim() !== '';
+            
             const itemData = { item, qtd };
             
             // Prioridade 1: Unidade específica
-            if (matchedUnit && unidadeHospMap && !isPcgUniversal && !isSemMapeamento && 
-                normUnidKey(unidadeHospMap) === normUnidKey(matchedUnit)) {
-              porUnidadeEspecifica.push(itemData);
+            // Verifica tanto unidade_hospitalar quanto pcg (quando pcg é nome de unidade)
+            if (matchedUnit) {
+              const unidadeHospMatch = unidadeHospMap && normUnidKey(unidadeHospMap) === normUnidKey(matchedUnit);
+              const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === normUnidKey(matchedUnit);
+              
+              if ((unidadeHospMatch || pcgMatch) && !isPcgUniversal && !isSemMapeamento) {
+                porUnidadeEspecifica.push(itemData);
+                continue; // Pula para próximo item, não precisa verificar outras prioridades
+              }
             }
+            
             // Prioridade 2: Outra unidade (genérico, mas não universal)
-            else if (unidadeHospMap && !isPcgUniversal && !isSemMapeamento && 
-                     unidadeHospMap !== 'PCG UNIVERSAL' && unidadeHospMap !== 'SEM MAPEAMENTO NO PCG') {
+            // Só entra aqui se não entrou na Prioridade 1
+            if (unidadeHospMap && !isPcgUniversal && !isSemMapeamento && 
+                unidadeHospMap !== 'PCG UNIVERSAL' && unidadeHospMap !== 'SEM MAPEAMENTO NO PCG') {
               porUnidadeGenerica.push(itemData);
+              continue; // Pula para próximo item
             }
+            
             // Prioridade 3: PCG UNIVERSAL (fallback)
-            else if (isPcgUniversal) {
+            if (isPcgUniversal) {
               porPcgUniversal.push(itemData);
             }
           }

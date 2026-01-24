@@ -181,20 +181,35 @@ export async function GET(req: NextRequest) {
       const isPcgUniversal = pcg === 'PCG UNIVERSAL';
       const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
       
+      // Se pcg tem um nome de unidade (não é PCG UNIVERSAL nem SEM MAPEAMENTO), 
+      // então unidade_hospitalar também deve ter esse valor
+      // Isso significa que é um kit específico para aquela unidade
+      const pcgIsUnitName = !isPcgUniversal && !isSemMapeamento && pcg && pcg.trim() !== '';
+      
       // Prioridade 1: Unidade específica (se unidade foi informada e bate)
-      // IMPORTANTE: Só usa PCG UNIVERSAL se NÃO encontrar pela unidade_hospitalar
-      if (matchedUnit && unidadeHosp && !isPcgUniversal && !isSemMapeamento && 
-          normUnidKey(unidadeHosp) === normUnidKey(matchedUnit)) {
-        porUnidadeEspecifica.push(base);
+      // Verifica tanto unidade_hospitalar quanto pcg (quando pcg é nome de unidade)
+      if (matchedUnit) {
+        const unidadeHospMatch = unidadeHosp && normUnidKey(unidadeHosp) === normUnidKey(matchedUnit);
+        const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === normUnidKey(matchedUnit);
+        
+        if ((unidadeHospMatch || pcgMatch) && !isPcgUniversal && !isSemMapeamento) {
+          porUnidadeEspecifica.push(base);
+          continue; // Pula para próximo item, não precisa verificar outras prioridades
+        }
       }
+      
       // Prioridade 2: Outra unidade (genérico, mas não universal) - antes do PCG UNIVERSAL
-      else if (unidadeHosp && !isPcgUniversal && !isSemMapeamento && 
-               unidadeHosp !== 'PCG UNIVERSAL' && unidadeHosp !== 'SEM MAPEAMENTO NO PCG') {
+      // Só entra aqui se não entrou na Prioridade 1
+      if (unidadeHosp && !isPcgUniversal && !isSemMapeamento && 
+          unidadeHosp !== 'PCG UNIVERSAL' && unidadeHosp !== 'SEM MAPEAMENTO NO PCG') {
         porUnidadeGenerica.push(base);
+        continue; // Pula para próximo item
       }
+      
       // Prioridade 3: PCG UNIVERSAL (fallback global) - só se não encontrou por unidade
-      else if (isPcgUniversal) {
+      if (isPcgUniversal) {
         porPcgUniversal.push(base);
+        console.log(`[Kit API] Item "${itemName}" adicionado ao PCG UNIVERSAL (unidade do colaborador: "${unidadeRaw || 'N/A'}")`);
       }
     }
 
