@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { findBestUnitMatch } from '@/lib/unitMatcher';
 
 type KitRow = { item: string; quantidade: number; nome_site: string | null };
 
@@ -104,19 +105,36 @@ export async function GET(req: NextRequest) {
       console.warn('[Kit API] Erro ao buscar PCG de HOSPITAL DA ILHA:', e);
     }
 
-    // Busca PCG da unidade solicitada
+    // Busca PCG da unidade solicitada usando Matcher Inteligente
     if (unidadeRaw) {
       try {
-        const pcgResult: any[] = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${unidadeRaw.replace(/'/g, "''")}'))
-            AND COALESCE(codigo_alterdata, '') != ''
-          LIMIT 1
+        // 1. Busca todas as unidades do mapa para comparar
+        const allUnits = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT DISTINCT unidade_hospitalar FROM stg_epi_map WHERE unidade_hospitalar IS NOT NULL
         `);
-        if (pcgResult.length > 0 && pcgResult[0].pcg) {
-          pcgUnidade = String(pcgResult[0].pcg).trim();
-          console.log(`[Kit API] PCG encontrado para unidade ${unidadeRaw}: ${pcgUnidade}`);
+        const unitList = allUnits.map(u => u.unidade_hospitalar);
+        
+        // 2. Encontra o nome correto no banco
+        const matchedUnit = findBestUnitMatch(unidadeRaw, unitList);
+        
+        if (matchedUnit) {
+          console.log(`[Kit API] Match de unidade: "${unidadeRaw}" -> "${matchedUnit}"`);
+          
+          // 3. Busca o PCG usando o nome encontrado
+          const pcgResult: any[] = await prisma.$queryRawUnsafe(`
+            SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+            FROM stg_epi_map
+            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${matchedUnit.replace(/'/g, "''")}'))
+              AND COALESCE(codigo_alterdata, '') != ''
+            LIMIT 1
+          `);
+          
+          if (pcgResult.length > 0 && pcgResult[0].pcg) {
+            pcgUnidade = String(pcgResult[0].pcg).trim();
+            console.log(`[Kit API] PCG encontrado para unidade match: ${pcgUnidade}`);
+          }
+        } else {
+          console.warn(`[Kit API] Nenhuma unidade correspondente encontrada no banco para: "${unidadeRaw}"`);
         }
       } catch (pcgError) {
         console.warn('[Kit API] Erro ao buscar PCG da unidade:', pcgError);

@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
+import { findBestUnitMatch } from '@/lib/unitMatcher';
 
 /**
  * Calcula a meta de EPIs obrigatórios por regional
@@ -123,7 +124,6 @@ export async function GET(req: Request) {
       return withoutStops.replace(/[^a-z0-9]/gi, '');
     }
 
-    // Cache de PCG por unidade (otimização: busca uma vez por unidade única)
     const pcgPorUnidade = new Map<string, string | null>();
     let pcgHospitalIlha: string | null = null;
     const unidadesUnicas = new Set<string>();
@@ -132,67 +132,77 @@ export async function GET(req: Request) {
       if (unidadeHosp) unidadesUnicas.add(unidadeHosp);
     }
     
-    // Busca PCG de todas as unidades de uma vez. Se unidade não tem PCG, considera HOSPITAL DA ILHA.
+    // Busca PCG de todas as unidades de uma vez usando Match Inteligente
     const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
     
-    // Busca PCG do fallback sempre
+    // Busca todas as unidades do mapa para comparar
+    let allUnitsList: string[] = [];
     try {
-      let fallback: any[] = await prisma.$queryRawUnsafe(`
-        SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-        FROM stg_epi_map
-        WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
-          AND COALESCE(codigo_alterdata, '') != ''
-        LIMIT 1
+      const allUnits = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT DISTINCT unidade_hospitalar FROM stg_epi_map WHERE unidade_hospitalar IS NOT NULL
       `);
-      
-      // Se não achar exato, tenta com LIKE
-      if (!fallback.length) {
-        fallback = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL DA ILHA%'
-            AND COALESCE(codigo_alterdata, '') != ''
-          LIMIT 1
-        `);
-      }
-      
-      // Rede de segurança: Se ainda não achou Hospital da Ilha, pega QUALQUER Hospital (exceto SVO)
-      if (!fallback.length) {
-        fallback = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL%'
-            AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%SVO%'
-            AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%VERIFICA%'
-            AND COALESCE(codigo_alterdata, '') != ''
-          LIMIT 1
-        `);
-      }
+      allUnitsList = allUnits.map(u => u.unidade_hospitalar);
+    } catch (e) {
+      console.warn('[Meta API] Erro ao carregar lista de unidades:', e);
+    }
 
-      if (fallback.length > 0 && fallback[0].pcg) {
-        pcgHospitalIlha = String(fallback[0].pcg).trim();
-        console.log(`[Meta API] PCG do Hospital da Ilha encontrado: ${pcgHospitalIlha}`);
+    // Busca PCG do fallback sempre (usando match inteligente)
+    try {
+      const fallbackUnit = findBestUnitMatch(UNIDADE_FALLBACK_PCG, allUnitsList);
+      if (fallbackUnit) {
+        const fallback: any[] = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${fallbackUnit.replace(/'/g, "''")}'))
+            AND COALESCE(codigo_alterdata, '') != ''
+          LIMIT 1
+        `);
+        if (fallback.length > 0 && fallback[0].pcg) {
+          pcgHospitalIlha = String(fallback[0].pcg).trim();
+          console.log(`[Meta API] PCG do Hospital da Ilha encontrado: ${pcgHospitalIlha} (${fallbackUnit})`);
+        }
       }
     } catch (pcgError) {
       console.warn('[Meta API] Erro ao buscar PCG fallback:', pcgError);
     }
 
-    if (unidadesUnicas.size > 0) {
+    if (unidadesUnicas.size > 0 && allUnitsList.length > 0) {
       try {
-        const unidadesList = Array.from(unidadesUnicas).map(u => `'${u.replace(/'/g, "''")}'`).join(',');
-        const pcgResults: any[] = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT
-            UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) AS unidade,
-            COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) IN (${unidadesList})
-            AND COALESCE(codigo_alterdata, '') != ''
-        `);
-        for (const r of pcgResults) {
-          const unid = String(r.unidade || '').trim();
-          const pcg = String(r.pcg || '').trim();
-          if (unid && pcg) {
-            pcgPorUnidade.set(unid, pcg);
+        // Para cada unidade única da lista, encontra o match e busca o PCG
+        const matchedUnits = new Set<string>();
+        const mapSystemToDbUnit = new Map<string, string>(); // SystemName -> DbName
+
+        for (const systemUnit of Array.from(unidadesUnicas)) {
+          const match = findBestUnitMatch(systemUnit, allUnitsList);
+          if (match) {
+            matchedUnits.add(match);
+            mapSystemToDbUnit.set(systemUnit.toUpperCase().trim(), match);
+          }
+        }
+
+        if (matchedUnits.size > 0) {
+          const unidadesListSql = Array.from(matchedUnits).map(u => `'${u.replace(/'/g, "''")}'`).join(',');
+          const pcgResults: any[] = await prisma.$queryRawUnsafe(`
+            SELECT DISTINCT
+              UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) AS unidade,
+              COALESCE(codigo_alterdata::text, '') AS pcg
+            FROM stg_epi_map
+            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) IN (${unidadesListSql})
+              AND COALESCE(codigo_alterdata, '') != ''
+          `);
+          
+          // Mapeia DB Unit -> PCG
+          const dbUnitToPcg = new Map<string, string>();
+          for (const r of pcgResults) {
+            const unid = String(r.unidade || '').trim();
+            const pcg = String(r.pcg || '').trim();
+            if (unid && pcg) dbUnitToPcg.set(unid, pcg);
+          }
+
+          // Preenche pcgPorUnidade (System Unit -> PCG)
+          for (const [sysUnitUpper, dbUnit] of mapSystemToDbUnit.entries()) {
+            const pcg = dbUnitToPcg.get(dbUnit.toUpperCase().trim());
+            if (pcg) pcgPorUnidade.set(sysUnitUpper, pcg);
           }
         }
       } catch (pcgError) {

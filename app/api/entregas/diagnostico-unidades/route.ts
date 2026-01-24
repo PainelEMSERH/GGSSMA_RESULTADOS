@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
+import { findBestUnitMatch } from '@/lib/unitMatcher';
 
 /**
  * Retorna dados de entregas por unidade hospitalar
@@ -210,43 +211,31 @@ export async function GET(req: Request) {
       let pcgUnidade: string | null = null;
       let pcgHospitalIlha: string | null = null;
 
+      // Busca todas as unidades do mapa para comparar
+      let allUnitsList: string[] = [];
+      try {
+        const allUnits = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT DISTINCT unidade_hospitalar FROM stg_epi_map WHERE unidade_hospitalar IS NOT NULL
+        `);
+        allUnitsList = allUnits.map(u => u.unidade_hospitalar);
+      } catch (e) {
+        console.warn('[Diagnóstico] Erro ao carregar lista de unidades:', e);
+      }
+
       // Busca PCG do HOSPITAL DA ILHA (sempre necessário para fallback)
       try {
-        let fallbackResult: any[] = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
-            AND COALESCE(codigo_alterdata, '') != ''
-          LIMIT 1
-        `);
-        
-        // Se não achar exato, tenta com LIKE
-        if (!fallbackResult.length) {
-          fallbackResult = await prisma.$queryRawUnsafe(`
+        const fallbackUnit = findBestUnitMatch(UNIDADE_FALLBACK_PCG, allUnitsList);
+        if (fallbackUnit) {
+          const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
             SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
             FROM stg_epi_map
-            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL DA ILHA%'
+            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${fallbackUnit.replace(/'/g, "''")}'))
               AND COALESCE(codigo_alterdata, '') != ''
             LIMIT 1
           `);
-        }
-        
-        // Rede de segurança: Se ainda não achou Hospital da Ilha, pega QUALQUER Hospital (exceto SVO)
-        if (!fallbackResult.length) {
-          fallbackResult = await prisma.$queryRawUnsafe(`
-            SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-            FROM stg_epi_map
-            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL%'
-              AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%SVO%'
-              AND UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) NOT LIKE '%VERIFICA%'
-              AND COALESCE(codigo_alterdata, '') != ''
-            LIMIT 1
-          `);
-        }
-
-        if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
-          pcgHospitalIlha = String(fallbackResult[0].pcg).trim();
-          console.log(`[Diagnóstico] PCG do Hospital da Ilha encontrado: ${pcgHospitalIlha}`);
+          if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
+            pcgHospitalIlha = String(fallbackResult[0].pcg).trim();
+          }
         }
       } catch (e) {
         console.warn(`[Diagnóstico] Erro ao buscar PCG de ${UNIDADE_FALLBACK_PCG}:`, e);
@@ -254,16 +243,21 @@ export async function GET(req: Request) {
 
       if (unidadeNome) {
         try {
-          const pcgResult: any[] = await prisma.$queryRawUnsafe(`
-            SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
-            FROM stg_epi_map
-            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}'))
-              AND COALESCE(codigo_alterdata, '') != ''
-            LIMIT 1
-          `);
-          if (pcgResult.length > 0 && pcgResult[0].pcg) {
-            pcgUnidade = String(pcgResult[0].pcg).trim();
-            console.log(`[Diagnóstico] PCG encontrado para unidade ${unidadeNome}: ${pcgUnidade}`);
+          const matchedUnit = findBestUnitMatch(unidadeNome, allUnitsList);
+          if (matchedUnit) {
+            const pcgResult: any[] = await prisma.$queryRawUnsafe(`
+              SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+              FROM stg_epi_map
+              WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${matchedUnit.replace(/'/g, "''")}'))
+                AND COALESCE(codigo_alterdata, '') != ''
+              LIMIT 1
+            `);
+            if (pcgResult.length > 0 && pcgResult[0].pcg) {
+              pcgUnidade = String(pcgResult[0].pcg).trim();
+              console.log(`[Diagnóstico] PCG encontrado para unidade ${unidadeNome} (via ${matchedUnit}): ${pcgUnidade}`);
+            }
+          } else {
+            console.warn(`[Diagnóstico] Nenhuma unidade correspondente no banco para: "${unidadeNome}"`);
           }
         } catch (pcgError) {
           console.warn(`[Diagnóstico] Erro ao buscar PCG da unidade ${unidadeNome}:`, pcgError);
