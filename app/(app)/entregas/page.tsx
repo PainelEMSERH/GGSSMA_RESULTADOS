@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
+import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
@@ -77,6 +78,40 @@ async function fetchJSON(url: string, init?: RequestInit) {
   return { ok: res.ok, json };
 }
 
+// Sistema de Toast para feedback
+type Toast = { id: string; message: string; type: 'success' | 'error' | 'info'; };
+
+function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
+  return (
+    <div className="fixed top-20 right-4 z-50 flex flex-col gap-2">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg min-w-[300px] max-w-md animate-in slide-in-from-right ${
+            toast.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-200'
+              : toast.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200'
+              : 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200'
+          }`}
+        >
+          {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0" />}
+          {toast.type === 'error' && <XCircle className="w-5 h-5 flex-shrink-0" />}
+          {toast.type === 'info' && <Info className="w-5 h-5 flex-shrink-0" />}
+          <span className="text-sm font-medium flex-1">{toast.message}</span>
+          <button
+            onClick={() => removeToast(toast.id)}
+            className="text-current opacity-70 hover:opacity-100"
+            aria-label="Fechar notificação"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function EntregasPage() {
   const [state, setState] = usePersistedState(LS_KEY, {
     regional: '',
@@ -108,6 +143,33 @@ export default function EntregasPage() {
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
   const [selectedEpis, setSelectedEpis] = useState<Record<string, { qtd: number; data: string }>>({});
+  
+  // Sistema de Toast
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  
+  function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+    const id = Date.now().toString() + Math.random().toString(36);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => removeToast(id), 5000);
+  }
+  
+  function removeToast(id: string) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
+  
+  // Quick stats
+  const quickStats = useMemo(() => {
+    const ativos = visibleRows.filter(r => {
+      const st = statusMap[r.id];
+      return (st?.code || 'ATIVO') === 'ATIVO';
+    }).length;
+    const comPendencias = visibleRows.filter(r => {
+      // Aqui poderia verificar se tem pendências, mas por enquanto só conta os não-ativos
+      const st = statusMap[r.id];
+      return st && st.code !== 'ATIVO';
+    }).length;
+    return { total: visibleRows.length, ativos, comPendencias };
+  }, [visibleRows, statusMap]);
 
 
   function setFilter(patch: Partial<typeof state>) {
@@ -185,8 +247,36 @@ async function checkManualCpf(cpfRaw: string) {
 }
 
   async function saveNewManual() {
+    // Validações básicas
+    const cpfLimpo = String(newColab.cpf || '').replace(/\D/g, '').slice(-11);
+    if (cpfLimpo.length !== 11) {
+      showToast('CPF inválido. Digite um CPF com 11 dígitos.', 'error');
+      return;
+    }
+    if (!newColab.nome || !newColab.nome.trim()) {
+      showToast('Nome é obrigatório.', 'error');
+      return;
+    }
+    if (!newColab.funcao || !newColab.funcao.trim()) {
+      showToast('Função é obrigatória.', 'error');
+      return;
+    }
+    if (!newColab.regional) {
+      showToast('Regional é obrigatória.', 'error');
+      return;
+    }
+    if (!newColab.unidade) {
+      showToast('Unidade é obrigatória.', 'error');
+      return;
+    }
+    
+    if (cpfCheck.exists === true) {
+      showToast('Este CPF já está cadastrado. Verifique antes de continuar.', 'error');
+      return;
+    }
+    
     const body: any = { ...newColab };
-    body.cpf = String(body.cpf || '').replace(/\D/g, '').slice(-11);
+    body.cpf = cpfLimpo;
     const { json } = await fetchJSON('/api/entregas/manual', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -194,6 +284,7 @@ async function checkManualCpf(cpfRaw: string) {
     });
     if (json?.ok) {
       setModalNew(false);
+      showToast('Colaborador cadastrado com sucesso!', 'success');
       // reload list
       const params = new URLSearchParams();
       params.set('regional', state.regional);
@@ -204,6 +295,8 @@ async function checkManualCpf(cpfRaw: string) {
       const { json: j2 } = await fetchJSON('/api/entregas/list?' + params.toString(), { cache: 'no-store' });
       setRows((j2.rows || []) as Row[]);
       setTotal(Number(j2.total || 0));
+    } else {
+      showToast(json?.error || 'Erro ao cadastrar colaborador', 'error');
     }
   }
   // ---------------------------------------------------
@@ -325,7 +418,7 @@ async function doDeliver() {
     const selectedItems = Object.keys(selectedEpis).filter(item => selectedEpis[item].qtd > 0);
     
     if (selectedItems.length === 0) {
-      alert('Selecione pelo menos um EPI para fazer a entrega.');
+      showToast('Selecione pelo menos um EPI para fazer a entrega.', 'info');
       return;
     }
 
@@ -353,9 +446,9 @@ async function doDeliver() {
       if (!ok || !json?.ok) {
         console.error('Erro ao registrar entregas em massa', json);
         if (json?.error) {
-          alert(`Erro ao registrar entregas: ${json.error}`);
+          showToast(`Erro ao registrar entregas: ${json.error}`, 'error');
         } else {
-          alert('Erro ao registrar entregas em massa.');
+          showToast('Erro ao registrar entregas em massa.', 'error');
         }
         return;
       }
@@ -376,7 +469,7 @@ async function doDeliver() {
       // Limpa seleção
       setSelectedEpis({});
       
-      alert(`Entregas registradas com sucesso! ${selectedItems.length} EPI(s) entregue(s).`);
+      showToast(`Entregas registradas com sucesso! ${selectedItems.length} EPI(s) entregue(s).`, 'success');
     } catch (e) {
       console.error('Erro inesperado ao registrar entregas em massa', e);
       alert('Erro inesperado ao registrar entregas em massa.');
@@ -439,6 +532,9 @@ const visibleRows = useMemo(() => {
 
   return (
     <div className="space-y-4">
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -455,6 +551,27 @@ const visibleRows = useMemo(() => {
           <span>Base oficial + colaboradores manuais</span>
         </div>
       </div>
+      
+      {/* Quick Stats - Só mostra quando tem dados */}
+      {state.regional && visibleRows.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-border bg-panel p-3">
+            <div className="text-xs text-muted uppercase tracking-wide mb-1">Total filtrado</div>
+            <div className="text-2xl font-bold text-text">{quickStats.total.toLocaleString('pt-BR')}</div>
+            <div className="text-xs text-muted mt-1">colaboradores na lista</div>
+          </div>
+          <div className="rounded-xl border border-border bg-panel p-3">
+            <div className="text-xs text-muted uppercase tracking-wide mb-1">Ativos</div>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{quickStats.ativos.toLocaleString('pt-BR')}</div>
+            <div className="text-xs text-muted mt-1">colaboradores ativos</div>
+          </div>
+          <div className="rounded-xl border border-border bg-panel p-3">
+            <div className="text-xs text-muted uppercase tracking-wide mb-1">Com observações</div>
+            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{quickStats.comPendencias.toLocaleString('pt-BR')}</div>
+            <div className="text-xs text-muted mt-1">com status diferente</div>
+          </div>
+        </div>
+      )}
 
       {/* Abas */}
       <div className="border-b border-border">
@@ -487,100 +604,128 @@ const visibleRows = useMemo(() => {
       {/* Aba: Lista */}
       {tab === 'lista' && (
         <>
-            <div className="flex flex-col md:flex-row gap-3 items-stretch">
-              <div className="flex-1">
-                <label className="text-xs block mb-1">Regional</label>
-                <select
-                  value={state.regional}
-                  onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
-                  <option value="">Selecione a Regional…</option>
-                  {regionais.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+            {/* Filtros Principais */}
+            <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">Filtros</span>
+                <div className="h-px flex-1 bg-border" />
               </div>
-              <div className="flex-1">
-                <label className="text-xs block mb-1">Unidade</label>
-                <select
-                  value={state.unidade}
-                  onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  disabled={!state.regional}
-                >
-                  <option value="">(todas)</option>
-                  {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
-                </select>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-medium block mb-1.5 text-text">Regional</label>
+                  <select
+                    value={state.regional}
+                    onChange={e => setFilter({ regional: e.target.value, unidade: '', page: 1 })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                    aria-label="Selecione a Regional"
+                  >
+                    <option value="">Selecione a Regional…</option>
+                    {regionais.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1.5 text-text">Unidade</label>
+                  <select
+                    value={state.unidade}
+                    onChange={e => setFilter({ unidade: e.target.value, page: 1 })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!state.regional}
+                    aria-label="Selecione a Unidade"
+                  >
+                    <option value="">(todas)</option>
+                    {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1.5 text-text">Busca (nome/CPF)</label>
+                  <input
+                    value={state.q}
+                    onChange={e => setFilter({ q: e.target.value, page: 1 })}
+                    placeholder="Digite para filtrar…"
+                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                    aria-label="Buscar por nome ou CPF"
+                  />
+                </div>
               </div>
-              <div className="flex-1">
-                <label className="text-xs block mb-1">Busca (nome/CPF)</label>
-                <input
-                  value={state.q}
-                  onChange={e => setFilter({ q: e.target.value })}
-                  placeholder="Digite para filtrar…"
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
+            </div>
+            
+            {/* Ações e Configurações */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <button
                 onClick={openNewManual}
-                className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600 self-end h-10 md:h-auto"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 shadow-sm transition-colors font-medium text-sm"
+                aria-label="Cadastrar novo colaborador"
               >
+                <Package className="w-4 h-4" />
                 Cadastrar colaborador
               </button>
-              <div className="w-40">
-                <label className="text-xs block mb-1">Itens por página</label>
+              
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-medium text-text">Itens por página:</label>
                 <select
                   value={state.pageSize}
                   onChange={e => setFilter({ pageSize: Number(e.target.value) || 25, page: 1 })}
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-panel text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="px-3 py-2 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                  aria-label="Quantidade de itens por página"
                 >
                   {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 text-xs text-neutral-700 dark:text-neutral-300 gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="opacity-70">Legenda:</span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>Ativo</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-sky-500" />
-                  <span>Férias</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  <span>INSS</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-purple-500" />
-                  <span>Licença maternidade</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  <span>Demitido 2025 sem EPI</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-neutral-400" />
-                  <span>Excluído da meta</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700">🅘</span>
-                  <span>observação rápida</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="inline-flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="rounded border-neutral-300 dark:border-neutral-700"
-                    checked={showExcluded}
-                    onChange={(e) => setShowExcluded(e.target.checked)}
-                  />
-                  <span>Mostrar colaboradores fora da meta</span>
-                </label>
-              </div>
+            {/* Legenda Compacta e Filtro */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border bg-panel">
+              <details className="group">
+                <summary className="text-xs font-medium text-text cursor-pointer list-none flex items-center gap-2 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                  <Info className="w-4 h-4" />
+                  <span>Ver legenda de status</span>
+                  <span className="text-muted group-open:hidden">▼</span>
+                  <span className="text-muted hidden group-open:inline">▲</span>
+                </summary>
+                <div className="mt-3 pt-3 border-t border-border grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                    <span className="text-muted">Ativo</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
+                    <span className="text-muted">Férias</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                    <span className="text-muted">INSS</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />
+                    <span className="text-muted">Licença maternidade</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                    <span className="text-muted">Demitido 2025 sem EPI</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-neutral-400 flex-shrink-0" />
+                    <span className="text-muted">Excluído da meta</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 md:col-span-2">
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-border flex-shrink-0">🅘</span>
+                    <span className="text-muted">Observação rápida</span>
+                  </div>
+                </div>
+              </details>
+              
+              <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-text">
+                <input
+                  type="checkbox"
+                  className="rounded border-border text-emerald-600 focus:ring-emerald-500"
+                  checked={showExcluded}
+                  onChange={(e) => setShowExcluded(e.target.checked)}
+                  aria-label="Mostrar colaboradores fora da meta"
+                />
+                <span>Mostrar colaboradores fora da meta</span>
+              </label>
             </div>
 
             {!state.regional && (
@@ -636,39 +781,46 @@ const visibleRows = useMemo(() => {
                           <tr key={r.id} className="odd:bg-panel/30 hover:bg-panel/70 transition-colors border-b border-border/50">
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotClass(code)}`} />
-                                <span className="truncate font-medium text-text">{r.nome}</span>
+                                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusDotClass(code)}`} aria-label={label} />
+                                <span className="truncate font-medium text-text" title={r.nome}>{r.nome}</span>
                                 {(obs || code !== 'ATIVO') && (
                                   <span
-                                    className="text-[10px] px-1.5 py-0.5 rounded-full border border-border cursor-default flex-shrink-0"
+                                    className="text-[10px] px-1.5 py-0.5 rounded-full border border-border cursor-help flex-shrink-0"
                                     title={obs || label}
+                                    aria-label={`Observação: ${obs || label}`}
                                   >
                                     🅘
                                   </span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-3 py-2.5 whitespace-nowrap text-text">{maskCPF(r.id)}</td>
-                            <td className="px-3 py-2.5 text-text">{r.funcao || '—'}</td>
-                            <td className="px-3 py-2.5 text-text">{r.unidade || '—'}</td>
-                            <td className="px-3 py-2.5 text-text">{r.regional || '—'}</td>
+                            <td className="px-3 py-2.5 whitespace-nowrap text-text" title={maskCPF(r.id)}>{maskCPF(r.id)}</td>
+                            <td className="px-3 py-2.5 text-text" title={r.funcao || '—'}>{r.funcao || '—'}</td>
+                            <td className="px-3 py-2.5 text-text" title={r.unidade || '—'}>{r.unidade || '—'}</td>
+                            <td className="px-3 py-2.5 text-text" title={r.regional || '—'}>{r.regional || '—'}</td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={() => openStatusModal(r)}
-                                  className="px-2.5 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium text-text transition-colors"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium text-text transition-colors"
+                                  aria-label={`Ajustar situação de ${r.nome}`}
+                                  title="Ajustar situação do colaborador"
                                 >
+                                  <Settings className="w-3.5 h-3.5" />
                                   Situação
                                 </button>
                                 <button
                                   onClick={() => openDeliver(r)}
                                   disabled={isForaMeta}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                                     isForaMeta
                                       ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-500'
                                       : 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 shadow-sm'
                                   }`}
+                                  aria-label={`Entregar EPIs para ${r.nome}`}
+                                  title={isForaMeta ? 'Colaborador fora da meta - entrega desabilitada' : 'Registrar entrega de EPIs'}
                                 >
+                                  <Package className="w-3.5 h-3.5" />
                                   Entregar
                                 </button>
                               </div>
@@ -690,22 +842,35 @@ const visibleRows = useMemo(() => {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-panel/50">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border bg-panel/50">
                   <div className="text-xs font-medium text-muted">
-                    Total: <span className="text-text font-semibold">{total.toLocaleString('pt-BR')}</span> colaboradores
+                    Total: <span className="text-text font-semibold">{total.toLocaleString('pt-BR')}</span> colaborador{total !== 1 ? 'es' : ''}
+                    {visibleRows.length !== total && (
+                      <span className="ml-2 text-muted">
+                        ({visibleRows.length} {showExcluded ? 'exibidos' : 'visíveis'})
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      className="px-2 py-1 rounded-lg border"
+                      className="px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={state.page <= 1}
                       onClick={() => setFilter({ page: Math.max(1, state.page - 1) })}
-                    >Anterior</button>
-                    <span className="text-xs opacity-70">Página {state.page} de {totalPages}</span>
+                      aria-label="Página anterior"
+                    >
+                      Anterior
+                    </button>
+                    <span className="text-xs text-muted min-w-[100px] text-center">
+                      Página <span className="font-semibold text-text">{state.page}</span> de <span className="font-semibold text-text">{totalPages}</span>
+                    </span>
                     <button
-                      className="px-2 py-1 rounded-lg border"
+                      className="px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={state.page >= totalPages}
                       onClick={() => setFilter({ page: Math.min(totalPages, state.page + 1) })}
-                    >Próxima</button>
+                      aria-label="Próxima página"
+                    >
+                      Próxima
+                    </button>
                   </div>
                 </div>
               </div>
@@ -833,9 +998,11 @@ const visibleRows = useMemo(() => {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-                  <div className="text-lg font-semibold">Situação do colaborador</div>
-                  <div className="text-xs opacity-70 mt-1">
-                    Ajuste a situação atual do colaborador para fins de meta e acompanhamento.
+                  <div>
+                    <div className="text-lg font-semibold">Situação do colaborador</div>
+                    <div className="text-xs opacity-70 mt-1">
+                      Ajuste a situação atual do colaborador para fins de meta e acompanhamento.
+                    </div>
                   </div>
                 </div>
                 <div className="p-4 space-y-3 text-sm">
@@ -849,7 +1016,7 @@ const visibleRows = useMemo(() => {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs block mb-1">Situação</label>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Situação</label>
                     <select
                       value={statusModal.code || 'ATIVO'}
                       onChange={(e) =>
@@ -858,7 +1025,8 @@ const visibleRows = useMemo(() => {
                           code: e.target.value as StatusCode,
                         }))
                       }
-                      className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                      aria-label="Situação do colaborador"
                     >
                       <option value="ATIVO">Ativo (conta na meta)</option>
                       <option value="FERIAS">Férias</option>
@@ -869,7 +1037,7 @@ const visibleRows = useMemo(() => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs block mb-1">Observação rápida (aparece no 🅘)</label>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Observação rápida (aparece no 🅘)</label>
                     <input
                       type="text"
                       maxLength={100}
@@ -881,23 +1049,29 @@ const visibleRows = useMemo(() => {
                         }))
                       }
                       placeholder="Ex.: Férias jan/2025, INSS desde fev/2025, gestante, etc."
-                      className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                      aria-label="Observação sobre a situação do colaborador"
                     />
-                    <div className="text-[10px] opacity-60 mt-1">
+                    <div className="text-[10px] text-muted-foreground mt-1.5">
                       Status marcados como &quot;Demitido 2025 sem EPI&quot; ou &quot;Excluído da meta&quot; ficarão com o botão de entrega desativado e podem ser ocultados usando o filtro acima.
                     </div>
                   </div>
                 </div>
                 <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
-                  <button
-                    className="px-3 py-2 rounded-xl border"
+                  <button 
+                    className="px-4 py-2 rounded-xl border border-border bg-panel hover:bg-muted text-sm font-medium transition-colors" 
                     onClick={() => setStatusModal({ open: false })}
+                    aria-label="Cancelar alteração de situação"
                   >
                     Cancelar
                   </button>
                   <button
-                    className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600"
-                    onClick={saveStatusModal}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold shadow-sm transition-colors"
+                    onClick={() => {
+                      saveStatusModal();
+                      showToast('Situação do colaborador atualizada com sucesso!', 'success');
+                    }}
+                    aria-label="Salvar situação do colaborador"
                   >
                     Salvar
                   </button>
@@ -910,169 +1084,376 @@ const visibleRows = useMemo(() => {
             <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-50 overflow-y-auto" onClick={() => setModal({ open: false })}>
               <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-3xl shadow-xl my-auto max-h-[90vh] overflow-hidden flex flex-col relative" onClick={e => e.stopPropagation()} style={{ isolation: 'isolate' }}>
                 <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex-shrink-0">
-                  <div className="text-lg font-semibold mb-3">Entregas de EPI — {modal.row.nome}</div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="flex items-start justify-between mb-3">
                     <div>
-                      <div className="text-xs text-muted-foreground mb-1">CPF</div>
-                      <div className="font-medium">{maskCPF(modal.row.id)}</div>
+                      <div className="text-lg font-semibold">Entregas de EPI</div>
+                      <div className="text-sm font-medium text-muted-foreground mt-0.5">{modal.row.nome}</div>
+                      <div className="text-xs text-muted-foreground mt-1">CPF: {maskCPF(modal.row.id)}</div>
+                    </div>
+                    {kit.length > 0 && (
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground">Kit de EPI</div>
+                        <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                          {kit.length} item{kit.length !== 1 ? 's' : ''}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {kit.filter(k => isEpiObrigatorio(k.item)).length} obrigatório{kit.filter(k => isEpiObrigatorio(k.item)).length !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Informações adicionais em formato compacto */}
+                  <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-800 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Função:</span>
+                      <span className="ml-1 font-medium">{modal.row.funcao || '—'}</span>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground mb-1">Função</div>
-                      <div className="font-medium">{modal.row.funcao || '—'}</div>
+                      <span className="text-muted-foreground">Unidade:</span>
+                      <span className="ml-1 font-medium">{modal.row.unidade || '—'}</span>
                     </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Unidade</div>
-                      <div className="font-medium">{modal.row.unidade || '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Regional</div>
-                      <div className="font-medium">{modal.row.regional || '—'}</div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Regional:</span>
+                      <span className="ml-1 font-medium">{modal.row.regional || '—'}</span>
                     </div>
                   </div>
+                  
+                  {/* Barra de progresso de entregas */}
                   {kit.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
-                      <div className="text-xs text-muted-foreground mb-1">Kit de EPI</div>
-                      <div className="text-sm font-medium">
-                        {kit.length} item(ns) no kit • {kit.filter(k => isEpiObrigatorio(k.item)).length} obrigatório(s)
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="text-muted-foreground">Progresso de entregas</span>
+                        <span className="font-medium">
+                          {deliv.reduce((acc, d) => acc + d.qty_delivered, 0)} / {kit.reduce((acc, k) => acc + k.quantidade, 0)} itens
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500 transition-all"
+                          style={{ 
+                            width: `${Math.min(100, (deliv.reduce((acc, d) => acc + d.qty_delivered, 0) / kit.reduce((acc, k) => acc + k.quantidade, 0)) * 100) || 0}%` 
+                          }}
+                        />
                       </div>
                     </div>
                   )}
                 </div>
                 <div className="p-4 grid md:grid-cols-2 gap-4 overflow-y-auto flex-1 min-h-0">
                   <div>
-                    <div className="font-medium text-sm mb-2">Kit esperado - Selecione os EPIs para entrega</div>
-                    <div className="space-y-2 mt-2 max-h-[400px] overflow-y-auto">
-                      {kit.map((k, i) => {
-                        const delivered = deliv.find(d => d.item.toLowerCase() === (k.item||'').toLowerCase());
-                        const obrigatorio = isEpiObrigatorio(k.item);
-                        const isSelected = selectedEpis[k.item] !== undefined;
-                        const selectedData = selectedEpis[k.item] || { qtd: 1, data: new Date().toISOString().substring(0, 10) };
-                        
-                        return (
-                          <div key={i} className={`border rounded-xl p-3 ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700' : ''}`}>
-                            <div className="flex items-start gap-2">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedEpis(prev => ({
-                                      ...prev,
-                                      [k.item]: { qtd: 1, data: new Date().toISOString().substring(0, 10) }
-                                    }));
-                                  } else {
-                                    setSelectedEpis(prev => {
-                                      const next = { ...prev };
-                                      delete next[k.item];
-                                      return next;
-                                    });
-                                  }
-                                }}
-                                className="mt-1 rounded border-neutral-300 dark:border-neutral-700"
-                              />
-                              <div className="flex-1">
-                                <div className="text-sm flex items-center justify-between gap-2">
-                                  <span className="font-medium">{k.item}</span>
-                                  <span
-                                    className={
-                                      'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ' +
-                                      (obrigatorio
-                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                        : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900/60 dark:text-neutral-300')
-                                    }
-                                  >
-                                    {obrigatorio ? 'OBRIGATÓRIO' : 'NÃO OBRIGATÓRIO'}
-                                  </span>
-                                </div>
-                                <div className="text-xs opacity-70 mt-0.5">
-                                  Requerido: {k.quantidade} • Entregue: {delivered?.qty_delivered || 0}
-                                </div>
-                                {isSelected && (
-                                  <div className="mt-2 flex gap-2">
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      value={selectedData.qtd}
-                                      onChange={(e) => {
-                                        const qtd = Math.max(1, Number(e.target.value) || 1);
-                                        setSelectedEpis(prev => ({
-                                          ...prev,
-                                          [k.item]: { ...prev[k.item], qtd }
-                                        }));
-                                      }}
-                                      className="w-20 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-                                      placeholder="Qtd"
-                                    />
-                                    <input
-                                      type="date"
-                                      value={selectedData.data}
-                                      onChange={(e) => {
-                                        setSelectedEpis(prev => ({
-                                          ...prev,
-                                          [k.item]: { ...prev[k.item], data: e.target.value }
-                                        }));
-                                      }}
-                                      className="flex-1 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-                                    />
-                                  </div>
-                                )}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="font-medium text-sm">Kit esperado</div>
+                      <div className="text-xs text-muted-foreground">
+                        {Object.keys(selectedEpis).length > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-medium">
+                            {Object.keys(selectedEpis).length} selecionado{Object.keys(selectedEpis).length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Agrupar EPIs: Obrigatórios primeiro */}
+                    {(() => {
+                      const obrigatorios = kit.filter(k => isEpiObrigatorio(k.item));
+                      const naoObrigatorios = kit.filter(k => !isEpiObrigatorio(k.item));
+                      
+                      return (
+                        <div className="space-y-3 max-h-[450px] overflow-y-auto">
+                          {obrigatorios.length > 0 && (
+                            <div>
+                              <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2 flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                EPIs Obrigatórios ({obrigatorios.length})
+                              </div>
+                              <div className="space-y-2">
+                                {obrigatorios.map((k, i) => {
+                                  const delivered = deliv.find(d => d.item.toLowerCase() === (k.item||'').toLowerCase());
+                                  const isSelected = selectedEpis[k.item] !== undefined;
+                                  const selectedData = selectedEpis[k.item] || { qtd: 1, data: new Date().toISOString().substring(0, 10) };
+                                  
+                                  return (
+                                    <div key={`obr-${i}`} className={`border-2 rounded-xl p-3 transition-all ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-400 dark:border-emerald-600 shadow-sm' : 'border-emerald-200 dark:border-emerald-800'}`}>
+                                      <div className="flex items-start gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setSelectedEpis(prev => ({
+                                                ...prev,
+                                                [k.item]: { qtd: 1, data: new Date().toISOString().substring(0, 10) }
+                                              }));
+                                            } else {
+                                              setSelectedEpis(prev => {
+                                                const next = { ...prev };
+                                                delete next[k.item];
+                                                return next;
+                                              });
+                                            }
+                                          }}
+                                          className="mt-1 rounded border-neutral-300 dark:border-neutral-700 text-emerald-600 focus:ring-emerald-500"
+                                          aria-label={`Selecionar ${k.item} para entrega`}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-sm flex items-center justify-between gap-2">
+                                            <span className="font-medium truncate" title={k.item}>{k.item}</span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 flex-shrink-0">
+                                              OBRIGATÓRIO
+                                            </span>
+                                          </div>
+                                          <div className="text-xs text-muted-foreground mt-0.5">
+                                            Requerido: <strong>{k.quantidade}</strong> • Entregue: <strong>{delivered?.qty_delivered || 0}</strong>
+                                          </div>
+                                          {isSelected && (
+                                            <div className="mt-2 flex gap-2">
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={selectedData.qtd}
+                                                onChange={(e) => {
+                                                  const qtd = Math.max(1, Number(e.target.value) || 1);
+                                                  setSelectedEpis(prev => ({
+                                                    ...prev,
+                                                    [k.item]: { ...prev[k.item], qtd }
+                                                  }));
+                                                }}
+                                                className="w-20 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-1 focus:ring-emerald-500"
+                                                placeholder="Qtd"
+                                                aria-label="Quantidade"
+                                              />
+                                              <input
+                                                type="date"
+                                                value={selectedData.data}
+                                                onChange={(e) => {
+                                                  setSelectedEpis(prev => ({
+                                                    ...prev,
+                                                    [k.item]: { ...prev[k.item], data: e.target.value }
+                                                  }));
+                                                }}
+                                                className="flex-1 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-1 focus:ring-emerald-500"
+                                                aria-label="Data da entrega"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                      {kit.length === 0 && <div className="text-sm opacity-70">Nenhum mapeamento de kit para esta função.</div>}
-                    </div>
-                    {Object.keys(selectedEpis).length > 0 && (
-                      <div className="mt-3 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-                        <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                          {Object.keys(selectedEpis).length} EPI(s) selecionado(s) para entrega
+                          )}
+                          
+                          {naoObrigatorios.length > 0 && (
+                            <div>
+                              <div className="text-xs font-semibold text-muted-foreground mb-2">
+                                Outros EPIs ({naoObrigatorios.length})
+                              </div>
+                              <div className="space-y-2">
+                                {naoObrigatorios.map((k, i) => {
+                                  const delivered = deliv.find(d => d.item.toLowerCase() === (k.item||'').toLowerCase());
+                                  const isSelected = selectedEpis[k.item] !== undefined;
+                                  const selectedData = selectedEpis[k.item] || { qtd: 1, data: new Date().toISOString().substring(0, 10) };
+                                  
+                                  return (
+                                    <div key={`nao-${i}`} className={`border rounded-xl p-3 transition-all ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700' : 'border-border'}`}>
+                                      <div className="flex items-start gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setSelectedEpis(prev => ({
+                                                ...prev,
+                                                [k.item]: { qtd: 1, data: new Date().toISOString().substring(0, 10) }
+                                              }));
+                                            } else {
+                                              setSelectedEpis(prev => {
+                                                const next = { ...prev };
+                                                delete next[k.item];
+                                                return next;
+                                              });
+                                            }
+                                          }}
+                                          className="mt-1 rounded border-neutral-300 dark:border-neutral-700"
+                                          aria-label={`Selecionar ${k.item} para entrega`}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-sm flex items-center justify-between gap-2">
+                                            <span className="font-medium truncate" title={k.item}>{k.item}</span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-600 dark:bg-neutral-900/60 dark:text-neutral-300 flex-shrink-0">
+                                              NÃO OBRIGATÓRIO
+                                            </span>
+                                          </div>
+                                          <div className="text-xs text-muted-foreground mt-0.5">
+                                            Requerido: <strong>{k.quantidade}</strong> • Entregue: <strong>{delivered?.qty_delivered || 0}</strong>
+                                          </div>
+                                          {isSelected && (
+                                            <div className="mt-2 flex gap-2">
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                value={selectedData.qtd}
+                                                onChange={(e) => {
+                                                  const qtd = Math.max(1, Number(e.target.value) || 1);
+                                                  setSelectedEpis(prev => ({
+                                                    ...prev,
+                                                    [k.item]: { ...prev[k.item], qtd }
+                                                  }));
+                                                }}
+                                                className="w-20 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-1 focus:ring-emerald-500"
+                                                placeholder="Qtd"
+                                                aria-label="Quantidade"
+                                              />
+                                              <input
+                                                type="date"
+                                                value={selectedData.data}
+                                                onChange={(e) => {
+                                                  setSelectedEpis(prev => ({
+                                                    ...prev,
+                                                    [k.item]: { ...prev[k.item], data: e.target.value }
+                                                  }));
+                                                }}
+                                                className="flex-1 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-1 focus:ring-emerald-500"
+                                                aria-label="Data da entrega"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {kit.length === 0 && (
+                            <div className="text-sm text-muted-foreground text-center py-8">
+                              Nenhum mapeamento de kit para esta função.
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
 
                   <div className="overflow-hidden flex flex-col min-h-0">
-                    <div className="font-medium text-sm">Registrar entrega</div>
-                    <div className="flex flex-col gap-2 mt-2">
+                    <div className="font-medium text-sm mb-3">Registrar entrega</div>
+                    
+                    {/* Resumo da seleção */}
+                    {Object.keys(selectedEpis).length > 0 && (
+                      <div className="mb-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                        <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
+                          {Object.keys(selectedEpis).length} EPI{Object.keys(selectedEpis).length !== 1 ? 's' : ''} selecionado{Object.keys(selectedEpis).length !== 1 ? 's' : ''}
+                        </div>
+                        <div className="text-xs text-emerald-600 dark:text-emerald-400">
+                          Total: {Object.values(selectedEpis).reduce((acc, s) => acc + s.qtd, 0)} unidade{Object.values(selectedEpis).reduce((acc, s) => acc + s.qtd, 0) !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex flex-col gap-2">
                       <button 
                         onClick={doDeliver} 
                         disabled={Object.keys(selectedEpis).length === 0}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 disabled:bg-neutral-300 dark:disabled:bg-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed font-medium"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 disabled:bg-neutral-300 dark:disabled:bg-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed font-semibold text-sm shadow-sm transition-all"
+                        aria-label={Object.keys(selectedEpis).length > 0 ? `Registrar entrega de ${Object.keys(selectedEpis).length} EPI(s)` : 'Selecione pelo menos um EPI para continuar'}
                       >
+                        <Package className="w-4 h-4" />
                         {Object.keys(selectedEpis).length > 0 
-                          ? `Dar baixa em ${Object.keys(selectedEpis).length} EPI(s)` 
+                          ? `Registrar ${Object.keys(selectedEpis).length} EPI${Object.keys(selectedEpis).length !== 1 ? 's' : ''}` 
                           : 'Selecione pelo menos um EPI'}
                       </button>
-                      <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                      <div className="text-xs text-muted-foreground">
                         {Object.keys(selectedEpis).length > 0 
-                          ? 'Clique no botão acima para entregar todos os EPIs selecionados de uma vez.'
-                          : 'Selecione os EPIs na lista ao lado marcando os checkboxes para fazer a entrega.'}
+                          ? 'Clique no botão acima para registrar a entrega de todos os EPIs selecionados.'
+                          : 'Marque os checkboxes dos EPIs na lista ao lado para fazer a entrega.'}
                       </div>
                     </div>
 
                     <div className="mt-4 overflow-y-auto flex-1 min-h-0">
-                      <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-2 mb-1">
-                      Somente EPIs marcados como <strong>OBRIGATÓRIO</strong> contam para a meta do SESMT.
-                    </p>
-                    <div className="font-medium text-sm">Entregas registradas</div>
-                      <div className="grid grid-cols-1 gap-2 mt-2">
-                        {deliv.map((d, i) => (
-                          <div key={i} className="border rounded-xl p-2">
-                            <div className="text-sm">{d.item} — {d.qty_delivered} entregue(s)</div>
-                            <div className="text-xs opacity-70">Lançamentos: {Array.isArray(d.deliveries) ? d.deliveries.map((x: any) => `${x.qty} em ${x.date}`).join(', ') : ''}</div>
+                      <div className="mb-3 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                        <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                          <strong>Importante:</strong> Somente EPIs marcados como <strong>OBRIGATÓRIO</strong> contam para a meta do SESMT.
+                        </p>
+                      </div>
+                      
+                      <div className="font-medium text-sm mb-2">Histórico de entregas</div>
+                      <div className="space-y-2">
+                        {deliv.map((d, i) => {
+                          const kitItem = kit.find(k => k.item.toLowerCase() === d.item.toLowerCase());
+                          const obrigatorio = kitItem ? isEpiObrigatorio(kitItem.item) : false;
+                          const percentual = kitItem && kitItem.quantidade > 0 
+                            ? Math.min(100, (d.qty_delivered / kitItem.quantidade) * 100) 
+                            : 0;
+                          
+                          return (
+                            <div key={i} className="border rounded-xl p-3 bg-card">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate" title={d.item}>{d.item}</div>
+                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                    {d.qty_delivered} de {d.qty_required} entregue{d.qty_delivered !== 1 ? 's' : ''}
+                                  </div>
+                                </div>
+                                {obrigatorio && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 flex-shrink-0">
+                                    OBRIGATÓRIO
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {kitItem && (
+                                <div className="mb-2">
+                                  <div className="h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                                    <div 
+                                      className={`h-full transition-all ${percentual >= 100 ? 'bg-emerald-500' : percentual >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                      style={{ width: `${percentual}%` }}
+                                    />
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground mt-1">
+                                    {percentual.toFixed(0)}% do requerido
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {Array.isArray(d.deliveries) && d.deliveries.length > 0 && (
+                                <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
+                                  <div className="font-medium mb-1">Lançamentos:</div>
+                                  <div className="space-y-0.5">
+                                    {d.deliveries.map((x: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between">
+                                        <span>{new Date(x.date).toLocaleDateString('pt-BR')}</span>
+                                        <span className="font-medium">{x.qty} unidade{x.qty !== 1 ? 's' : ''}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {deliv.length === 0 && (
+                          <div className="text-sm text-muted-foreground text-center py-8 border border-dashed border-border rounded-xl">
+                            Nenhuma entrega registrada ainda.
                           </div>
-                        ))}
-                        {deliv.length === 0 && <div className="text-sm opacity-70">Nenhuma entrega registrada ainda.</div>}
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end flex-shrink-0">
-                  <button className="px-3 py-2 rounded-xl border" onClick={() => {
-                    setModal({ open: false });
-                    setSelectedEpis({});
-                  }}>Fechar</button>
+                <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2 flex-shrink-0">
+                  <button 
+                    className="px-4 py-2 rounded-xl border border-border bg-panel hover:bg-muted text-sm font-medium transition-colors" 
+                    onClick={() => {
+                      setModal({ open: false });
+                      setSelectedEpis({});
+                    }}
+                    aria-label="Fechar modal de entregas"
+                  >
+                    Fechar
+                  </button>
                 </div>
               </div>
             </div>
@@ -1088,53 +1469,137 @@ const visibleRows = useMemo(() => {
                 <div className="p-4 grid md:grid-cols-2 gap-3">
                   
 <div className="md:col-span-2">
-  <label className="text-xs block mb-1">CPF</label>
+  <label className="text-xs font-medium block mb-1.5 text-text">CPF *</label>
   <input
     value={newColab.cpf}
     onChange={e => {
-      setNewColab({ ...newColab, cpf: e.target.value });
+      const value = e.target.value.replace(/\D/g, '');
+      const formatted = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+      setNewColab({ ...newColab, cpf: formatted });
     }}
     onBlur={e => checkManualCpf(e.target.value)}
-    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900"
+    className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
     placeholder="000.000.000-00"
+    maxLength={14}
+    aria-label="CPF do colaborador"
+    aria-required="true"
   />
-  <div className="mt-1 text-[11px] min-h-[1rem]">
+  <div className="mt-1.5 text-[11px] min-h-[1.25rem]">
     {cpfCheck.loading && (
-      <span className="text-neutral-500">Verificando CPF na base...</span>
+      <span className="inline-flex items-center gap-1.5 text-muted">
+        <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        Verificando CPF na base...
+      </span>
     )}
     {!cpfCheck.loading && cpfCheck.exists === true && (
-      <span className="text-amber-600 dark:text-amber-400">
+      <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
         Este CPF já possui cadastro ({cpfCheck.source || 'base oficial/manual'}). Verifique antes de criar um novo registro.
       </span>
     )}
     {!cpfCheck.loading && cpfCheck.exists === false && (
-      <span className="text-emerald-600 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
         CPF não encontrado na base. Pode prosseguir com o cadastro manual.
       </span>
     )}
   </div>
 </div>
-                  <div><label className="text-xs block mb-1">Matrícula</label><input value={newColab.matricula||''} onChange={e=>setNewColab({...newColab, matricula: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="(opcional)" /></div>
-                  <div className="md:col-span-2"><label className="text-xs block mb-1">Nome</label><input value={newColab.nome} onChange={e=>setNewColab({...newColab, nome: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
-                  <div><label className="text-xs block mb-1">Função</label><input value={newColab.funcao} onChange={e=>setNewColab({...newColab, funcao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" placeholder="Ex.: Enfermeiro UTI" /></div>
-                  <div><label className="text-xs block mb-1">Regional</label>
-                    <select value={newColab.regional} onChange={e=>setNewColab({...newColab, regional: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Matrícula</label>
+                    <input 
+                      value={newColab.matricula||''} 
+                      onChange={e=>setNewColab({...newColab, matricula: e.target.value})} 
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" 
+                      placeholder="(opcional)"
+                      aria-label="Matrícula do colaborador"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-medium block mb-1.5 text-text">Nome *</label>
+                    <input 
+                      value={newColab.nome} 
+                      onChange={e=>setNewColab({...newColab, nome: e.target.value})} 
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                      placeholder="Nome completo do colaborador"
+                      aria-label="Nome do colaborador"
+                      aria-required="true"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Função *</label>
+                    <input 
+                      value={newColab.funcao} 
+                      onChange={e=>setNewColab({...newColab, funcao: e.target.value})} 
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" 
+                      placeholder="Ex.: Enfermeiro UTI"
+                      aria-label="Função do colaborador"
+                      aria-required="true"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Regional *</label>
+                    <select 
+                      value={newColab.regional} 
+                      onChange={e=>setNewColab({...newColab, regional: e.target.value})} 
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                      aria-label="Regional do colaborador"
+                      aria-required="true"
+                    >
                       <option value="">Selecione…</option>
                       {regionais.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
-                  <div className="md:col-span-2"><label className="text-xs block mb-1">Unidade</label>
-                    <select value={newColab.unidade} onChange={e=>setNewColab({...newColab, unidade: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900">
-                      <option value="">Selecione…</option>
-                      {unidades.map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-medium block mb-1.5 text-text">Unidade *</label>
+                    <select 
+                      value={newColab.unidade} 
+                      onChange={e=>setNewColab({...newColab, unidade: e.target.value})} 
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                      disabled={!newColab.regional}
+                      aria-label="Unidade do colaborador"
+                      aria-required="true"
+                    >
+                      <option value="">{newColab.regional ? 'Selecione…' : 'Selecione a Regional primeiro'}</option>
+                      {unidades.filter(u => !newColab.regional || u.regional === newColab.regional).map(u => <option key={u.unidade} value={u.unidade}>{u.unidade}</option>)}
                     </select>
                   </div>
-                  <div><label className="text-xs block mb-1">Admissão</label><input type="date" value={newColab.admissao||''} onChange={e=>setNewColab({...newColab, admissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
-                  <div><label className="text-xs block mb-1">Demissão</label><input type="date" value={newColab.demissao||''} onChange={e=>setNewColab({...newColab, demissao: e.target.value})} className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900" /></div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Admissão</label>
+                    <input 
+                      type="date" 
+                      value={newColab.admissao||''} 
+                      onChange={e=>setNewColab({...newColab, admissao: e.target.value})} 
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                      aria-label="Data de admissão"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5 text-text">Demissão</label>
+                    <input 
+                      type="date" 
+                      value={newColab.demissao||''} 
+                      onChange={e=>setNewColab({...newColab, demissao: e.target.value})} 
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                      aria-label="Data de demissão"
+                    />
+                  </div>
                 </div>
                 <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
-                  <button className="px-3 py-2 rounded-xl border" onClick={()=>setModalNew(false)}>Cancelar</button>
-                  <button className="px-3 py-2 rounded-xl bg-neutral-800 text-white dark:bg-emerald-600" onClick={saveNewManual}>Salvar</button>
+                  <button 
+                    className="px-4 py-2 rounded-xl border border-border bg-panel hover:bg-muted text-sm font-medium transition-colors" 
+                    onClick={()=>setModalNew(false)}
+                    aria-label="Cancelar cadastro"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold shadow-sm transition-colors" 
+                    onClick={saveNewManual}
+                    aria-label="Salvar novo colaborador"
+                  >
+                    Salvar
+                  </button>
                 </div>
               </div>
             </div>
