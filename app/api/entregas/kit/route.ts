@@ -60,15 +60,31 @@ export async function GET(req: NextRequest) {
     
     // Busca PCG do HOSPITAL DA ILHA (sempre necessário para fallback)
     try {
-      const fallbackResult: any[] = await prisma.$queryRawUnsafe(`
+      let fallbackResult: any[] = await prisma.$queryRawUnsafe(`
         SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
         FROM stg_epi_map
         WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${UNIDADE_FALLBACK_PCG.replace(/'/g, "''")}'))
           AND COALESCE(codigo_alterdata, '') != ''
         LIMIT 1
       `);
+      
+      // Se não achar exato, tenta com LIKE
+      if (!fallbackResult.length) {
+        console.log('[Kit API] Fallback exato não encontrado, tentando LIKE...');
+        fallbackResult = await prisma.$queryRawUnsafe(`
+          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          FROM stg_epi_map
+          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) LIKE '%HOSPITAL DA ILHA%'
+            AND COALESCE(codigo_alterdata, '') != ''
+          LIMIT 1
+        `);
+      }
+
       if (fallbackResult.length > 0 && fallbackResult[0].pcg) {
         pcgHospitalIlha = String(fallbackResult[0].pcg).trim();
+        console.log(`[Kit API] PCG do Hospital da Ilha encontrado: ${pcgHospitalIlha}`);
+      } else {
+        console.warn('[Kit API] CRÍTICO: PCG do Hospital da Ilha NÃO encontrado nem com LIKE.');
       }
     } catch (e) {
       console.warn('[Kit API] Erro ao buscar PCG de HOSPITAL DA ILHA:', e);
@@ -95,6 +111,8 @@ export async function GET(req: NextRequest) {
     
     // Define o PCG alvo: da unidade ou o fallback (Hospital da Ilha)
     const targetPcg = pcgUnidade || pcgHospitalIlha;
+    
+    console.log(`[Kit API] Unidade: "${unidadeRaw}", PCG Unidade: ${pcgUnidade}, PCG Fallback: ${pcgHospitalIlha}, Target: ${targetPcg}`);
 
     // Busca todos os kits da função (com PCG)
     const rows: any[] = await prisma.$queryRawUnsafe(
