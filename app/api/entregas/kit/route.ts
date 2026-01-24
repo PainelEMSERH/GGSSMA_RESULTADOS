@@ -187,16 +187,16 @@ export async function GET(req: NextRequest) {
         nome_site: site || null,
       };
 
-      // Prioridade 1: PCG alvo + unidade específica
-      if (targetPcg && pcg === targetPcg && unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
+      // Prioridade 1: Unidade específica (Ignora PCG, pois a unidade pode ter multiplos PCGs)
+      if (unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
         porUnidadeComPcg.push(base);
       }
-      // Prioridade 2: PCG alvo (genérico)
+      // Prioridade 2: PCG alvo (genérico, para outras unidades usarem este PCG)
       else if (targetPcg && pcg === targetPcg) {
         porPcgGenerico.push(base);
       }
       // Prioridade 3: PCG Hospital da Ilha (fallback se função não existir no alvo)
-      else if (pcgHospitalIlha && pcg === pcgHospitalIlha && pcg !== targetPcg) {
+      else if (pcgHospitalIlha && pcg === pcgHospitalIlha) {
         porPcgFallback.push(base);
       }
     }
