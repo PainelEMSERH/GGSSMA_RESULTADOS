@@ -779,6 +779,7 @@ async function doDeliver() {
       INSS: 0,
       LICENCA_MATERNIDADE: 0,
       DEMITIDO_2025_SEM_EPI: 0,
+      DEMITIDO_2026_SEM_EPI: 0,
       EXCLUIDO_META: 0,
     };
     const regionaisCount: Record<string, number> = {};
@@ -809,8 +810,7 @@ async function doDeliver() {
     };
   }, [rows, statusMap]);
 
-
-const visibleRows = useMemo(() => {
+  const visibleRows = useMemo(() => {
     return rows.filter((r) => {
       const st = statusMap[r.id];
       const code: StatusCode = (st?.code || 'ATIVO');
