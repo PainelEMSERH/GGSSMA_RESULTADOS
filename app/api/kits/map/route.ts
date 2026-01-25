@@ -40,11 +40,25 @@ export async function GET(req: Request) {
     }
 
     if (unidade) {
-      params.push(`%${unidade.toUpperCase()}%`);
-      where.push(`UPPER(m.unidade_hospitalar) LIKE $${params.length}`);
+      const unidadeLike = `%${unidade.toUpperCase()}%`;
+      params.push(unidadeLike);
+      where.push(
+        `(UPPER(TRIM(COALESCE(m.unidade_hospitalar, ''))) LIKE $${params.length} OR ` +
+        `(m.pcg = 'PCG UNIVERSAL' AND $${params.length} LIKE '%PCG UNIVERSAL%'))`,
+      );
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    // Unidade exibida: mesma lógica de entregas/kit — PCG UNIVERSAL quando pcg = 'PCG UNIVERSAL' e sem unidade_hospitalar
+    const unidadeExpr = `CASE
+      WHEN m.pcg = 'PCG UNIVERSAL' AND (m.unidade_hospitalar IS NULL OR TRIM(COALESCE(m.unidade_hospitalar, '')) = '') THEN 'PCG UNIVERSAL'
+      ELSE NULLIF(TRIM(COALESCE(m.unidade_hospitalar, '')), '')
+    END`;
+    const unidadeCoalesced = `COALESCE(${unidadeExpr}, '—')`;
+
+    // Função: prioriza funcao_normalizada (como entregas/kit), fallback alterdata_funcao
+    const funcaoExpr = `TRIM(COALESCE(m.funcao_normalizada, m.alterdata_funcao, ''))`;
 
     // Linhas deduplicadas por (função, item, unidade), com quantidade normalizada
     const rows: any[] = await prisma.$queryRawUnsafe(
@@ -56,21 +70,14 @@ export async function GET(req: Request) {
         sub.unidade
       FROM (
         SELECT
-          TRIM(m.alterdata_funcao) AS funcao,
-          TRIM(m.epi_item)         AS item,
-          GREATEST(
-            1,
-            ROUND(
-              COALESCE(
-                NULLIF(TRIM(m.quantidade::text), '')::numeric,
-                1
-              )
-            )
-          )::int                   AS quantidade,
-          TRIM(m.unidade_hospitalar) AS unidade
+          ${funcaoExpr} AS funcao,
+          TRIM(COALESCE(m.epi_item, '')) AS item,
+          GREATEST(1, ROUND(COALESCE(NULLIF(TRIM(m.quantidade::text), '')::numeric, 1)))::int AS quantidade,
+          ${unidadeCoalesced} AS unidade
         FROM stg_epi_map m
         ${whereSql}
       ) sub
+      WHERE sub.funcao != '' AND sub.item != '' AND UPPER(sub.item) != 'SEM EPI'
       GROUP BY sub.funcao, sub.item, sub.unidade
       ORDER BY sub.funcao, sub.item
       LIMIT ${size} OFFSET ${offset}
@@ -83,17 +90,13 @@ export async function GET(req: Request) {
       `
       SELECT COUNT(*)::int AS c
       FROM (
-        SELECT
-          TRIM(m.alterdata_funcao) AS funcao,
-          TRIM(m.epi_item)         AS item,
-          TRIM(m.unidade_hospitalar) AS unidade
+        SELECT ${funcaoExpr} AS funcao, TRIM(COALESCE(m.epi_item, '')) AS item, ${unidadeCoalesced} AS unidade
         FROM stg_epi_map m
         ${whereSql}
-        GROUP BY
-          TRIM(m.alterdata_funcao),
-          TRIM(m.epi_item),
-          TRIM(m.unidade_hospitalar)
       ) sub
+      WHERE sub.funcao != '' AND sub.item != '' AND UPPER(sub.item) != 'SEM EPI'
+      GROUP BY sub.funcao, sub.item, sub.unidade
+      ) g
       `,
       ...params,
     );
