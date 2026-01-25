@@ -79,7 +79,7 @@ function toInputDate(iso: string | null | undefined) {
 const TIPOS_ACIDENTE = [
   { value: 'biologico', label: 'Biológico' },
   { value: 'trajeto', label: 'Trajeto' },
-  { value: 'típico', label: 'Típico' },
+  { value: 'tipico', label: 'Típico' },
   { value: 'de_trabalho', label: 'De Trabalho' },
   { value: 'outros', label: 'Outros' },
 ];

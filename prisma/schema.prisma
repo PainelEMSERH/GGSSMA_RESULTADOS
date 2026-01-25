@@ -48,7 +48,7 @@ enum EntidadeArquivo {
 enum TipoAcidente {
   biologico
   trajeto
-  típico
+  tipico
   de_trabalho
   outros
 }
