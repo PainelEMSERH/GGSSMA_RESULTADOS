@@ -45,6 +45,26 @@ enum EntidadeArquivo {
   ficha_epi
 }
 
+enum TipoAcidente {
+  biologico
+  trajeto
+  típico
+  de_trabalho
+  outros
+}
+
+enum StatusAcidente {
+  aberto
+  em_analise
+  concluido
+  cancelado
+}
+
+enum EmpresaAcidente {
+  IADVH
+  EMSERH
+}
+
 model Regional {
   id       String   @id @default(cuid())
   nome     String
@@ -264,4 +284,34 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
+}
+
+model Acidente {
+  id                String          @id @default(cuid())
+  nome              String
+  empresa           EmpresaAcidente
+  unidadeHospitalar String
+  regional          String?
+  tipo              TipoAcidente
+  comAfastamento    Boolean         @default(false)
+  data              DateTime
+  hora              String?
+  mes               Int
+  ano               Int
+  numeroCAT         String?
+  riat              String?
+  sinan             String?
+  status            StatusAcidente  @default(aberto)
+  descricao         String?         @db.Text
+  criadoEm          DateTime        @default(now())
+  atualizadoEm      DateTime        @updatedAt
+  criadoPor         String?
+
+  @@index([empresa])
+  @@index([unidadeHospitalar])
+  @@index([regional])
+  @@index([tipo])
+  @@index([status])
+  @@index([ano, mes])
+  @@index([data])
 }
