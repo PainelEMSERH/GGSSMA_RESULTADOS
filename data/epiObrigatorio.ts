@@ -5,11 +5,14 @@
 
 const RAW_OBRIGATORIOS = [
   'Máscara N95',
-  'Luva nitrílica para proteção química e biológica',
-  'Bota de PVC',
+  'Luva Nitrílica', // Nomenclatura exata do banco
+  'Luva nitrílica para proteção química e biológica', // Variação completa
+  'Bota de PVC', // Nomenclatura exata do banco
+  'Bota PVC', // Variação sem "de"
   'Avental de PVC',
   'Óculos de proteção',
   'Luva de Látex',
+  'Luva Látex', // Variação sem "de"
   'Cinto de Segurança',
   'Talabarte de Segurança',
   'Avental de chumbo ou plumbífero',

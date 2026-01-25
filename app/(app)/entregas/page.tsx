@@ -17,6 +17,7 @@ type StatusCode =
   | 'INSS'
   | 'LICENCA_MATERNIDADE'
   | 'DEMITIDO_2025_SEM_EPI'
+  | 'DEMITIDO_2026_SEM_EPI'
   | 'EXCLUIDO_META';
 
 type StatusInfo = {
@@ -31,10 +32,11 @@ const STATUS_LABELS: Record<StatusCode, string> = {
   INSS: 'INSS',
   LICENCA_MATERNIDADE: 'Licença maternidade',
   DEMITIDO_2025_SEM_EPI: 'Demitido 2025 sem EPI',
+  DEMITIDO_2026_SEM_EPI: 'Demitido 2026 sem EPI',
   EXCLUIDO_META: 'Excluído da meta',
 };
 
-const EXCLUDED_STATUS: StatusCode[] = ['DEMITIDO_2025_SEM_EPI', 'EXCLUIDO_META'];
+const EXCLUDED_STATUS: StatusCode[] = ['DEMITIDO_2025_SEM_EPI', 'DEMITIDO_2026_SEM_EPI', 'EXCLUIDO_META'];
 
 function statusDotClass(code: StatusCode): string {
   switch (code) {
@@ -76,6 +78,96 @@ async function fetchJSON(url: string, init?: RequestInit) {
   const res = await fetch(url, init);
   const json = await res.json().catch(() => ({}));
   return { ok: res.ok, json };
+}
+
+// Componente de Resumo de EPIs por Tipo
+function ResumoEpisPorTipo({ 
+  regional, 
+  unidadesData 
+}: { 
+  regional: string; 
+  unidadesData: Array<{ unidade: string; qtePrevista: number; meses: Record<string, number>; totalRealizada: number }> | null 
+}) {
+  const [resumoData, setResumoData] = useState<Array<{ item: string; previsto: number; entregue: number; pendente: number }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!regional || !unidadesData || unidadesData.length === 0) {
+      setResumoData([]);
+      return;
+    }
+
+    async function loadResumo() {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set('regional', regional);
+        params.set('ano', '2026');
+        
+        const { json } = await fetchJSON(`/api/entregas/resumo-epis-tipo?${params.toString()}`, { cache: 'no-store' });
+        
+        if (json?.ok && Array.isArray(json.resumo)) {
+          setResumoData(json.resumo);
+        } else {
+          setResumoData([]);
+        }
+      } catch (e) {
+        console.error('Erro ao carregar resumo de EPIs:', e);
+        setResumoData([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadResumo();
+  }, [regional, unidadesData]);
+
+  if (!regional || !unidadesData || unidadesData.length === 0 || resumoData.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/20 p-4 mb-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Package className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+        <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Resumo de EPIs por Tipo</h3>
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-4">
+          <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {resumoData.map((epi) => (
+            <div 
+              key={epi.item}
+              className="bg-white dark:bg-neutral-900 rounded-lg border border-emerald-200 dark:border-emerald-800 p-3 shadow-sm"
+            >
+              <div className="text-xs font-medium text-emerald-900 dark:text-emerald-100 mb-2 truncate" title={epi.item}>
+                {epi.item}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Previsto:</span>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-300">{epi.previsto.toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Entregue:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{epi.entregue.toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-emerald-100 dark:border-emerald-800">
+                  <span className="text-muted-foreground">Pendente:</span>
+                  <span className={`font-bold ${epi.pendente > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {epi.pendente.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Sistema de Toast para feedback
@@ -186,20 +278,65 @@ export default function EntregasPage() {
   }
 
 
-  // Carrega / persiste status dos colaboradores no localStorage
+  // Carrega / persiste status dos colaboradores no localStorage e banco
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    
+    // Carrega do localStorage primeiro (para compatibilidade)
     try {
       const raw = window.localStorage.getItem('entregas:status:v1');
-      if (!raw) return;
-      const obj = JSON.parse(raw);
-      if (obj && typeof obj === 'object') {
-        setStatusMap(obj as Record<string, StatusInfo>);
+      if (raw) {
+        const obj = JSON.parse(raw);
+        if (obj && typeof obj === 'object') {
+          setStatusMap(obj as Record<string, StatusInfo>);
+        }
       }
     } catch {
       // ignore
     }
+    
+    // Depois tenta carregar do banco (quando houver rows)
+    // Isso será feito quando os dados forem carregados
   }, []);
+  
+  // Carrega situações do banco quando os dados são carregados
+  useEffect(() => {
+    if (!rows || rows.length === 0) return;
+    
+    async function loadSituacoesFromDB() {
+      try {
+        const cpfs = rows.map(r => r.id).filter(Boolean);
+        if (cpfs.length === 0) return;
+        
+        const cpfsStr = cpfs.join(',');
+        const { json } = await fetchJSON(`/api/colaboradores/situacao-meta?cpfs=${encodeURIComponent(cpfsStr)}`, { cache: 'no-store' });
+        
+        if (json?.ok && json?.situacoes) {
+          const situacoesFromDB: Record<string, StatusInfo> = {};
+          for (const [cpf, data] of Object.entries(json.situacoes as Record<string, any>)) {
+            const situacao = data.situacao as StatusCode;
+            if (situacao && STATUS_LABELS[situacao]) {
+              situacoesFromDB[cpf] = {
+                code: situacao,
+                label: STATUS_LABELS[situacao],
+                obs: data.observacao || '',
+              };
+            }
+          }
+          
+          // Mescla com o que já está no statusMap (banco tem prioridade)
+          setStatusMap(prev => ({
+            ...prev,
+            ...situacoesFromDB,
+          }));
+        }
+      } catch (e) {
+        console.error('Erro ao carregar situações do banco:', e);
+      }
+    }
+    
+    loadSituacoesFromDB();
+  }, [rows]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -465,23 +602,62 @@ async function checkManualCpf(cpfRaw: string) {
     });
   }
 
-  function saveStatusModal() {
+  async function saveStatusModal() {
     if (!statusModal.row) {
       setStatusModal({ open: false });
       return;
     }
     const baseCode: StatusCode = (statusModal.code || 'ATIVO');
+    
+    // Se está marcando como "DEMITIDO_2026_SEM_EPI", verifica se realmente não recebeu EPI
+    if (baseCode === 'DEMITIDO_2026_SEM_EPI') {
+      try {
+        const cpf = statusModal.row.id;
+        const { json: deliverData } = await fetchJSON(`/api/entregas/deliver?cpf=${encodeURIComponent(cpf)}`, { cache: 'no-store' });
+        const entregas = deliverData?.rows || [];
+        
+        // Verifica se há entregas registradas
+        if (entregas.length > 0 && entregas.some((e: any) => e.qty_delivered > 0)) {
+          showToast('Este colaborador já recebeu EPI. Não é possível marcar como "Demitido 2026 sem EPI".', 'error');
+          return;
+        }
+      } catch (e) {
+        console.error('Erro ao verificar entregas:', e);
+        // Continua mesmo com erro, mas avisa o usuário
+        const confirmar = window.confirm('Não foi possível verificar se o colaborador recebeu EPI. Deseja continuar mesmo assim?');
+        if (!confirmar) return;
+      }
+    }
+    
     const info: StatusInfo = {
       code: baseCode,
       label: STATUS_LABELS[baseCode],
       obs: statusModal.obs || '',
     };
     const cpf = statusModal.row.id;
+    
+    // Salva no banco de dados
+    try {
+      await fetchJSON('/api/colaboradores/situacao-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cpf,
+          situacao: baseCode,
+          observacao: statusModal.obs || '',
+        }),
+      });
+    } catch (e) {
+      console.error('Erro ao salvar situação no banco:', e);
+      // Continua mesmo com erro, salva no localStorage
+    }
+    
     setStatusMap((prev) => ({
       ...prev,
       [cpf]: info,
     }));
     setStatusModal({ open: false });
+    showToast('Situação do colaborador atualizada com sucesso!', 'success');
   }
 
   
@@ -914,32 +1090,36 @@ const visibleRows = useMemo(() => {
                   <span className="text-muted group-open:hidden">▼</span>
                   <span className="text-muted hidden group-open:inline">▲</span>
                 </summary>
-                <div className="mt-3 pt-3 border-t border-border grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
-                  <div className="inline-flex items-center gap-1.5">
+                <div className="mt-3 pt-3 border-t border-border flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                  <div className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
                     <span className="text-muted">Ativo</span>
                   </div>
-                  <div className="inline-flex items-center gap-1.5">
+                  <div className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
                     <span className="text-muted">Férias</span>
                   </div>
-                  <div className="inline-flex items-center gap-1.5">
+                  <div className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
                     <span className="text-muted">INSS</span>
                   </div>
-                  <div className="inline-flex items-center gap-1.5">
+                  <div className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />
                     <span className="text-muted">Licença maternidade</span>
                   </div>
-                  <div className="inline-flex items-center gap-1.5">
+                  <div className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
                     <span className="text-muted">Demitido 2025 sem EPI</span>
                   </div>
-                  <div className="inline-flex items-center gap-1.5">
+                  <div className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-600 flex-shrink-0" />
+                    <span className="text-muted">Demitido 2026 sem EPI</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-neutral-400 flex-shrink-0" />
                     <span className="text-muted">Excluído da meta</span>
                   </div>
-                  <div className="inline-flex items-center gap-1.5 md:col-span-2">
+                  <div className="inline-flex items-center gap-1">
                     <span className="text-[11px] px-1.5 py-0.5 rounded-full border border-border flex-shrink-0">🅘</span>
                     <span className="text-muted">Observação rápida</span>
                   </div>
@@ -1137,59 +1317,62 @@ const visibleRows = useMemo(() => {
               </p>
             </div>
           ) : (
+            {/* Resumo de EPIs por Tipo */}
+            <ResumoEpisPorTipo regional={state.regional} unidadesData={unidadesData} />
+            
             <div className="overflow-x-auto rounded-lg border border-border bg-card">
-              <table className="min-w-full text-xs">
+              <table className="min-w-full" style={{ fontSize: '11px' }}>
                 <thead className="bg-emerald-600 text-white">
                   <tr>
-                    <th className="px-3 py-2 text-left border-b border-emerald-700 font-semibold">Unidade</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Qte Prevista</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Janeiro</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Fevereiro</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Março</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Abril</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Maio</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Junho</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Julho</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Agosto</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Setembro</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Outubro</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Novembro</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Dezembro</th>
-                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Total Realizada</th>
+                    <th className="px-3 py-2 text-right border-b border-emerald-700 font-semibold">Unidade</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Qte Prevista</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Janeiro</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Fevereiro</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Março</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Abril</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Maio</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Junho</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Julho</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Agosto</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Setembro</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Outubro</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Novembro</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Dezembro</th>
+                    <th className="px-3 py-2 text-center border-b border-emerald-700 font-semibold">Total Realizada</th>
                   </tr>
                 </thead>
                 <tbody>
                   {unidadesData.map((unidade, idx) => (
                     <tr key={unidade.unidade} className={idx % 2 === 0 ? 'bg-panel/40' : 'bg-card'}>
-                      <td className="px-3 py-2 border-b border-border font-medium text-text">{unidade.unidade}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.qtePrevista.toLocaleString('pt-BR')}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['01']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['02']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['03']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['04']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['05']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['06']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['07']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['08']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['09']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['10']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['11']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border text-text">{unidade.meses['12']?.toLocaleString('pt-BR') || '0'}</td>
-                      <td className="px-3 py-2 text-right border-b border-border font-semibold text-text">{unidade.totalRealizada.toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-2 text-right border-b border-border font-medium text-text">{unidade.unidade}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.qtePrevista.toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['01']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['02']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['03']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['04']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['05']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['06']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['07']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['08']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['09']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['10']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['11']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border text-text">{unidade.meses['12']?.toLocaleString('pt-BR') || '0'}</td>
+                      <td className="px-3 py-2 text-center border-b border-border font-semibold text-text">{unidade.totalRealizada.toLocaleString('pt-BR')}</td>
                     </tr>
                   ))}
                   {/* Linha TOTAL */}
                   <tr className="bg-emerald-50 dark:bg-emerald-900/20 font-semibold">
-                    <td className="px-3 py-2 border-t-2 border-emerald-600 text-text">TOTAL</td>
-                    <td className="px-3 py-2 text-right border-t-2 border-emerald-600 text-text">
+                    <td className="px-3 py-2 text-right border-t-2 border-emerald-600 text-text">TOTAL</td>
+                    <td className="px-3 py-2 text-center border-t-2 border-emerald-600 text-text">
                       {unidadesData.reduce((acc, u) => acc + u.qtePrevista, 0).toLocaleString('pt-BR')}
                     </td>
                     {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(mes => (
-                      <td key={mes} className="px-3 py-2 text-right border-t-2 border-emerald-600 text-text">
+                      <td key={mes} className="px-3 py-2 text-center border-t-2 border-emerald-600 text-text">
                         {unidadesData.reduce((acc, u) => acc + (u.meses[mes] || 0), 0).toLocaleString('pt-BR')}
                       </td>
                     ))}
-                    <td className="px-3 py-2 text-right border-t-2 border-emerald-600 text-text">
+                    <td className="px-3 py-2 text-center border-t-2 border-emerald-600 text-text">
                       {unidadesData.reduce((acc, u) => acc + u.totalRealizada, 0).toLocaleString('pt-BR')}
                     </td>
                   </tr>
@@ -1242,6 +1425,7 @@ const visibleRows = useMemo(() => {
                       <option value="INSS">INSS</option>
                       <option value="LICENCA_MATERNIDADE">Licença maternidade</option>
                       <option value="DEMITIDO_2025_SEM_EPI">Demitido 2025 sem EPI (fora da meta)</option>
+                      <option value="DEMITIDO_2026_SEM_EPI">Demitido 2026 sem EPI (fora da meta)</option>
                       <option value="EXCLUIDO_META">Excluído da meta (outros motivos)</option>
                     </select>
                   </div>
@@ -1262,7 +1446,7 @@ const visibleRows = useMemo(() => {
                       aria-label="Observação sobre a situação do colaborador"
                     />
                     <div className="text-[10px] text-muted-foreground mt-1.5">
-                      Status marcados como &quot;Demitido 2025 sem EPI&quot; ou &quot;Excluído da meta&quot; ficarão com o botão de entrega desativado e podem ser ocultados usando o filtro acima.
+                      Status marcados como &quot;Demitido 2025/2026 sem EPI&quot; ou &quot;Excluído da meta&quot; ficarão com o botão de entrega desativado, não contarão na meta e podem ser ocultados usando o filtro acima. Para marcar como &quot;Demitido 2026 sem EPI&quot;, o colaborador não pode ter recebido EPI.
                     </div>
                   </div>
                 </div>
@@ -1278,7 +1462,6 @@ const visibleRows = useMemo(() => {
                     className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold shadow-sm transition-colors"
                     onClick={() => {
                       saveStatusModal();
-                      showToast('Situação do colaborador atualizada com sucesso!', 'success');
                     }}
                     aria-label="Salvar situação do colaborador"
                   >

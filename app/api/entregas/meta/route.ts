@@ -82,8 +82,33 @@ export async function GET(req: Request) {
       AND COALESCE(a.funcao, '') != ''
     `;
 
-    const colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
+    let colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
     console.log(`[Meta API] Colaboradores encontrados: ${colaboradores.length} (pode ter CPFs duplicados se demitido e voltou em 2026)`);
+    
+    // Filtra colaboradores marcados como "fora da meta" (DEMITIDO_2026_SEM_EPI, DEMITIDO_2025_SEM_EPI, EXCLUIDO_META)
+    try {
+      const cpfsList = colaboradores.map(c => String(c.cpf || '').replace(/\D/g, '').slice(-11)).filter(c => c.length === 11);
+      if (cpfsList.length > 0) {
+        const situacoesResult = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT cpf, situacao
+          FROM colaborador_situacao_meta
+          WHERE cpf = ANY($1::text[])
+            AND situacao IN ('DEMITIDO_2026_SEM_EPI', 'DEMITIDO_2025_SEM_EPI', 'EXCLUIDO_META')
+        `, cpfsList);
+        
+        const cpfsForaMeta = new Set(situacoesResult.map(r => r.cpf));
+        if (cpfsForaMeta.size > 0) {
+          colaboradores = colaboradores.filter(c => {
+            const cpfLimpo = String(c.cpf || '').replace(/\D/g, '').slice(-11);
+            return !cpfsForaMeta.has(cpfLimpo);
+          });
+          console.log(`[Meta API] Removidos ${cpfsForaMeta.size} colaboradores marcados como "fora da meta"`);
+        }
+      }
+    } catch (e) {
+      console.warn('[Meta API] Erro ao filtrar colaboradores fora da meta:', e);
+      // Continua mesmo com erro
+    }
 
     // Busca kits de stg_epi_map (mesma fonte do botão "Entregar") - COM PCG
     let kitRows: any[] = [];
