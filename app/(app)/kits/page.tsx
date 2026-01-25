@@ -125,6 +125,13 @@ export default function KitsPage() {
   const abrirKit = (key: string) => setSelectedKey(key);
   const fecharKit = () => setSelectedKey(null);
 
+  useEffect(() => {
+    if (!grupoSelecionado) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') fecharKit(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [grupoSelecionado]);
+
   return (
     <div className="space-y-5">
       {/* Cabeçalho */}
@@ -293,32 +300,34 @@ export default function KitsPage() {
         )}
       </div>
 
-      {/* Drawer do kit */}
+      {/* Popup elegante do kit — compacto, tamanho conforme conteúdo */}
       {grupoSelecionado && itensKit && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/40 transition-opacity"
+            className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[2px]"
             aria-hidden="true"
             onClick={fecharKit}
           />
-          <aside
-            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border bg-panel shadow-xl"
+          <div
+            className="fixed left-1/2 top-1/2 z-50 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-panel shadow-2xl"
             role="dialog"
-            aria-labelledby="drawer-title"
+            aria-labelledby="popup-kit-title"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-3">
+            <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
               <div className="min-w-0 flex-1">
-                <h2 id="drawer-title" className="truncate text-sm font-semibold text-text">
+                <h2 id="popup-kit-title" className="text-sm font-semibold leading-tight text-text">
                   {grupoSelecionado.funcao}
                 </h2>
-                <p className="truncate text-xs text-muted">
+                <p className="mt-0.5 truncate text-xs text-muted">
                   {grupoSelecionado.unidade === '—' ? 'Unidade não informada' : grupoSelecionado.unidade}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={fecharKit}
-                className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted transition hover:bg-muted hover:text-text"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted transition hover:bg-muted hover:text-text"
                 aria-label="Fechar"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -327,28 +336,22 @@ export default function KitsPage() {
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 border-b border-border px-4 py-2 text-xs">
-              <div>
-                <span className="text-muted">Itens: </span>
-                <span className="font-semibold text-text">{itensKit.length}</span>
-              </div>
+            <div className="flex flex-wrap items-center gap-3 px-4 py-2 text-xs text-muted">
+              <span><strong className="text-text">{itensKit.length}</strong> itens</span>
               {itensKit.some((it) => isEpiObrigatorio(it.item) && (it.item || '').toUpperCase() !== 'SEM EPI') && (
-                <div>
-                  <span className="text-muted">Obrig.: </span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    {itensKit.filter((it) => isEpiObrigatorio(it.item) && (it.item || '').toUpperCase() !== 'SEM EPI').length}
-                  </span>
-                </div>
+                <span>· <strong className="text-emerald-600 dark:text-emerald-400">
+                  {itensKit.filter((it) => isEpiObrigatorio(it.item) && (it.item || '').toUpperCase() !== 'SEM EPI').length}
+                </strong> obrig.</span>
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="max-h-[min(50vh,320px)] overflow-y-auto px-2 pb-3">
               <table className="min-w-full text-left" style={{ fontSize: '12px' }}>
-                <thead className="sticky top-0 bg-muted/50">
-                  <tr className="border-b border-border">
-                    <th className="px-3 py-2 font-semibold text-text">Item</th>
-                    <th className="w-16 px-2 py-2 text-center font-semibold text-text">Obrig.</th>
-                    <th className="w-14 px-2 py-2 text-center font-semibold text-text">Qtd</th>
+                <thead>
+                  <tr className="border-b border-border/80">
+                    <th className="px-2 py-1.5 font-semibold text-text">Item</th>
+                    <th className="w-12 px-1 py-1.5 text-center font-semibold text-text">Obrig.</th>
+                    <th className="w-10 px-1 py-1.5 text-center font-semibold text-text">Qtd</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -358,32 +361,32 @@ export default function KitsPage() {
                     return (
                       <tr
                         key={`${it.item}-${idx}`}
-                        className={`border-b border-border/60 ${
+                        className={`border-b border-border/50 last:border-b-0 ${
                           semEpi ? 'bg-neutral-50/50 dark:bg-neutral-900/20' : obrig ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : ''
                         }`}
                       >
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <span className={semEpi ? 'text-muted line-through' : 'text-text'}>
                             {it.item || 'SEM EPI'}
                           </span>
                         </td>
-                        <td className="px-2 py-2 text-center">
+                        <td className="px-1 py-1.5 text-center">
                           {obrig && !semEpi ? (
-                            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                            <span className="rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                               Sim
                             </span>
                           ) : (
                             <span className="text-muted">—</span>
                           )}
                         </td>
-                        <td className="px-2 py-2 text-center font-medium text-text">{it.quantidade ?? 0}</td>
+                        <td className="px-1 py-1.5 text-center font-medium text-text">{it.quantidade ?? 0}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-          </aside>
+          </div>
         </>
       )}
     </div>
