@@ -178,7 +178,6 @@ export default function AcidentesPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (regional) params.set('regional', regional);
-    if (unidade) params.set('unidade', unidade);
     if (tipo) params.set('tipo', tipo);
     if (status) params.set('status', status);
     if (empresa) params.set('empresa', empresa);
@@ -198,7 +197,7 @@ export default function AcidentesPage() {
         setTotal(0);
       })
       .finally(() => setLoading(false));
-  }, [regional, unidade, tipo, status, empresa, ano, mes, q, page]);
+  }, [regional, tipo, status, empresa, ano, mes, q, page]);
 
   // Carrega estatísticas
   useEffect(() => {
@@ -311,7 +310,6 @@ export default function AcidentesPage() {
       // Recarrega lista
       const params = new URLSearchParams();
       if (regional) params.set('regional', regional);
-      if (unidade) params.set('unidade', unidade);
       if (tipo) params.set('tipo', tipo);
       if (status) params.set('status', status);
       if (empresa) params.set('empresa', empresa);
@@ -409,27 +407,9 @@ export default function AcidentesPage() {
         {tab === 'registros' && (
           <>
             <div className="flex flex-col gap-1">
-              <span className="font-medium">Unidade</span>
-              <select
-                className="w-64 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-                value={unidade}
-                onChange={(e) => {
-                  setUnidade(e.target.value || '');
-                  setPage(1);
-                }}
-              >
-                <option value="">Todas as Unidades</option>
-                {unidadesDaRegional.map((u) => (
-                  <option key={u.unidade} value={u.unidade}>
-                    {u.unidade}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
               <span className="font-medium">Tipo</span>
               <select
-                className="w-40 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-44 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                 value={tipo}
                 onChange={(e) => {
                   setTipo(e.target.value || '');
@@ -447,7 +427,7 @@ export default function AcidentesPage() {
             <div className="flex flex-col gap-1">
               <span className="font-medium">Status</span>
               <select
-                className="w-40 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-44 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                 value={status}
                 onChange={(e) => {
                   setStatus(e.target.value || '');
@@ -465,7 +445,7 @@ export default function AcidentesPage() {
             <div className="flex flex-col gap-1">
               <span className="font-medium">Empresa</span>
               <select
-                className="w-32 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-36 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                 value={empresa}
                 onChange={(e) => {
                   setEmpresa(e.target.value || '');
@@ -481,7 +461,7 @@ export default function AcidentesPage() {
               <span className="font-medium">Ano</span>
               <input
                 type="number"
-                className="w-24 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-28 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                 value={ano}
                 onChange={(e) => {
                   setAno(e.target.value);
@@ -492,7 +472,7 @@ export default function AcidentesPage() {
             <div className="flex flex-col gap-1">
               <span className="font-medium">Mês</span>
               <select
-                className="w-32 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-40 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                 value={mes}
                 onChange={(e) => {
                   setMes(e.target.value || '');
@@ -526,7 +506,7 @@ export default function AcidentesPage() {
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                 <input
                   type="text"
-                  className="w-48 pl-8 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-56 pl-8 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                   placeholder="Nome, unidade, CAT..."
                   value={q}
                   onChange={(e) => {
@@ -572,20 +552,20 @@ export default function AcidentesPage() {
             <table className="min-w-full text-[11px]">
               <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
                 <tr>
-                  <th className="px-3 py-2 text-left"></th>
-                  <th className="px-3 py-2 text-left">Nome</th>
-                  <th className="px-3 py-2 text-left">Empresa</th>
-                  <th className="px-3 py-2 text-left">Unidade</th>
-                  <th className="px-3 py-2 text-left">Tipo</th>
-                  <th className="px-3 py-2 text-left">Afastamento</th>
-                  <th className="px-3 py-2 text-left">Data</th>
-                  <th className="px-3 py-2 text-left">Hora</th>
-                  <th className="px-3 py-2 text-left">Mês</th>
-                  <th className="px-3 py-2 text-left">CAT</th>
-                  <th className="px-3 py-2 text-left">RIAT</th>
-                  <th className="px-3 py-2 text-left">SINAN</th>
-                  <th className="px-3 py-2 text-left">Status</th>
-                  <th className="px-3 py-2 text-right">Ações</th>
+                  <th className="px-3 py-2 text-center"></th>
+                  <th className="px-3 py-2 text-center">Nome</th>
+                  <th className="px-3 py-2 text-center">Empresa</th>
+                  <th className="px-3 py-2 text-center">Unidade</th>
+                  <th className="px-3 py-2 text-center">Tipo</th>
+                  <th className="px-3 py-2 text-center">Afastamento</th>
+                  <th className="px-3 py-2 text-center">Data</th>
+                  <th className="px-3 py-2 text-center">Hora</th>
+                  <th className="px-3 py-2 text-center">Mês</th>
+                  <th className="px-3 py-2 text-center">CAT</th>
+                  <th className="px-3 py-2 text-center">RIAT</th>
+                  <th className="px-3 py-2 text-center">SINAN</th>
+                  <th className="px-3 py-2 text-center">Status</th>
+                  <th className="px-3 py-2 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -609,7 +589,7 @@ export default function AcidentesPage() {
                     return (
                       <React.Fragment key={row.id}>
                         <tr className="border-t border-border/60">
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 text-center">
                             <button
                               type="button"
                               onClick={() => toggleExpand(row.id)}
@@ -622,26 +602,26 @@ export default function AcidentesPage() {
                               )}
                             </button>
                           </td>
-                          <td className="px-3 py-2 align-top">{row.nome}</td>
-                          <td className="px-3 py-2 align-top">{row.empresa}</td>
-                          <td className="px-3 py-2 align-top">{row.unidadeHospitalar}</td>
-                          <td className="px-3 py-2 align-top">
+                          <td className="px-3 py-2 text-center text-[11px]">{row.nome}</td>
+                          <td className="px-3 py-2 text-center text-[11px]">{row.empresa}</td>
+                          <td className="px-3 py-2 text-center text-[11px]">{row.unidadeHospitalar}</td>
+                          <td className="px-3 py-2 text-center text-[11px]">
                             {TIPOS_ACIDENTE.find((t) => t.value === row.tipo)?.label || row.tipo}
                           </td>
-                          <td className="px-3 py-2 align-top">
+                          <td className="px-3 py-2 text-center">
                             {row.comAfastamento ? (
-                              <span className="rounded-full bg-red-900/40 px-2 py-0.5 text-[10px] text-red-100">
+                              <span className="inline-flex rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-red-900/40 dark:text-red-100">
                                 Com Afastamento
                               </span>
                             ) : (
-                              <span className="rounded-full bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-100">
+                              <span className="inline-flex rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-medium text-white dark:bg-emerald-900/40 dark:text-emerald-100">
                                 Sem Afastamento
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2 align-top">{formatDate(row.data)}</td>
-                          <td className="px-3 py-2 align-top">{row.hora || '-'}</td>
-                          <td className="px-3 py-2 align-top">
+                          <td className="px-3 py-2 text-center text-[11px]">{formatDate(row.data)}</td>
+                          <td className="px-3 py-2 text-center text-[11px]">{row.hora || '-'}</td>
+                          <td className="px-3 py-2 text-center text-[11px]">
                             {[
                               'Jan',
                               'Fev',
@@ -657,25 +637,25 @@ export default function AcidentesPage() {
                               'Dez',
                             ][row.mes - 1]}
                           </td>
-                          <td className="px-3 py-2 align-top">{row.numeroCAT || '-'}</td>
-                          <td className="px-3 py-2 align-top">{row.riat || '-'}</td>
-                          <td className="px-3 py-2 align-top">{row.sinan || '-'}</td>
-                          <td className="px-3 py-2 align-top">
+                          <td className="px-3 py-2 text-center text-[11px]">{row.numeroCAT || '-'}</td>
+                          <td className="px-3 py-2 text-center text-[11px]">{row.riat || '-'}</td>
+                          <td className="px-3 py-2 text-center text-[11px]">{row.sinan || '-'}</td>
+                          <td className="px-3 py-2 text-center">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] ${
+                              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
                                 row.status === 'concluido'
-                                  ? 'bg-emerald-900/40 text-emerald-100'
+                                  ? 'bg-emerald-500 text-white dark:bg-emerald-900/40 dark:text-emerald-100'
                                   : row.status === 'cancelado'
-                                  ? 'bg-neutral-900/40 text-neutral-100'
+                                  ? 'bg-neutral-600 text-white dark:bg-neutral-900/40 dark:text-neutral-100'
                                   : row.status === 'em_analise'
-                                  ? 'bg-amber-900/40 text-amber-100'
-                                  : 'bg-blue-900/40 text-blue-100'
+                                  ? 'bg-amber-500 text-white dark:bg-amber-900/40 dark:text-amber-100'
+                                  : 'bg-blue-500 text-white dark:bg-blue-900/40 dark:text-blue-100'
                               }`}
                             >
                               {STATUS_ACIDENTE.find((s) => s.value === row.status)?.label || row.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-right align-top">
+                          <td className="px-3 py-2 text-center">
                             <button
                               type="button"
                               onClick={() => handleOpenModal(row)}
