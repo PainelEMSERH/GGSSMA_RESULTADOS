@@ -40,40 +40,36 @@ export async function GET(req: Request) {
     }
 
     if (unidade) {
-      const unidadeLike = `%${unidade.toUpperCase()}%`;
-      params.push(unidadeLike);
-      where.push(
-        `(UPPER(TRIM(COALESCE(m.unidade_hospitalar, ''))) LIKE $${params.length} OR ` +
-        `(m.pcg = 'PCG UNIVERSAL' AND $${params.length} LIKE '%PCG UNIVERSAL%'))`,
-      );
+      params.push(`%${unidade.toUpperCase()}%`);
+      where.push(`(
+        UPPER(TRIM(COALESCE(m.unidade_hospitalar, ''))) LIKE $${params.length}
+        OR (m.pcg = 'PCG UNIVERSAL' AND 'PCG UNIVERSAL' LIKE $${params.length})
+      )`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    // Unidade exibida: mesma lógica de entregas/kit — PCG UNIVERSAL quando pcg = 'PCG UNIVERSAL' e sem unidade_hospitalar
-    const unidadeExpr = `CASE
-      WHEN m.pcg = 'PCG UNIVERSAL' AND (m.unidade_hospitalar IS NULL OR TRIM(COALESCE(m.unidade_hospitalar, '')) = '') THEN 'PCG UNIVERSAL'
-      ELSE NULLIF(TRIM(COALESCE(m.unidade_hospitalar, '')), '')
-    END`;
-    const unidadeCoalesced = `COALESCE(${unidadeExpr}, '—')`;
-
-    // Função: prioriza funcao_normalizada (como entregas/kit), fallback alterdata_funcao
-    const funcaoExpr = `TRIM(COALESCE(m.funcao_normalizada, m.alterdata_funcao, ''))`;
+    // Unidade: PCG UNIVERSAL quando pcg = 'PCG UNIVERSAL' e sem unidade_hospitalar (igual entregas/kit)
+    const unidadeSel = `COALESCE(
+      CASE WHEN m.pcg = 'PCG UNIVERSAL' AND (m.unidade_hospitalar IS NULL OR TRIM(COALESCE(m.unidade_hospitalar, '')) = '')
+        THEN 'PCG UNIVERSAL'
+        ELSE NULLIF(TRIM(COALESCE(m.unidade_hospitalar, '')), '')
+      END,
+      '—'
+    )`;
+    // Função: prioriza funcao_normalizada, fallback alterdata_funcao
+    const funcaoSel = `TRIM(COALESCE(m.funcao_normalizada, m.alterdata_funcao, ''))`;
 
     // Linhas deduplicadas por (função, item, unidade), com quantidade normalizada
     const rows: any[] = await prisma.$queryRawUnsafe(
       `
-      SELECT
-        sub.funcao,
-        sub.item,
-        MAX(sub.quantidade)::int AS quantidade,
-        sub.unidade
+      SELECT sub.funcao, sub.item, MAX(sub.quantidade)::int AS quantidade, sub.unidade
       FROM (
         SELECT
-          ${funcaoExpr} AS funcao,
+          ${funcaoSel} AS funcao,
           TRIM(COALESCE(m.epi_item, '')) AS item,
           GREATEST(1, ROUND(COALESCE(NULLIF(TRIM(m.quantidade::text), '')::numeric, 1)))::int AS quantidade,
-          ${unidadeCoalesced} AS unidade
+          ${unidadeSel} AS unidade
         FROM stg_epi_map m
         ${whereSql}
       ) sub
@@ -85,17 +81,19 @@ export async function GET(req: Request) {
       ...params,
     );
 
-    // Total de combinações distintas (função, item, unidade) para paginação
+    // Total: conta grupos distintos (função, item, unidade)
     const totalRes: any[] = await prisma.$queryRawUnsafe(
       `
       SELECT COUNT(*)::int AS c
       FROM (
-        SELECT ${funcaoExpr} AS funcao, TRIM(COALESCE(m.epi_item, '')) AS item, ${unidadeCoalesced} AS unidade
-        FROM stg_epi_map m
-        ${whereSql}
-      ) sub
-      WHERE sub.funcao != '' AND sub.item != '' AND UPPER(sub.item) != 'SEM EPI'
-      GROUP BY sub.funcao, sub.item, sub.unidade
+        SELECT 1
+        FROM (
+          SELECT ${funcaoSel} AS funcao, TRIM(COALESCE(m.epi_item, '')) AS item, ${unidadeSel} AS unidade
+          FROM stg_epi_map m
+          ${whereSql}
+        ) sub
+        WHERE sub.funcao != '' AND sub.item != '' AND UPPER(sub.item) != 'SEM EPI'
+        GROUP BY sub.funcao, sub.item, sub.unidade
       ) g
       `,
       ...params,
