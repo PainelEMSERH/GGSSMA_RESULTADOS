@@ -57,7 +57,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, variant = 'defaul
               <li><Link className={linkCls('/colaboradores')} href="/colaboradores">Colaboradores</Link></li>
               <li><Link className={linkCls('/entregas')} href="/entregas">Entregas</Link></li>
               <li><Link className={linkCls('/estoque')} href="/estoque">Estoque</Link></li>
-              <li><Link className={linkCls('/kits')} href="/kits">Kits</Link></li>
               <li><Link className={linkCls('/relatorios')} href="/relatorios">Relatórios</Link></li>
               <li><Link className={linkCls('/admin')} href="/admin">Admin</Link></li>
               <li><Link className={linkCls('/config')} href="/config">Configurações</Link></li>
