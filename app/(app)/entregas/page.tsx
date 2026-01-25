@@ -1307,9 +1307,9 @@ export default function EntregasPage() {
               </p>
             </div>
           ) : (
+            <>
             {/* Resumo de EPIs por Tipo */}
             <ResumoEpisPorTipo regional={state.regional} unidadesData={unidadesData} />
-            
             <div className="overflow-x-auto rounded-lg border border-border bg-card">
               <table className="min-w-full" style={{ fontSize: '11px' }}>
                 <thead className="bg-emerald-600 text-white">
@@ -1369,6 +1369,7 @@ export default function EntregasPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}
