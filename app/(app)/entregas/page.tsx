@@ -830,16 +830,9 @@ export default function EntregasPage() {
     return { total: visibleRows.length, ativos, comPendencias };
   }, [visibleRows, statusMap]);
 
-
-
-  
-
   return (
     <div className="space-y-4">
-      {/* Toast Container */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      
-      {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
