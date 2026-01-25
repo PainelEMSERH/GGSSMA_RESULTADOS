@@ -349,44 +349,41 @@ export default function EntregasPage() {
 
   // ---- CADASTRO MANUAL (DECLARADO ANTES DO JSX) ----
   const [newColab, setNewColab] = useState<{ cpf: string; nome: string; funcao: string; unidade: string; regional: string; matricula?: string; admissao?: string; demissao?: string }>({ cpf: '', nome: '', funcao: '', unidade: '', regional: '' });
-const [modalNew, setModalNew] = useState(false);
-const [cpfCheck, setCpfCheck] = useState<{ loading: boolean; exists: boolean | null; source?: string | null }>({ loading: false, exists: null, source: null });
+  const [modalNew, setModalNew] = useState(false);
+  const [cpfCheck, setCpfCheck] = useState<{ loading: boolean; exists: boolean | null; source?: string | null }>({ loading: false, exists: null, source: null });
 
-
-
-function openNewManual() {
-  setNewColab({ cpf: '', nome: '', funcao: '', unidade: state.unidade || '', regional: state.regional || '' });
-  setCpfCheck({ loading: false, exists: null, source: null });
-  setModalNew(true);
-}
-
-
-async function checkManualCpf(cpfRaw: string) {
-  const digits = String(cpfRaw || '').replace(/\D/g, '').slice(-11);
-  if (!digits) {
+  function openNewManual() {
+    setNewColab({ cpf: '', nome: '', funcao: '', unidade: state.unidade || '', regional: state.regional || '' });
     setCpfCheck({ loading: false, exists: null, source: null });
-    return;
+    setModalNew(true);
   }
-  try {
-    setCpfCheck(prev => ({ ...prev, loading: true }));
-    const { json } = await fetchJSON('/api/entregas/check-cpf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cpf: digits }),
-    });
-    if (json && typeof json === 'object' && 'ok' in json) {
-      setCpfCheck({
-        loading: false,
-        exists: !!json.exists,
-        source: (json.source as string | null) || null,
+
+  async function checkManualCpf(cpfRaw: string) {
+    const digits = String(cpfRaw || '').replace(/\D/g, '').slice(-11);
+    if (!digits) {
+      setCpfCheck({ loading: false, exists: null, source: null });
+      return;
+    }
+    try {
+      setCpfCheck(prev => ({ ...prev, loading: true }));
+      const { json } = await fetchJSON('/api/entregas/check-cpf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cpf: digits }),
       });
-    } else {
+      if (json && typeof json === 'object' && 'ok' in json) {
+        setCpfCheck({
+          loading: false,
+          exists: !!json.exists,
+          source: (json.source as string | null) || null,
+        });
+      } else {
+        setCpfCheck({ loading: false, exists: null, source: null });
+      }
+    } catch {
       setCpfCheck({ loading: false, exists: null, source: null });
     }
-  } catch {
-    setCpfCheck({ loading: false, exists: null, source: null });
   }
-}
 
   async function saveNewManual() {
     // Validações básicas
@@ -660,8 +657,7 @@ async function checkManualCpf(cpfRaw: string) {
     showToast('Situação do colaborador atualizada com sucesso!', 'success');
   }
 
-  
-async function openDeliver(row: Row) {
+  async function openDeliver(row: Row) {
     setModal({ open: true, row });
     setSelectedEpis({});
 
@@ -690,7 +686,8 @@ async function openDeliver(row: Row) {
       deliveries: Array.isArray(r.deliveries) ? r.deliveries : [],
     })));
   }
-async function doDeliver() {
+
+  async function doDeliver() {
     if (!modal.row) return;
     
     // Verifica se há EPIs selecionados para entrega em massa
