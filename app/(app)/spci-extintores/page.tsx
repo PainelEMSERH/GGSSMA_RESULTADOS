@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X, Download, Filter, RefreshCw } from 'lucide-react';
+import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X, Download, Filter, RefreshCw, Settings } from 'lucide-react';
 import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
 
 type ExtintorRow = {
@@ -99,6 +99,23 @@ function getStatusColor(status: string): string {
   }
 }
 
+/**
+ * Padroniza o campo Local: primeira letra de cada palavra em maiúscula
+ */
+function formatarLocal(local: string | null | undefined): string {
+  if (!local) return '';
+  
+  return local
+    .toLowerCase()
+    .split(' ')
+    .map(palavra => {
+      if (palavra.length === 0) return palavra;
+      return palavra.charAt(0).toUpperCase() + palavra.slice(1);
+    })
+    .join(' ')
+    .trim();
+}
+
 export default function SPCIExtintoresPage() {
   // Filtros
   const [regional, setRegional] = useState<string>('');
@@ -147,6 +164,7 @@ export default function SPCIExtintoresPage() {
     possuiContrato: boolean;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [detalhesAberto, setDetalhesAberto] = useState<number | null>(null);
 
   // Carrega opções únicas
   useEffect(() => {
@@ -285,6 +303,7 @@ export default function SPCIExtintoresPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setEditData(null);
+    setDetalhesAberto(null);
   };
 
   const saveEdit = async () => {
@@ -498,40 +517,6 @@ export default function SPCIExtintoresPage() {
               </div>
             </div>
 
-            {/* Resumo e Explicação */}
-            <div className="pt-3 border-t border-border space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Meta acumulada (Dezembro):</span>
-                <span className="font-semibold text-text">
-                  {metaReal.meta['12']?.toLocaleString('pt-BR') || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Total de extintores:</span>
-                <span className="font-semibold text-text">
-                  {metaReal.totalExtintores?.toLocaleString('pt-BR') || stats?.total.toLocaleString('pt-BR') || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Real acumulado (Dezembro):</span>
-                <span className="font-semibold text-text">
-                  {metaReal.realAcumulado?.['12']?.toLocaleString('pt-BR') || 0}
-                </span>
-              </div>
-              <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
-                <p className="text-[10px] text-muted leading-relaxed">
-                  <strong className="text-text">Meta e Real Acumulados:</strong>
-                  <br />
-                  • A META é calculada como percentual acumulado mês a mês (8.33%, 16.67%, ..., 100%)
-                  <br />
-                  • Dezembro deve atingir 100% = total de extintores ({metaReal.totalExtintores?.toLocaleString('pt-BR') || 0})
-                  <br />
-                  • O REAL mostra quantos extintores foram recarregados acumuladamente até cada mês
-                  <br />
-                  • Verde = atingiu a meta | Vermelho = abaixo da meta
-                </p>
-              </div>
-            </div>
           </>
         )}
       </div>
@@ -823,13 +808,6 @@ export default function SPCIExtintoresPage() {
                   <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Local</th>
                   <th
                     className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
-                    onClick={() => handleSort('Classe')}
-                  >
-                    Classe {sortBy === 'Classe' && (sortDir === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Massa/Vol</th>
-                  <th
-                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Última recarga')}
                   >
                     Última Recarga {sortBy === 'Última recarga' && (sortDir === 'asc' ? '↑' : '↓')}
@@ -873,14 +851,40 @@ export default function SPCIExtintoresPage() {
                               onChange={(e) => setEditData({ ...editData, unidade: e.target.value })}
                               className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
                             />
-                            <div className="mt-1">
-                              <label className="text-[10px] text-muted block mb-0.5">TAG:</label>
-                              <input
-                                type="text"
-                                value={editData.tag}
-                                onChange={(e) => setEditData({ ...editData, tag: e.target.value })}
-                                className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                              />
+                            <div className="mt-1 space-y-1">
+                              <div>
+                                <label className="text-[10px] text-muted block mb-0.5">TAG:</label>
+                                <input
+                                  type="text"
+                                  value={editData.tag}
+                                  onChange={(e) => setEditData({ ...editData, tag: e.target.value })}
+                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-0.5">Classe:</label>
+                                <select
+                                  value={editData.classe}
+                                  onChange={(e) => setEditData({ ...editData, classe: e.target.value })}
+                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                                >
+                                  <option value="">Selecione</option>
+                                  {classes.map((c) => (
+                                    <option key={c} value={c}>
+                                      {c}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-0.5">Massa/Volume:</label>
+                                <input
+                                  type="text"
+                                  value={editData.massaVolume}
+                                  onChange={(e) => setEditData({ ...editData, massaVolume: e.target.value })}
+                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                                />
+                              </div>
                             </div>
                           </>
                         ) : (
@@ -917,37 +921,7 @@ export default function SPCIExtintoresPage() {
                             className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
                           />
                         ) : (
-                          row.Local
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <select
-                            value={editData.classe}
-                            onChange={(e) => setEditData({ ...editData, classe: e.target.value })}
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                          >
-                            <option value="">Selecione</option>
-                            {classes.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          row.Classe
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <input
-                            type="text"
-                            value={editData.massaVolume}
-                            onChange={(e) => setEditData({ ...editData, massaVolume: e.target.value })}
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                          />
-                        ) : (
-                          row['Massa/Volume (kg/L)']
+                          formatarLocal(row.Local)
                         )}
                       </td>
                       <td className="px-4 py-3 text-center text-[11px]">{row['Última recarga'] || '-'}</td>
@@ -1004,19 +978,40 @@ export default function SPCIExtintoresPage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          {row.TAG && (
-                            <div className="relative group flex-shrink-0">
-                              <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border border-gray-400 dark:border-gray-500 flex items-center justify-center cursor-help">
-                                <div className="w-1 h-1 rounded-full bg-gray-600 dark:bg-gray-300"></div>
-                              </div>
-                              <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block z-50">
-                                <div className="bg-gray-900 dark:bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
-                                  {row.TAG}
+                          <div className="relative">
+                            <button
+                              onClick={() => setDetalhesAberto(detalhesAberto === row.id ? null : row.id)}
+                              className="p-1 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
+                              title="Ver detalhes (TAG, Classe, Massa)"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </button>
+                            {detalhesAberto === row.id && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-40" 
+                                  onClick={() => setDetalhesAberto(null)}
+                                ></div>
+                                <div className="absolute right-0 bottom-full mb-2 z-50 bg-gray-900 dark:bg-gray-800 text-white text-[10px] px-3 py-2 rounded shadow-lg min-w-[180px]">
+                                  <div className="space-y-1.5">
+                                    <div>
+                                      <span className="text-gray-400">TAG:</span>
+                                      <div className="font-semibold mt-0.5">{row.TAG || '-'}</div>
+                                    </div>
+                                    <div className="border-t border-gray-700 pt-1.5">
+                                      <span className="text-gray-400">Classe:</span>
+                                      <div className="font-semibold mt-0.5">{row.Classe || '-'}</div>
+                                    </div>
+                                    <div className="border-t border-gray-700 pt-1.5">
+                                      <span className="text-gray-400">Massa/Volume:</span>
+                                      <div className="font-semibold mt-0.5">{row['Massa/Volume (kg/L)'] || '-'}</div>
+                                    </div>
+                                  </div>
                                   <div className="absolute right-2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
                                 </div>
-                              </div>
-                            </div>
-                          )}
+                              </>
+                            )}
+                          </div>
                           {isEditing ? (
                             <div className="flex gap-1 justify-center">
                               <button
