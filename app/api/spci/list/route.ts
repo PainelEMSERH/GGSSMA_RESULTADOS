@@ -49,8 +49,10 @@ export async function GET(req: Request) {
     }
 
     if (params.unidade) {
+      // Usa busca case-insensitive com TRIM
+      // PostgreSQL compara strings case-insensitive quando necessário
       queryParams.push(params.unidade);
-      whereConditions.push(`"Unidade" = $${paramIndex}`);
+      whereConditions.push(`TRIM("Unidade") ILIKE TRIM($${paramIndex})`);
       paramIndex++;
     }
 

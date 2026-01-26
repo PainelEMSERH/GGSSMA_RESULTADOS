@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getAllUnidades } from '@/lib/spci/unidadeNormalizer';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,7 +27,17 @@ export async function GET() {
     ]);
 
     const regionais = regionaisRes.map((r: any) => r.Regional || r['Regional'] || r).filter(Boolean);
-    const unidades = unidadesRes.map((u: any) => u.Unidade || u['Unidade'] || u).filter(Boolean);
+    
+    // Para unidades, usa as do banco mas também inclui as normalizadas conhecidas
+    const unidadesDB = unidadesRes.map((u: any) => u.Unidade || u['Unidade'] || u).filter(Boolean);
+    const unidadesKnown = getAllUnidades();
+    // Combina e remove duplicatas (normalizando)
+    const unidadesSet = new Set<string>();
+    [...unidadesDB, ...unidadesKnown].forEach(u => {
+      if (u) unidadesSet.add(u);
+    });
+    const unidades = Array.from(unidadesSet).sort();
+    
     const classes = classesRes.map((c: any) => c.Classe || c['Classe'] || c).filter(Boolean);
     const anos = anosRes.map((a: any) => a['Ano do Planejamento'] || a).filter(Boolean);
 

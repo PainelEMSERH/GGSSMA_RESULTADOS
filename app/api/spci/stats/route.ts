@@ -26,8 +26,9 @@ export async function GET(req: Request) {
     }
 
     if (unidade) {
+      // Usa busca case-insensitive com TRIM
       queryParams.push(unidade);
-      whereConditions.push(`"Unidade" = $${paramIndex}`);
+      whereConditions.push(`TRIM("Unidade") ILIKE TRIM($${paramIndex})`);
       paramIndex++;
     }
 

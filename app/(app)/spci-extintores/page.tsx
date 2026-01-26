@@ -160,7 +160,8 @@ export default function SPCIExtintoresPage() {
         setRows(data.rows || []);
         setTotal(data.totalCount || 0);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Erro ao carregar extintores:', error);
         setRows([]);
         setTotal(0);
       })
