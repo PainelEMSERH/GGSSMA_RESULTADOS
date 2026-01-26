@@ -68,8 +68,10 @@ export async function GET(req: Request) {
     let paramIndex = 1;
 
     if (params.regional) {
-      queryParams.push(params.regional.trim());
-      whereConditions.push(`TRIM("Regional") = TRIM($${paramIndex})`);
+      // Usa comparação direta (sem TRIM) para manter consistência com a API de stats
+      // A API de stats funciona com essa abordagem, então vamos manter igual
+      queryParams.push(params.regional);
+      whereConditions.push(`"Regional" = $${paramIndex}`);
       paramIndex++;
     }
 
@@ -159,25 +161,46 @@ export async function GET(req: Request) {
     let rows: any[];
     try {
       if (queryParams.length > 0) {
+        // Usa template string com parâmetros para garantir que funcione corretamente
+        // O Prisma $queryRawUnsafe aceita parâmetros posicionais ($1, $2, etc.)
         rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParams);
+        console.log(`[SPCI List] Query executada com ${queryParams.length} parâmetros:`, {
+          params: queryParams,
+          rowsReturned: rows.length
+        });
       } else {
         // Se não há parâmetros, executa query direta
         rows = await prisma.$queryRawUnsafe<any[]>(rowsSql);
+        console.log(`[SPCI List] Query executada sem parâmetros, ${rows.length} registros retornados`);
       }
     } catch (queryError: any) {
       console.error(`[SPCI List] Erro na query:`, {
         error: queryError?.message,
+        stack: queryError?.stack,
         sql: rowsSql,
-        params: queryParams
+        params: queryParams,
+        paramCount: queryParams.length
       });
       throw queryError;
     }
 
     console.log(`[SPCI List] Query executada. Registros encontrados: ${rows.length}`);
     if (rows.length > 0) {
-      console.log(`[SPCI List] Primeiro registro exemplo:`, JSON.stringify(rows[0], null, 2));
+      console.log(`[SPCI List] Primeiro registro exemplo:`, {
+        id: rows[0].id,
+        regional: rows[0].Regional,
+        tag: rows[0].TAG,
+        unidade: rows[0].Unidade,
+      });
     } else {
       console.log(`[SPCI List] Nenhum registro encontrado com os filtros aplicados`);
+      console.log(`[SPCI List] Parâmetros usados:`, {
+        regional: params.regional,
+        unidade: params.unidade,
+        status: params.status,
+        whereSql: whereSql,
+        queryParams: queryParams,
+      });
     }
 
     // Calcula status e data limite para cada registro
@@ -251,9 +274,17 @@ export async function GET(req: Request) {
       totalCount: response.totalCount,
       rowsCount: response.rows.length,
       firstRowId: response.rows[0]?.id || null,
+      firstRowRegional: response.rows[0]?.Regional || null,
+      hasRows: response.rows.length > 0,
     });
 
-    return NextResponse.json(response);
+    // Garante que a resposta seja serializável (sem BigInt)
+    const serializableResponse = {
+      ...response,
+      rows: response.rows.map((row: any) => convertBigIntToNumber(row)),
+    };
+
+    return NextResponse.json(serializableResponse);
   } catch (error: any) {
     console.error('[SPCI List] Erro completo:', {
       message: error?.message,
