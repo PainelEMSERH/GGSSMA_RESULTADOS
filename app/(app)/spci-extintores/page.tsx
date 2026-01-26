@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X, Download, Filter, RefreshCw, Info } from 'lucide-react';
+import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Settings, Save, X, Download, Filter, RefreshCw } from 'lucide-react';
 import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
 
 type ExtintorRow = {
@@ -167,7 +167,6 @@ export default function SPCIExtintoresPage() {
   }>>({});
   const [saving, setSaving] = useState(false);
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
-  const [detalhesAberto, setDetalhesAberto] = useState<number | null>(null);
 
   // Carrega opções únicas
   useEffect(() => {
@@ -930,53 +929,13 @@ export default function SPCIExtintoresPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <div className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDetalhesAberto(detalhesAberto === row.id ? null : row.id);
-                              }}
-                              className="p-1 rounded hover:bg-muted/50 text-muted hover:text-text transition-colors"
-                              title="Ver detalhes"
-                            >
-                              <Info className="w-3.5 h-3.5" />
-                            </button>
-                            {detalhesAberto === row.id && (
-                              <>
-                                <div 
-                                  className="fixed inset-0 z-40" 
-                                  onClick={() => setDetalhesAberto(null)}
-                                ></div>
-                                <div className="absolute right-0 bottom-full mb-1.5 z-50 bg-panel border border-border rounded-lg shadow-xl min-w-[160px] p-2.5">
-                                  <div className="space-y-2 text-[11px]">
-                                    <div>
-                                      <div className="text-muted text-[10px] mb-0.5">TAG</div>
-                                      <div className="font-medium text-text">{row.TAG || '-'}</div>
-                                    </div>
-                                    <div className="border-t border-border pt-2">
-                                      <div className="text-muted text-[10px] mb-0.5">Classe</div>
-                                      <div className="font-medium text-text">{row.Classe || '-'}</div>
-                                    </div>
-                                    <div className="border-t border-border pt-2">
-                                      <div className="text-muted text-[10px] mb-0.5">Massa/Volume</div>
-                                      <div className="font-medium text-text">{row['Massa/Volume (kg/L)'] || '-'}</div>
-                                    </div>
-                                  </div>
-                                  <div className="absolute right-3 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-panel"></div>
-                                  <div className="absolute right-[11px] top-full w-0 h-0 border-l-[7px] border-r-[7px] border-t-[7px] border-transparent border-t-border"></div>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => abrirModalEdicao(row)}
-                            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
-                            title="Editar extintores da unidade"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => abrirModalEdicao(row)}
+                          className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                          title="Editar extintores da unidade"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   );
