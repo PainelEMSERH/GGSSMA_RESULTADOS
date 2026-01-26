@@ -38,9 +38,10 @@ type StatsData = {
 };
 
 type MetaRealData = {
-  meta: Record<string, number>;
-  real: Record<string, number>;
-  realAcumulado: Record<string, number>;
+  meta: Record<string, number>; // Meta acumulada
+  metaMensal?: Record<string, number>; // Meta por mês (sem acumular)
+  real: Record<string, number>; // Real por mês (sem acumular)
+  realAcumulado: Record<string, number>; // Real acumulado
   totalExtintores: number;
   totalMeta: number;
   totalReal: number;
@@ -88,13 +89,13 @@ function fromInputDate(dateStr: string): string {
 function getStatusColor(status: string): string {
   switch (status) {
     case 'VENCIDO':
-      return 'bg-red-500/20 text-red-300 border-red-500/50';
+      return 'bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/50';
     case 'A VENCER':
-      return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50';
+      return 'bg-yellow-50 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-500/50';
     case 'OK':
-      return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50';
+      return 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/50';
     default:
-      return 'bg-gray-500/20 text-gray-300 border-gray-500/50';
+      return 'bg-gray-50 dark:bg-gray-500/20 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-500/50';
   }
 }
 
@@ -114,7 +115,7 @@ export default function SPCIExtintoresPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [loading, setLoading] = useState(false);
-  const [sortBy, setSortBy] = useState<string>('TAG');
+  const [sortBy, setSortBy] = useState<string>('Unidade');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   // Estatísticas
@@ -809,12 +810,6 @@ export default function SPCIExtintoresPage() {
                 <tr>
                   <th
                     className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
-                    onClick={() => handleSort('TAG')}
-                  >
-                    TAG {sortBy === 'TAG' && (sortDir === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th
-                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Unidade')}
                   >
                     Unidade {sortBy === 'Unidade' && (sortDir === 'asc' ? '↑' : '↓')}
@@ -871,28 +866,42 @@ export default function SPCIExtintoresPage() {
                     >
                       <td className="px-4 py-3 text-center text-[11px]">
                         {isEditing && editData ? (
-                          <input
-                            type="text"
-                            value={editData.tag}
-                            onChange={(e) => setEditData({ ...editData, tag: e.target.value })}
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                          />
+                          <>
+                            <input
+                              type="text"
+                              value={editData.unidade}
+                              onChange={(e) => setEditData({ ...editData, unidade: e.target.value })}
+                              className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                            />
+                            <div className="mt-1">
+                              <label className="text-[10px] text-muted block mb-0.5">TAG:</label>
+                              <input
+                                type="text"
+                                value={editData.tag}
+                                onChange={(e) => setEditData({ ...editData, tag: e.target.value })}
+                                className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                              />
+                            </div>
+                          </>
                         ) : (
-                          <span className="font-medium">{row.TAG}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <input
-                            type="text"
-                            value={editData.unidade}
-                            onChange={(e) => setEditData({ ...editData, unidade: e.target.value })}
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                          />
-                        ) : (
-                          <div>
-                            <div className="font-medium">{formatarNomeUnidade(row.Unidade)}</div>
-                            <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
+                          <div className="flex items-center justify-center gap-1.5">
+                            {row.TAG && (
+                              <div className="relative group flex-shrink-0">
+                                <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border border-gray-400 dark:border-gray-500 flex items-center justify-center cursor-help">
+                                  <div className="w-1 h-1 rounded-full bg-gray-600 dark:bg-gray-300"></div>
+                                </div>
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50">
+                                  <div className="bg-gray-900 dark:bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
+                                    {row.TAG}
+                                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <div className="font-medium">{formatarNomeUnidade(row.Unidade)}</div>
+                              <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
+                            </div>
                           </div>
                         )}
                       </td>
