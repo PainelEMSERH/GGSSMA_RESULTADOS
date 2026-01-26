@@ -210,14 +210,23 @@ export async function GET(req: Request) {
       pageSize: limit,
     });
 
-    return NextResponse.json({
+    const response = {
       ok: true,
       page: params.page,
       pageSize: limit,
       totalCount,
       pageCount,
       rows: paginatedRows,
+    };
+
+    console.log(`[SPCI List] Enviando resposta:`, {
+      ok: response.ok,
+      totalCount: response.totalCount,
+      rowsCount: response.rows.length,
+      firstRowId: response.rows[0]?.id || null,
     });
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('[SPCI List] Erro completo:', {
       message: error?.message,

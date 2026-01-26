@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X } from 'lucide-react';
+import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
 
 type ExtintorRow = {
   id: number;
@@ -722,7 +723,10 @@ export default function SPCIExtintoresPage() {
                       }`}
                     >
                       <td className="px-4 py-3 font-medium">{row.TAG}</td>
-                      <td className="px-4 py-3">{row.Unidade}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-xs font-medium">{formatarNomeUnidade(row.Unidade)}</div>
+                        <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
+                      </td>
                       <td className="px-4 py-3">{row.Regional}</td>
                       <td className="px-4 py-3">{row.Local}</td>
                       <td className="px-4 py-3">{row.Classe}</td>
