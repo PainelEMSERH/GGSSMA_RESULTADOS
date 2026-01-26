@@ -29,6 +29,30 @@ export async function PATCH(req: Request) {
     // Campos permitidos para edição
     const allowedFields: Record<string, any> = {};
     
+    if ('tag' in updates && updates.tag !== undefined) {
+      allowedFields['TAG'] = updates.tag || null;
+    }
+    
+    if ('unidade' in updates && updates.unidade !== undefined) {
+      allowedFields['Unidade'] = updates.unidade || null;
+    }
+    
+    if ('regional' in updates && updates.regional !== undefined) {
+      allowedFields['Regional'] = updates.regional || null;
+    }
+    
+    if ('local' in updates && updates.local !== undefined) {
+      allowedFields['Local'] = updates.local || null;
+    }
+    
+    if ('classe' in updates && updates.classe !== undefined) {
+      allowedFields['Classe'] = updates.classe || null;
+    }
+    
+    if ('massaVolume' in updates && updates.massaVolume !== undefined) {
+      allowedFields['Massa/Volume (kg/L)'] = updates.massaVolume || null;
+    }
+    
     if ('planejRecarga' in updates) {
       allowedFields['Planej. Recarga'] = updates.planejRecarga || null;
       // Calcula mês automaticamente

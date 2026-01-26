@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X } from 'lucide-react';
+import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X, Download, Filter, RefreshCw } from 'lucide-react';
 import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
 
 type ExtintorRow = {
@@ -132,6 +132,12 @@ export default function SPCIExtintoresPage() {
   // Edição inline
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editData, setEditData] = useState<{
+    tag: string;
+    unidade: string;
+    regional: string;
+    local: string;
+    classe: string;
+    massaVolume: string;
     planejRecarga: string;
     dataExecucaoRecarga: string;
     possuiContrato: boolean;
@@ -163,16 +169,13 @@ export default function SPCIExtintoresPage() {
       .finally(() => setStatsLoading(false));
   }, [regional, unidade]);
 
-  // Carrega Meta vs Real
+  // Carrega Meta vs Real (consolidado ou por regional)
   useEffect(() => {
-    if (!regional) {
-      setMetaReal(null);
-      return;
-    }
-
     setMetaRealLoading(true);
     const params = new URLSearchParams();
-    params.set('regional', regional);
+    if (regional) {
+      params.set('regional', regional);
+    }
     params.set('ano', anoMetaReal);
 
     fetchJSON<MetaRealData>(`/api/spci/meta-real?${params.toString()}`)
@@ -263,6 +266,12 @@ export default function SPCIExtintoresPage() {
   const startEdit = (row: ExtintorRow) => {
     setEditingId(row.id);
     setEditData({
+      tag: row.TAG || '',
+      unidade: row.Unidade || '',
+      regional: row.Regional || '',
+      local: row.Local || '',
+      classe: row.Classe || '',
+      massaVolume: row['Massa/Volume (kg/L)'] || '',
       planejRecarga: toInputDate(row['Planej. Recarga']),
       dataExecucaoRecarga: toInputDate(row['Data Execução Recarga']),
       possuiContrato: row['Possui Contrato']?.toUpperCase() === 'SIM',
@@ -284,6 +293,12 @@ export default function SPCIExtintoresPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingId,
+          tag: editData.tag,
+          unidade: editData.unidade,
+          regional: editData.regional,
+          local: editData.local,
+          classe: editData.classe,
+          massaVolume: editData.massaVolume,
           planejRecarga: editData.planejRecarga ? fromInputDate(editData.planejRecarga) : null,
           dataExecucaoRecarga: editData.dataExecucaoRecarga ? fromInputDate(editData.dataExecucaoRecarga) : null,
           possuiContrato: editData.possuiContrato,
@@ -387,11 +402,12 @@ export default function SPCIExtintoresPage() {
       ) : null}
 
       {/* Meta vs Real */}
-      {regional && (
-        <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">Meta vs Real - {regional}</h2>
+      <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">
+              Meta vs Real {regional ? `- ${regional}` : '(Consolidado)'}
+            </h2>
               <p className="text-[11px] text-muted">
                 Meta: 0 extintores vencidos | Real: quantidade de extintores vencidos por mês
               </p>
@@ -470,7 +486,7 @@ export default function SPCIExtintoresPage() {
             </>
           )}
         </div>
-      )}
+      </div>
 
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
@@ -611,7 +627,7 @@ export default function SPCIExtintoresPage() {
         </div>
       </div>
 
-      {/* Resumo de Resultados */}
+      {/* Resumo de Resultados e Ações */}
       {!loading && rows.length > 0 && (
         <div className="rounded-xl border border-border bg-panel p-3 shadow-sm">
           <div className="flex items-center justify-between text-sm">
@@ -619,23 +635,94 @@ export default function SPCIExtintoresPage() {
               Mostrando <span className="font-semibold text-text">{rows.length}</span> de{' '}
               <span className="font-semibold text-text">{total.toLocaleString()}</span> extintores
             </div>
-            {(regional || unidade || status || possuiContrato || classe || anoPlanejamento || search) && (
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => {
-                  setRegional('');
-                  setUnidade('');
-                  setStatus('');
-                  setPossuiContrato('');
-                  setClasse('');
-                  setAnoPlanejamento('');
-                  setSearch('');
-                  setPage(1);
+                  // Recarrega dados
+                  const params = new URLSearchParams();
+                  if (regional) params.set('regional', regional);
+                  if (unidade) params.set('unidade', unidade);
+                  if (status) params.set('status', status);
+                  if (possuiContrato) params.set('possuiContrato', possuiContrato);
+                  if (classe) params.set('classe', classe);
+                  if (anoPlanejamento) params.set('anoPlanejamento', anoPlanejamento);
+                  if (search) params.set('search', search);
+                  params.set('page', String(page));
+                  params.set('pageSize', String(pageSize));
+                  params.set('sortBy', sortBy);
+                  params.set('sortDir', sortDir);
+                  
+                  setLoading(true);
+                  fetchJSON<{ rows: ExtintorRow[]; totalCount: number }>(`/api/spci/list?${params.toString()}`)
+                    .then((data) => {
+                      setRows(data.rows || []);
+                      setTotal(data.totalCount || 0);
+                    })
+                    .catch(() => {
+                      setRows([]);
+                      setTotal(0);
+                    })
+                    .finally(() => setLoading(false));
                 }}
-                className="text-xs text-emerald-500 hover:text-emerald-400"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-bg text-xs text-text transition-colors"
+                title="Atualizar dados"
               >
-                Limpar filtros
+                <RefreshCw className="w-3.5 h-3.5" />
+                Atualizar
               </button>
-            )}
+              <button
+                onClick={() => {
+                  // Exporta para CSV
+                  const headers = ['TAG', 'Unidade', 'Regional', 'Local', 'Classe', 'Massa/Volume', 'Última Recarga', 'Data Limite', 'Status', 'Planej. Recarga', 'Exec. Recarga'];
+                  const csvRows = [
+                    headers.join(','),
+                    ...rows.map(row => [
+                      `"${row.TAG || ''}"`,
+                      `"${row.Unidade || ''}"`,
+                      `"${row.Regional || ''}"`,
+                      `"${row.Local || ''}"`,
+                      `"${row.Classe || ''}"`,
+                      `"${row['Massa/Volume (kg/L)'] || ''}"`,
+                      `"${row['Última recarga'] || ''}"`,
+                      `"${row.dataLimiteRecarga || ''}"`,
+                      `"${row.status || ''}"`,
+                      `"${row['Planej. Recarga'] || ''}"`,
+                      `"${row['Data Execução Recarga'] || ''}"`
+                    ].join(','))
+                  ];
+                  const csvContent = csvRows.join('\n');
+                  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `extintores_${new Date().toISOString().split('T')[0]}.csv`;
+                  link.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-bg text-xs text-text transition-colors"
+                title="Exportar para CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar CSV
+              </button>
+              {(regional || unidade || status || possuiContrato || classe || anoPlanejamento || search) && (
+                <button
+                  onClick={() => {
+                    setRegional('');
+                    setUnidade('');
+                    setStatus('');
+                    setPossuiContrato('');
+                    setClasse('');
+                    setAnoPlanejamento('');
+                    setSearch('');
+                    setPage(1);
+                  }}
+                  className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -670,57 +757,56 @@ export default function SPCIExtintoresPage() {
               )}
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-[11px]">
               <thead className="bg-bg/50 border-b border-border">
                 <tr>
                   <th
-                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
+                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('TAG')}
                   >
                     TAG {sortBy === 'TAG' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
+                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Unidade')}
                   >
                     Unidade {sortBy === 'Unidade' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
+                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Regional')}
                   >
                     Regional {sortBy === 'Regional' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">Local</th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Local</th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
+                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Classe')}
                   >
                     Classe {sortBy === 'Classe' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">Massa/Vol</th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Massa/Vol</th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
+                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Última recarga')}
                   >
                     Última Recarga {sortBy === 'Última recarga' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">Data Limite</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">Contrato</th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Data Limite</th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Status</th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
+                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Planej. Recarga')}
                   >
                     Planej. Recarga {sortBy === 'Planej. Recarga' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
+                    className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
                     onClick={() => handleSort('Data Execução Recarga')}
                   >
                     Exec. Recarga {sortBy === 'Data Execução Recarga' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase">Ações</th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -736,43 +822,105 @@ export default function SPCIExtintoresPage() {
                         isVencido ? 'bg-red-500/5' : isAVencer ? 'bg-yellow-500/5' : ''
                       }`}
                     >
-                      <td className="px-4 py-3 font-medium">{row.TAG}</td>
-                      <td className="px-4 py-3">
-                        <div className="text-xs font-medium">{formatarNomeUnidade(row.Unidade)}</div>
-                        <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
+                      <td className="px-4 py-3 text-center text-[11px]">
+                        {isEditing && editData ? (
+                          <input
+                            type="text"
+                            value={editData.tag}
+                            onChange={(e) => setEditData({ ...editData, tag: e.target.value })}
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                          />
+                        ) : (
+                          <span className="font-medium">{row.TAG}</span>
+                        )}
                       </td>
-                      <td className="px-4 py-3">{row.Regional}</td>
-                      <td className="px-4 py-3">{row.Local}</td>
-                      <td className="px-4 py-3">{row.Classe}</td>
-                      <td className="px-4 py-3">{row['Massa/Volume (kg/L)']}</td>
-                      <td className="px-4 py-3">{row['Última recarga'] || '-'}</td>
-                      <td className="px-4 py-3">{row.dataLimiteRecarga || '-'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center text-[11px]">
+                        {isEditing && editData ? (
+                          <input
+                            type="text"
+                            value={editData.unidade}
+                            onChange={(e) => setEditData({ ...editData, unidade: e.target.value })}
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                          />
+                        ) : (
+                          <div>
+                            <div className="font-medium">{formatarNomeUnidade(row.Unidade)}</div>
+                            <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-[11px]">
+                        {isEditing && editData ? (
+                          <select
+                            value={editData.regional}
+                            onChange={(e) => setEditData({ ...editData, regional: e.target.value })}
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                          >
+                            <option value="">Selecione</option>
+                            {regionais.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          row.Regional
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-[11px]">
+                        {isEditing && editData ? (
+                          <input
+                            type="text"
+                            value={editData.local}
+                            onChange={(e) => setEditData({ ...editData, local: e.target.value })}
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                          />
+                        ) : (
+                          row.Local
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-[11px]">
+                        {isEditing && editData ? (
+                          <select
+                            value={editData.classe}
+                            onChange={(e) => setEditData({ ...editData, classe: e.target.value })}
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                          >
+                            <option value="">Selecione</option>
+                            {classes.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          row.Classe
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-[11px]">
+                        {isEditing && editData ? (
+                          <input
+                            type="text"
+                            value={editData.massaVolume}
+                            onChange={(e) => setEditData({ ...editData, massaVolume: e.target.value })}
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                          />
+                        ) : (
+                          row['Massa/Volume (kg/L)']
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-[11px]">{row['Última recarga'] || '-'}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{row.dataLimiteRecarga || '-'}</td>
+                      <td className="px-4 py-3 text-center">
                         <span
-                          className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${getStatusColor(
+                          className={`inline-flex items-center px-2 py-1 rounded text-[11px] font-medium border ${getStatusColor(
                             row.status
                           )}`}
                         >
                           {row.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        {isEditing && editData ? (
-                          <select
-                            value={editData.possuiContrato ? 'SIM' : 'NÃO'}
-                            onChange={(e) =>
-                              setEditData({ ...editData, possuiContrato: e.target.value === 'SIM' })
-                            }
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-xs"
-                          >
-                            <option value="SIM">SIM</option>
-                            <option value="NÃO">NÃO</option>
-                          </select>
-                        ) : (
-                          <div className="text-xs">{row['Possui Contrato']}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center text-[11px]">
                         {isEditing && editData ? (
                           <input
                             type="date"
@@ -780,18 +928,18 @@ export default function SPCIExtintoresPage() {
                             onChange={(e) =>
                               setEditData({ ...editData, planejRecarga: e.target.value })
                             }
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-xs"
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
                           />
                         ) : (
                           <div>
-                            <div className="text-xs">{row['Planej. Recarga'] || '-'}</div>
+                            <div>{row['Planej. Recarga'] || '-'}</div>
                             {row.mesPlanejRecarga && (
                               <div className="text-[10px] text-muted mt-0.5">{row.mesPlanejRecarga}</div>
                             )}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center text-[11px]">
                         {isEditing && editData ? (
                           <input
                             type="date"
@@ -802,33 +950,33 @@ export default function SPCIExtintoresPage() {
                                 dataExecucaoRecarga: e.target.value,
                               })
                             }
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-xs"
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
                           />
                         ) : (
                           <div>
-                            <div className="text-xs">{row['Data Execução Recarga'] || '-'}</div>
+                            <div>{row['Data Execução Recarga'] || '-'}</div>
                             {row.mesExecRecarga && (
                               <div className="text-[10px] text-muted mt-0.5">{row.mesExecRecarga}</div>
                             )}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center">
                         {isEditing ? (
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 justify-center">
                             <button
                               onClick={saveEdit}
                               disabled={saving}
-                              className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50"
-                              title="Salvar"
+                              className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50 transition-colors"
+                              title="Salvar alterações"
                             >
                               <Save className="w-4 h-4" />
                             </button>
                             <button
                               onClick={cancelEdit}
                               disabled={saving}
-                              className="p-1 rounded hover:bg-red-500/20 text-red-400 disabled:opacity-50"
-                              title="Cancelar"
+                              className="p-1 rounded hover:bg-red-500/20 text-red-400 disabled:opacity-50 transition-colors"
+                              title="Cancelar edição"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -836,8 +984,8 @@ export default function SPCIExtintoresPage() {
                         ) : (
                           <button
                             onClick={() => startEdit(row)}
-                            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400"
-                            title="Editar"
+                            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                            title="Editar registro"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
