@@ -38,12 +38,23 @@ type StatsData = {
 };
 
 const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
-  const r = await fetch(url, { cache: 'no-store', ...init });
-  const data = await r.json();
-  if (!r.ok) {
-    throw new Error((data && (data.error || data.message)) || 'Erro ao carregar dados');
+  try {
+    const r = await fetch(url, { cache: 'no-store', ...init });
+    const data = await r.json();
+    if (!r.ok) {
+      const errorMsg = (data && (data.error || data.message)) || `Erro HTTP ${r.status}`;
+      console.error('[fetchJSON] Erro na resposta:', { url, status: r.status, data });
+      throw new Error(errorMsg);
+    }
+    if (!data.ok && data.error) {
+      console.error('[fetchJSON] Erro no payload:', { url, error: data.error });
+      throw new Error(data.error);
+    }
+    return data as T;
+  } catch (error: any) {
+    console.error('[fetchJSON] Erro na requisição:', { url, error: error.message });
+    throw error;
   }
-  return data as T;
 };
 
 // Converte data dd/mm/yyyy para input date (yyyy-mm-dd)
@@ -155,13 +166,24 @@ export default function SPCIExtintoresPage() {
     params.set('sortBy', sortBy);
     params.set('sortDir', sortDir);
 
-    fetchJSON<{ rows: ExtintorRow[]; totalCount: number }>(`/api/spci/list?${params.toString()}`)
+    const url = `/api/spci/list?${params.toString()}`;
+    console.log('[SPCI Page] Buscando dados:', url);
+    
+    fetchJSON<{ ok: boolean; rows: ExtintorRow[]; totalCount: number; error?: string }>(url)
       .then((data) => {
+        console.log('[SPCI Page] Resposta completa:', data);
+        if (data.ok === false) {
+          console.error('[SPCI Page] API retornou erro:', data.error);
+          setRows([]);
+          setTotal(0);
+          return;
+        }
+        console.log('[SPCI Page] Dados recebidos:', { rows: data.rows?.length || 0, total: data.totalCount || 0 });
         setRows(data.rows || []);
         setTotal(data.totalCount || 0);
       })
       .catch((error) => {
-        console.error('Erro ao carregar extintores:', error);
+        console.error('[SPCI Page] Erro ao carregar extintores:', error);
         setRows([]);
         setTotal(0);
       })

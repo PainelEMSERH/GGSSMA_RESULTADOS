@@ -122,7 +122,14 @@ export async function GET(req: Request) {
       ${orderBy}
     `;
 
-    const rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParams.slice(0, -2));
+    // Executa query - se não houver filtros, queryParams estará vazio
+    const queryParamsForExec = whereConditions.length > 0 ? queryParams : [];
+    const rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParamsForExec);
+
+    console.log(`[SPCI List] Query executada. Registros encontrados: ${rows.length}`);
+    if (rows.length > 0) {
+      console.log(`[SPCI List] Primeiro registro exemplo:`, JSON.stringify(rows[0], null, 2));
+    }
 
     // Calcula status e data limite para cada registro
     const rowsWithStatus = rows.map((row: any) => {
@@ -171,6 +178,14 @@ export async function GET(req: Request) {
     const pageCount = Math.max(1, Math.ceil(totalCount / limit));
     const paginatedRows = filteredRows.slice(offset, offset + limit);
 
+    console.log(`[SPCI List] Resposta final:`, {
+      totalCount,
+      pageCount,
+      rowsCount: paginatedRows.length,
+      page: params.page,
+      pageSize: limit,
+    });
+
     return NextResponse.json({
       ok: true,
       page: params.page,
@@ -180,9 +195,17 @@ export async function GET(req: Request) {
       rows: paginatedRows,
     });
   } catch (error: any) {
-    console.error('spci/list error:', error);
+    console.error('[SPCI List] Erro completo:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+    });
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Erro ao buscar extintores' },
+      { 
+        ok: false, 
+        error: error?.message || 'Erro ao buscar extintores',
+        details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+      },
       { status: 500 }
     );
   }
