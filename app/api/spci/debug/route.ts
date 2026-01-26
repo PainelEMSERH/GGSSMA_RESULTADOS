@@ -17,7 +17,7 @@ export async function GET() {
 
     // Busca algumas amostras
     const samples = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT "ID", "TAG", "Unidade", "Regional", "Última recarga" 
+      `SELECT id, "TAG", "Unidade", "Regional", "Última recarga" 
        FROM spci_planilha 
        LIMIT 10`
     );

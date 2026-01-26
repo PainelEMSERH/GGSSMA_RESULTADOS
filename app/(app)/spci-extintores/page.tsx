@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X } from 'lucide-react';
 
 type ExtintorRow = {
-  ID: number;
+  id: number;
   'Ano do Planejamento': number;
   TAG: string;
   Unidade: string;
@@ -211,7 +211,7 @@ export default function SPCIExtintoresPage() {
   };
 
   const startEdit = (row: ExtintorRow) => {
-    setEditingId(row.ID);
+    setEditingId(row.id);
     setEditData({
       planejRecarga: toInputDate(row['Planej. Recarga']),
       dataExecucaoRecarga: toInputDate(row['Data Execução Recarga']),
@@ -540,13 +540,13 @@ export default function SPCIExtintoresPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => {
-                  const isEditing = editingId === row.ID;
+                  const isEditing = editingId === row.id;
                   const isVencido = row.status === 'VENCIDO';
                   const isAVencer = row.status === 'A VENCER';
 
                   return (
                     <tr
-                      key={row.ID}
+                      key={row.id}
                       className={`hover:bg-bg/30 ${
                         isVencido ? 'bg-red-500/5' : isAVencer ? 'bg-yellow-500/5' : ''
                       }`}

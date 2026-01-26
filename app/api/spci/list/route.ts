@@ -100,7 +100,7 @@ export async function GET(req: Request) {
     // calcular o status, filtrar por status, e depois paginar
     const rowsSql = `
       SELECT 
-        "ID",
+        id,
         "Ano do Planejamento",
         "TAG",
         "Unidade",
@@ -122,9 +122,20 @@ export async function GET(req: Request) {
       ${orderBy}
     `;
 
-    // Executa query - se não houver filtros, queryParams estará vazio
-    const queryParamsForExec = whereConditions.length > 0 ? queryParams : [];
-    const rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParamsForExec);
+    // Executa query - se não houver filtros, executa sem parâmetros
+    console.log(`[SPCI List] Executando query:`, { 
+      sql: rowsSql.substring(0, 200) + '...', 
+      paramsCount: queryParams.length,
+      whereConditions: whereConditions.length 
+    });
+    
+    let rows: any[];
+    if (queryParams.length > 0) {
+      rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParams);
+    } else {
+      // Se não há parâmetros, executa query direta
+      rows = await prisma.$queryRawUnsafe<any[]>(rowsSql);
+    }
 
     console.log(`[SPCI List] Query executada. Registros encontrados: ${rows.length}`);
     if (rows.length > 0) {

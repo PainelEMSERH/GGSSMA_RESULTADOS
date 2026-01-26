@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     // Busca todos os registros (para calcular status)
     const rowsSql = `
       SELECT 
-        "ID",
+        id,
         "TAG",
         "Unidade",
         "Regional",
@@ -49,7 +49,13 @@ export async function GET(req: Request) {
       ${whereSql}
     `;
 
-    const rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParams);
+    // Executa query - se não houver filtros, executa sem parâmetros
+    let rows: any[];
+    if (queryParams.length > 0) {
+      rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParams);
+    } else {
+      rows = await prisma.$queryRawUnsafe<any[]>(rowsSql);
+    }
 
     // Calcula estatísticas
     let total = 0;

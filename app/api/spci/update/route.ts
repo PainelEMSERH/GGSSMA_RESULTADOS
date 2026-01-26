@@ -82,14 +82,16 @@ export async function PATCH(req: Request) {
       paramIndex++;
     }
 
-    params.push(id); // ID no final para WHERE
+    // Usa id (minúsculo, bigint) como identificador
+    const whereClause = `id = $${paramIndex}`;
+    params.push(id); // id no final para WHERE
 
     const updateSql = `
       UPDATE spci_planilha
       SET ${setClauses.join(', ')}
-      WHERE "ID" = $${paramIndex}
+      WHERE ${whereClause}
       RETURNING 
-        "ID",
+        id,
         "TAG",
         "Unidade",
         "Regional",
