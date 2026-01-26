@@ -38,9 +38,10 @@ type StatsData = {
 };
 
 type MetaRealData = {
-  meta: number;
+  meta: Record<string, number>;
   real: Record<string, number>;
-  total: number;
+  totalMeta: number;
+  totalReal: number;
   ano: number;
 };
 
@@ -409,7 +410,7 @@ export default function SPCIExtintoresPage() {
               Meta vs Real {regional ? `- ${regional}` : '(Consolidado)'}
             </h2>
               <p className="text-[11px] text-muted">
-                Meta: 0 extintores vencidos | Real: quantidade de extintores vencidos por mês
+                Meta: quantidade de extintores planejados para recarga | Real: quantidade de extintores realmente recarregados
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -430,16 +431,24 @@ export default function SPCIExtintoresPage() {
             </div>
           </div>
 
-        {metaReal && (
+        {metaReal && stats && (
           <>
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-text">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes) => (
-                  <div key={mes} className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded">
-                    0
-                  </div>
-                ))}
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
+                  const quantidade = metaReal.meta[mes] || 0;
+                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  return (
+                    <div 
+                      key={mes} 
+                      className="text-center text-xs font-bold py-1.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/50"
+                      title={`${mesesNomes[idx]}: ${quantidade} extintor(es) planejado(s) para recarga`}
+                    >
+                      {quantidade}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -447,19 +456,23 @@ export default function SPCIExtintoresPage() {
               <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidade = metaReal.real[mes] || 0;
+                  const quantidadeReal = metaReal.real[mes] || 0;
+                  const quantidadeMeta = metaReal.meta[mes] || 0;
                   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  const atingiuMeta = quantidadeReal >= quantidadeMeta;
                   return (
                     <div
                       key={mes}
                       className={`text-center text-xs font-bold py-1.5 rounded ${
-                        quantidade === 0
+                        quantidadeReal === 0
+                          ? 'bg-gray-500/30 text-gray-300'
+                          : atingiuMeta
                           ? 'bg-emerald-500 text-white'
-                          : 'bg-red-500 text-white'
+                          : 'bg-yellow-500 text-white'
                       }`}
-                      title={`${mesesNomes[idx]}: ${quantidade} extintor(es) vencido(s)`}
+                      title={`${mesesNomes[idx]}: ${quantidadeReal} recarregado(s) de ${quantidadeMeta} planejado(s)`}
                     >
-                      {quantidade}
+                      {quantidadeReal}
                     </div>
                   );
                 })}

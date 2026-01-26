@@ -31,37 +31,17 @@ function convertBigIntToNumber(obj: any): any {
 }
 
 /**
- * Calcula o status de um extintor em uma data específica
- * @param dataRecarga Data da última recarga
- * @param dataReferencia Data de referência para calcular o status
- * @param periodoMeses Período legal em meses (padrão: 12)
- * @returns 'VENCIDO' se estava vencido naquela data, 'OK' caso contrário
- */
-function calcularStatusNaData(
-  dataRecarga: Date | null,
-  dataReferencia: Date,
-  periodoMeses: number = 12
-): 'VENCIDO' | 'OK' {
-  if (!dataRecarga) {
-    return 'VENCIDO'; // Sem data de recarga = vencido
-  }
-
-  // Calcula data limite: última recarga + período
-  const dataLimite = new Date(dataRecarga);
-  dataLimite.setMonth(dataLimite.getMonth() + periodoMeses);
-  dataLimite.setHours(23, 59, 59, 999);
-
-  // Se a data de referência é posterior à data limite, está vencido
-  return dataReferencia > dataLimite ? 'VENCIDO' : 'OK';
-}
-
-/**
  * API para Meta e Real de Extintores SPCI
- * Meta = 0 (zero extintores vencidos) - todos deveriam estar OK
- * Real = quantidade de extintores vencidos em cada mês do ano
  * 
- * Lógica: Para cada mês do ano, verifica quantos extintores estavam vencidos
- * naquele mês (considerando o último dia do mês como referência)
+ * META = quantidade de extintores que DEVERIAM ser recarregados em cada mês
+ *        (baseado no campo "Planej. Recarga")
+ * 
+ * REAL = quantidade de extintores que FORAM REALMENTE recarregados em cada mês
+ *        (baseado no campo "Data Execução Recarga")
+ * 
+ * Exemplo:
+ * - Em janeiro, se 40 extintores têm "Planej. Recarga" = janeiro, então META = 40
+ * - Em janeiro, se 25 extintores têm "Data Execução Recarga" = janeiro, então REAL = 25
  */
 export async function GET(req: Request) {
   try {
@@ -84,11 +64,11 @@ export async function GET(req: Request) {
       ? `WHERE ${whereConditions.join(' AND ')}`
       : '';
 
-    // Busca todos os extintores
+    // Busca todos os extintores com dados de planejamento e execução
     const rowsSql = `
       SELECT 
         id,
-        "Última recarga",
+        "Planej. Recarga",
         "Data Execução Recarga"
       FROM spci_planilha
       ${whereSql}
@@ -106,70 +86,69 @@ export async function GET(req: Request) {
 
     console.log(`[spci/meta-real] Processando ${rows.length} extintores para ano ${ano}, regional: ${regional || 'todas'}`);
 
-    // Meta sempre é 0 (zero extintores vencidos) - todos deveriam estar OK
-    const meta = 0;
+    const anoAtual = parseInt(ano, 10);
 
-    // Real: quantidade de extintores vencidos em cada mês do ano
-    // Para cada mês, verifica quantos extintores estavam vencidos no último dia daquele mês
-    const meses: Record<string, number> = {
+    // Inicializa contadores para META e REAL por mês
+    const metaMeses: Record<string, number> = {
       '01': 0, '02': 0, '03': 0, '04': 0, '05': 0, '06': 0,
       '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0,
     };
 
-    const anoAtual = parseInt(ano, 10);
+    const realMeses: Record<string, number> = {
+      '01': 0, '02': 0, '03': 0, '04': 0, '05': 0, '06': 0,
+      '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0,
+    };
+
     let processados = 0;
-    let semDataRecarga = 0;
+    let semPlanejamento = 0;
+    let semExecucao = 0;
 
     // Para cada extintor
     for (const row of rows) {
-      // Usa Data Execução Recarga se existir, senão usa Última recarga
-      const dataRecargaStr = row['Data Execução Recarga'] || row['Última recarga'];
-      if (!dataRecargaStr) {
-        semDataRecarga++;
-        // Sem data de recarga = considerado vencido em todos os meses
-        for (let mes = 1; mes <= 12; mes++) {
-          const mesStr = String(mes).padStart(2, '0');
-          meses[mesStr]++;
-        }
-        continue;
-      }
-
-      const dataRecarga = parseDateBR(dataRecargaStr);
-      if (!dataRecarga) {
-        semDataRecarga++;
-        // Data inválida = considerado vencido em todos os meses
-        for (let mes = 1; mes <= 12; mes++) {
-          const mesStr = String(mes).padStart(2, '0');
-          meses[mesStr]++;
-        }
-        continue;
-      }
-
-      // Para cada mês do ano, verifica se o extintor estava vencido no último dia daquele mês
-      for (let mes = 1; mes <= 12; mes++) {
-        // Último dia do mês como data de referência
-        // new Date(ano, mes, 0) retorna o último dia do mês anterior
-        // então new Date(ano, mes+1, 0) retorna o último dia do mês atual
-        const dataReferencia = new Date(anoAtual, mes, 0, 23, 59, 59, 999);
-        
-        const status = calcularStatusNaData(dataRecarga, dataReferencia, 12);
-        if (status === 'VENCIDO') {
-          const mesStr = String(mes).padStart(2, '0');
-          meses[mesStr]++;
-        }
-      }
       processados++;
+
+      // META: Conta extintores com "Planej. Recarga" em cada mês do ano
+      const planejRecargaStr = row['Planej. Recarga'];
+      if (planejRecargaStr) {
+        const planejRecarga = parseDateBR(planejRecargaStr);
+        if (planejRecarga && planejRecarga.getFullYear() === anoAtual) {
+          const mesPlanej = String(planejRecarga.getMonth() + 1).padStart(2, '0');
+          if (metaMeses[mesPlanej] !== undefined) {
+            metaMeses[mesPlanej]++;
+          }
+        }
+      } else {
+        semPlanejamento++;
+      }
+
+      // REAL: Conta extintores com "Data Execução Recarga" em cada mês do ano
+      const dataExecRecargaStr = row['Data Execução Recarga'];
+      if (dataExecRecargaStr) {
+        const dataExecRecarga = parseDateBR(dataExecRecargaStr);
+        if (dataExecRecarga && dataExecRecarga.getFullYear() === anoAtual) {
+          const mesExec = String(dataExecRecarga.getMonth() + 1).padStart(2, '0');
+          if (realMeses[mesExec] !== undefined) {
+            realMeses[mesExec]++;
+          }
+        }
+      } else {
+        semExecucao++;
+      }
     }
 
-    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${semDataRecarga} sem data de recarga`);
+    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados`);
+    console.log(`[spci/meta-real] Meta por mês:`, metaMeses);
+    console.log(`[spci/meta-real] Real por mês:`, realMeses);
 
-    const total = Object.values(meses).reduce((acc, val) => acc + val, 0);
+    const totalMeta = Object.values(metaMeses).reduce((acc, val) => acc + val, 0);
+    const totalReal = Object.values(realMeses).reduce((acc, val) => acc + val, 0);
 
     return NextResponse.json({
       ok: true,
-      meta,
-      real: meses,
-      total,
+      meta: metaMeses,
+      real: realMeses,
+      totalMeta,
+      totalReal,
       ano: anoAtual,
     });
   } catch (e: any) {
