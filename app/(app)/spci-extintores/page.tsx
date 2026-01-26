@@ -987,10 +987,13 @@ export default function SPCIExtintoresPage() {
 
       {/* Modal de Edição de Extintores por Unidade */}
       {modalEdicao.open && modalEdicao.unidade && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-5xl rounded-xl border border-border bg-panel shadow-xl max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={fecharModalEdicao}>
+          <div 
+            className="w-full max-w-5xl rounded-2xl border border-border bg-panel shadow-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+            <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4 flex-shrink-0">
               <div>
                 <h2 className="text-lg font-semibold">Editar Extintores</h2>
                 <p className="text-sm text-muted mt-0.5">
@@ -1019,7 +1022,7 @@ export default function SPCIExtintoresPage() {
                   return (
                     <div
                       key={ext.id}
-                      className="rounded-lg border border-border bg-card p-4 space-y-3"
+                      className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm"
                     >
                       <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
                         <div>
@@ -1136,7 +1139,7 @@ export default function SPCIExtintoresPage() {
             </div>
 
             {/* Footer */}
-            <div className="border-t border-border bg-card px-6 py-4 flex items-center justify-between">
+            <div className="border-t border-border bg-card px-6 py-4 flex items-center justify-between flex-shrink-0">
               <div className="text-sm text-muted">
                 Edite os campos e clique em "Salvar" em cada extintor para aplicar as alterações
               </div>
