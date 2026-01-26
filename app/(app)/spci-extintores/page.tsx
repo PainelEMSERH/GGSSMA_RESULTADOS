@@ -430,62 +430,61 @@ export default function SPCIExtintoresPage() {
             </div>
           </div>
 
-          {metaReal && (
-            <>
-              <div className="flex items-center gap-2">
-                <div className="w-20 font-bold text-sm text-text">META</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes) => (
-                    <div key={mes} className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded">
-                      0
+        {metaReal && (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="w-20 font-bold text-sm text-text">META</div>
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes) => (
+                  <div key={mes} className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded">
+                    0
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
+                  const quantidade = metaReal.real[mes] || 0;
+                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  return (
+                    <div
+                      key={mes}
+                      className={`text-center text-xs font-bold py-1.5 rounded ${
+                        quantidade === 0
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-red-500 text-white'
+                      }`}
+                      title={`${mesesNomes[idx]}: ${quantidade} extintor(es) vencido(s)`}
+                    >
+                      {quantidade}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
+            </div>
 
-              <div className="flex items-center gap-2">
-                <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                    const quantidade = metaReal.real[mes] || 0;
-                    const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                    return (
-                      <div
-                        key={mes}
-                        className={`text-center text-xs font-bold py-1.5 rounded ${
-                          quantidade === 0
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-red-500 text-white'
-                        }`}
-                        title={`${mesesNomes[idx]}: ${quantidade} extintor(es) vencido(s)`}
-                      >
-                        {quantidade}
-                      </div>
-                    );
-                  })}
-                </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <div className="w-20"></div>
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
+                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  return (
+                    <div
+                      key={mes}
+                      className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center bg-panel border border-border text-text"
+                      title={mesesNomes[idx]}
+                    >
+                      {mesesNomes[idx]}
+                    </div>
+                  );
+                })}
               </div>
-
-              <div className="flex items-center gap-2 pt-2 border-t border-border">
-                <div className="w-20"></div>
-                <div className="flex-1 grid grid-cols-12 gap-1">
-                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                    const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                    return (
-                      <div
-                        key={mes}
-                        className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center bg-panel border border-border text-text"
-                        title={mesesNomes[idx]}
-                      >
-                        {mesesNomes[idx]}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Filtros */}
