@@ -16,7 +16,6 @@ type ExtintorRow = {
   'Data Tagueamento': string | null;
   'Lote Contrato': string;
   'Possui Contrato': string;
-  'Nome da Contratada': string | null;
   'Nº série (Selo INMETRO)': string | null;
   'Última recarga': string | null;
   'Planej. Recarga': string | null;
@@ -121,7 +120,6 @@ export default function SPCIExtintoresPage() {
     planejRecarga: string;
     dataExecucaoRecarga: string;
     possuiContrato: boolean;
-    nomeContratada: string;
   } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -216,7 +214,6 @@ export default function SPCIExtintoresPage() {
       planejRecarga: toInputDate(row['Planej. Recarga']),
       dataExecucaoRecarga: toInputDate(row['Data Execução Recarga']),
       possuiContrato: row['Possui Contrato']?.toUpperCase() === 'SIM',
-      nomeContratada: row['Nome da Contratada'] || '',
     });
   };
 
@@ -238,7 +235,6 @@ export default function SPCIExtintoresPage() {
           planejRecarga: editData.planejRecarga ? fromInputDate(editData.planejRecarga) : null,
           dataExecucaoRecarga: editData.dataExecucaoRecarga ? fromInputDate(editData.dataExecucaoRecarga) : null,
           possuiContrato: editData.possuiContrato,
-          nomeContratada: editData.nomeContratada || null,
         }),
       });
 
@@ -570,34 +566,18 @@ export default function SPCIExtintoresPage() {
                       </td>
                       <td className="px-4 py-3">
                         {isEditing && editData ? (
-                          <div className="space-y-1">
-                            <select
-                              value={editData.possuiContrato ? 'SIM' : 'NÃO'}
-                              onChange={(e) =>
-                                setEditData({ ...editData, possuiContrato: e.target.value === 'SIM' })
-                              }
-                              className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-xs"
-                            >
-                              <option value="SIM">SIM</option>
-                              <option value="NÃO">NÃO</option>
-                            </select>
-                            {editData.possuiContrato && (
-                              <input
-                                type="text"
-                                value={editData.nomeContratada}
-                                onChange={(e) => setEditData({ ...editData, nomeContratada: e.target.value })}
-                                placeholder="Nome da Contratada"
-                                className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-xs"
-                              />
-                            )}
-                          </div>
+                          <select
+                            value={editData.possuiContrato ? 'SIM' : 'NÃO'}
+                            onChange={(e) =>
+                              setEditData({ ...editData, possuiContrato: e.target.value === 'SIM' })
+                            }
+                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-xs"
+                          >
+                            <option value="SIM">SIM</option>
+                            <option value="NÃO">NÃO</option>
+                          </select>
                         ) : (
-                          <div>
-                            <div className="text-xs">{row['Possui Contrato']}</div>
-                            {row['Possui Contrato']?.toUpperCase() === 'SIM' && row['Nome da Contratada'] && (
-                              <div className="text-[10px] text-muted mt-0.5">{row['Nome da Contratada']}</div>
-                            )}
-                          </div>
+                          <div className="text-xs">{row['Possui Contrato']}</div>
                         )}
                       </td>
                       <td className="px-4 py-3">

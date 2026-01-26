@@ -43,22 +43,23 @@ export async function GET(req: Request) {
     let paramIndex = 1;
 
     if (params.regional) {
-      queryParams.push(params.regional);
-      whereConditions.push(`"Regional" = $${paramIndex}`);
+      queryParams.push(params.regional.trim());
+      whereConditions.push(`TRIM("Regional") = TRIM($${paramIndex})`);
       paramIndex++;
     }
 
     if (params.unidade) {
       // Usa busca case-insensitive com TRIM
-      // PostgreSQL compara strings case-insensitive quando necessário
-      queryParams.push(params.unidade);
+      // Usa ILIKE para busca flexível (pode usar % para busca parcial)
+      const unidadeParam = params.unidade.trim();
+      queryParams.push(unidadeParam);
       whereConditions.push(`TRIM("Unidade") ILIKE TRIM($${paramIndex})`);
       paramIndex++;
     }
 
     if (params.classe) {
-      queryParams.push(params.classe);
-      whereConditions.push(`"Classe" = $${paramIndex}`);
+      queryParams.push(params.classe.trim());
+      whereConditions.push(`TRIM("Classe") = TRIM($${paramIndex})`);
       paramIndex++;
     }
 
@@ -112,7 +113,6 @@ export async function GET(req: Request) {
         "Data Tagueamento",
         "Lote Contrato",
         "Possui Contrato",
-        "Nome da Contratada",
         "Nº série (Selo INMETRO)",
         "Última recarga",
         "Planej. Recarga",
@@ -124,22 +124,35 @@ export async function GET(req: Request) {
 
     // Executa query - se não houver filtros, executa sem parâmetros
     console.log(`[SPCI List] Executando query:`, { 
-      sql: rowsSql.substring(0, 200) + '...', 
+      sql: rowsSql,
+      params: queryParams,
       paramsCount: queryParams.length,
-      whereConditions: whereConditions.length 
+      whereConditions: whereConditions,
+      whereSql: whereSql
     });
     
     let rows: any[];
-    if (queryParams.length > 0) {
-      rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParams);
-    } else {
-      // Se não há parâmetros, executa query direta
-      rows = await prisma.$queryRawUnsafe<any[]>(rowsSql);
+    try {
+      if (queryParams.length > 0) {
+        rows = await prisma.$queryRawUnsafe<any[]>(rowsSql, ...queryParams);
+      } else {
+        // Se não há parâmetros, executa query direta
+        rows = await prisma.$queryRawUnsafe<any[]>(rowsSql);
+      }
+    } catch (queryError: any) {
+      console.error(`[SPCI List] Erro na query:`, {
+        error: queryError?.message,
+        sql: rowsSql,
+        params: queryParams
+      });
+      throw queryError;
     }
 
     console.log(`[SPCI List] Query executada. Registros encontrados: ${rows.length}`);
     if (rows.length > 0) {
       console.log(`[SPCI List] Primeiro registro exemplo:`, JSON.stringify(rows[0], null, 2));
+    } else {
+      console.log(`[SPCI List] Nenhum registro encontrado com os filtros aplicados`);
     }
 
     // Calcula status e data limite para cada registro

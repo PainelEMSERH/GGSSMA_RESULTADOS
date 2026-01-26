@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 /**
  * Atualiza um registro do SPCI
- * Campos editáveis: Planej. Recarga, Data Execução Recarga, Possui Contrato, Nome da Contratada
+ * Campos editáveis: Planej. Recarga, Data Execução Recarga, Possui Contrato
  * 
  * REGRA CRÍTICA:
  * - Se Data Execução Recarga for informada, atualiza automaticamente "Última recarga"
@@ -60,10 +60,6 @@ export async function PATCH(req: Request) {
       allowedFields['Possui Contrato'] = formatPossuiContrato(updates.possuiContrato);
     }
 
-    if ('nomeContratada' in updates) {
-      allowedFields['Nome da Contratada'] = updates.nomeContratada || null;
-    }
-
     if (Object.keys(allowedFields).length === 0) {
       return NextResponse.json(
         { ok: false, error: 'Nenhum campo válido para atualizar' },
@@ -100,8 +96,7 @@ export async function PATCH(req: Request) {
         "Mês Planej Recarga",
         "Data Execução Recarga",
         "Mês Exec Recarga",
-        "Possui Contrato",
-        "Nome da Contratada"
+        "Possui Contrato"
     `;
 
     const result = await prisma.$queryRawUnsafe<any[]>(updateSql, ...params);
