@@ -40,6 +40,8 @@ type StatsData = {
 type MetaRealData = {
   meta: Record<string, number>;
   real: Record<string, number>;
+  realAcumulado: Record<string, number>;
+  totalExtintores: number;
   totalMeta: number;
   totalReal: number;
   ano: number;
@@ -434,7 +436,7 @@ export default function SPCIExtintoresPage() {
         {metaReal && stats && (
           <>
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-text">META</div>
+              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
                   const quantidade = metaReal.meta[mes] || 0;
@@ -442,8 +444,8 @@ export default function SPCIExtintoresPage() {
                   return (
                     <div 
                       key={mes} 
-                      className="text-center text-xs font-bold py-1.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
-                      title={`${mesesNomes[idx]}: ${quantidade} extintor(es) planejado(s) para recarga`}
+                      className="text-center text-xs font-bold py-1.5 rounded bg-emerald-500 text-white"
+                      title={`${mesesNomes[idx]}: ${quantidade} extintor(es) planejado(s) para recarga (acumulado)`}
                     >
                       {quantidade}
                     </div>
@@ -456,16 +458,21 @@ export default function SPCIExtintoresPage() {
               <div className="w-20 font-bold text-sm text-red-600 dark:text-red-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidadeReal = metaReal.real[mes] || 0;
+                  const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
                   const quantidadeMeta = metaReal.meta[mes] || 0;
                   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta;
                   return (
                     <div
                       key={mes}
-                      className="text-center text-xs font-bold py-1.5 rounded bg-red-500/20 text-red-300 border border-red-500/50"
-                      title={`${mesesNomes[idx]}: ${quantidadeReal} recarregado(s) de ${quantidadeMeta} planejado(s)`}
+                      className={`text-center text-xs font-bold py-1.5 rounded ${
+                        atingiuMeta
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-red-500 text-white'
+                      }`}
+                      title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} recarregado(s) acumulado de ${quantidadeMeta} planejado(s) acumulado`}
                     >
-                      {quantidadeReal}
+                      {quantidadeRealAcumulado}
                     </div>
                   );
                 })}
@@ -493,28 +500,34 @@ export default function SPCIExtintoresPage() {
             {/* Resumo e Explicação */}
             <div className="pt-3 border-t border-border space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Soma das metas mensais:</span>
+                <span className="text-muted">Meta acumulada (Dezembro):</span>
                 <span className="font-semibold text-text">
-                  {Object.values(metaReal.meta).reduce((acc, val) => acc + val, 0).toLocaleString('pt-BR')}
+                  {metaReal.meta['12']?.toLocaleString('pt-BR') || 0}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted">Total de extintores:</span>
                 <span className="font-semibold text-text">
-                  {stats?.total.toLocaleString('pt-BR') || 0}
+                  {metaReal.totalExtintores?.toLocaleString('pt-BR') || stats?.total.toLocaleString('pt-BR') || 0}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted">Real acumulado (Dezembro):</span>
+                <span className="font-semibold text-text">
+                  {metaReal.realAcumulado?.['12']?.toLocaleString('pt-BR') || 0}
                 </span>
               </div>
               <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
                 <p className="text-[10px] text-muted leading-relaxed">
-                  <strong className="text-text">Por que a soma das metas não bate com o total de extintores?</strong>
+                  <strong className="text-text">Meta e Real Acumulados:</strong>
                   <br />
-                  A soma das metas mensais pode ser diferente do total de extintores porque:
+                  • A META é calculada como percentual acumulado mês a mês (8.33%, 16.67%, ..., 100%)
                   <br />
-                  • Cada extintor conta na META apenas do mês em que vence (última recarga + 12 meses)
+                  • Dezembro deve atingir 100% = total de extintores ({metaReal.totalExtintores?.toLocaleString('pt-BR') || 0})
                   <br />
-                  • Extintores sem data de recarga são contados em TODOS os meses (urgência)
+                  • O REAL mostra quantos extintores foram recarregados acumuladamente até cada mês
                   <br />
-                  • O total de extintores é a contagem total de equipamentos, independente do vencimento
+                  • Verde = atingiu a meta | Vermelho = abaixo da meta
                 </p>
               </div>
             </div>

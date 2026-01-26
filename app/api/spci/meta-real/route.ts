@@ -33,17 +33,21 @@ function convertBigIntToNumber(obj: any): any {
 /**
  * API para Meta e Real de Extintores SPCI
  * 
- * META = quantidade de extintores que DEVERIAM ser recarregados em cada mês
- *        Calculado automaticamente: última recarga + 12 meses = data de vencimento
- *        Se a data de vencimento cai em janeiro/2026, então META de janeiro = +1
+ * META = quantidade acumulada de extintores que DEVERIAM ser recarregados até cada mês
+ *        Calculada como percentual acumulado mês a mês (8.33%, 16.67%, ..., 100%)
+ *        Dezembro deve atingir 100% = total de extintores
+ *        Exemplo: 1826 extintores → Jan: 152, Fev: 304, ..., Dez: 1826
  * 
- * REAL = quantidade de extintores que FORAM REALMENTE recarregados em cada mês
+ * REAL = quantidade acumulada de extintores que FORAM REALMENTE recarregados até cada mês
  *        Baseado no campo "Data Execução Recarga"
+ *        Acumulado mês a mês (se recarregou em março, conta em março, abril, maio, etc.)
  * 
  * Exemplo:
- * - Extintor com última recarga em 01/01/2025 → vencimento em 01/01/2026
- *   → META de janeiro/2026 = +1
- * - Se foi recarregado em 15/01/2026 → REAL de janeiro/2026 = +1
+ * - Total: 1826 extintores
+ * - META Janeiro: 152 (8.33% de 1826)
+ * - META Dezembro: 1826 (100% de 1826)
+ * - Se 50 foram recarregados em janeiro e 30 em fevereiro:
+ *   REAL Janeiro: 50, REAL Fevereiro: 80 (50+30)
  */
 export async function GET(req: Request) {
   try {
@@ -89,60 +93,44 @@ export async function GET(req: Request) {
     console.log(`[spci/meta-real] Processando ${rows.length} extintores para ano ${ano}, regional: ${regional || 'todas'}`);
 
     const anoAtual = parseInt(ano, 10);
+    const totalExtintores = rows.length;
 
-    // Inicializa contadores para META e REAL por mês
-    const metaMeses: Record<string, number> = {
-      '01': 0, '02': 0, '03': 0, '04': 0, '05': 0, '06': 0,
-      '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0,
-    };
+    // META: Calculada como percentual acumulado mês a mês (8.33%, 16.67%, ..., 100%)
+    // Similar à lógica da página de entregas
+    const metaMeses: Record<string, number> = {};
+    for (let mes = 1; mes <= 12; mes++) {
+      const mesStr = String(mes).padStart(2, '0');
+      // Percentual acumulado: (mês / 12) * 100
+      const percentualAcumulado = (mes / 12) * 100;
+      // Quantidade acumulada de extintores
+      metaMeses[mesStr] = Math.round((totalExtintores * percentualAcumulado) / 100);
+    }
 
+    // REAL: Conta extintores com "Data Execução Recarga" em cada mês do ano
     const realMeses: Record<string, number> = {
       '01': 0, '02': 0, '03': 0, '04': 0, '05': 0, '06': 0,
       '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0,
     };
 
+    // Conta extintores recarregados por mês (acumulado)
+    const realAcumulado: Record<string, number> = {
+      '01': 0, '02': 0, '03': 0, '04': 0, '05': 0, '06': 0,
+      '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0,
+    };
+
     let processados = 0;
-    let semDataRecarga = 0;
+    let recarregadosNoAno = 0;
 
     // Para cada extintor
     for (const row of rows) {
       processados++;
-
-      // META: Calcula quando o extintor precisa ser recarregado (última recarga + 12 meses)
-      // Usa "Data Execução Recarga" se existir (pois é a recarga mais recente), senão usa "Última recarga"
-      const dataRecargaStr = row['Data Execução Recarga'] || row['Última recarga'];
-      
-      if (dataRecargaStr) {
-        const dataRecarga = parseDateBR(dataRecargaStr);
-        if (dataRecarga) {
-          // Calcula data de vencimento: última recarga + 12 meses
-          const dataVencimento = new Date(dataRecarga);
-          dataVencimento.setMonth(dataVencimento.getMonth() + 12);
-          
-          // Se o vencimento cai no ano especificado, conta na META do mês correspondente
-          if (dataVencimento.getFullYear() === anoAtual) {
-            const mesVencimento = String(dataVencimento.getMonth() + 1).padStart(2, '0');
-            if (metaMeses[mesVencimento] !== undefined) {
-              metaMeses[mesVencimento]++;
-            }
-          }
-        } else {
-          semDataRecarga++;
-        }
-      } else {
-        semDataRecarga++;
-        // Sem data de recarga = precisa recarregar urgentemente, conta em todos os meses
-        for (let mes = 1; mes <= 12; mes++) {
-          const mesStr = String(mes).padStart(2, '0');
-          metaMeses[mesStr]++;
-        }
-      }
 
       // REAL: Conta extintores com "Data Execução Recarga" em cada mês do ano
       const dataExecRecargaStr = row['Data Execução Recarga'];
       if (dataExecRecargaStr) {
         const dataExecRecarga = parseDateBR(dataExecRecargaStr);
         if (dataExecRecarga && dataExecRecarga.getFullYear() === anoAtual) {
+          recarregadosNoAno++;
           const mesExec = String(dataExecRecarga.getMonth() + 1).padStart(2, '0');
           if (realMeses[mesExec] !== undefined) {
             realMeses[mesExec]++;
@@ -151,17 +139,28 @@ export async function GET(req: Request) {
       }
     }
 
-    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${semDataRecarga} sem data de recarga`);
-    console.log(`[spci/meta-real] Meta por mês:`, metaMeses);
-    console.log(`[spci/meta-real] Real por mês:`, realMeses);
+    // Calcula REAL acumulado mês a mês
+    let acumuladoReal = 0;
+    for (let mes = 1; mes <= 12; mes++) {
+      const mesStr = String(mes).padStart(2, '0');
+      acumuladoReal += realMeses[mesStr] || 0;
+      realAcumulado[mesStr] = acumuladoReal;
+    }
 
-    const totalMeta = Object.values(metaMeses).reduce((acc, val) => acc + val, 0);
-    const totalReal = Object.values(realMeses).reduce((acc, val) => acc + val, 0);
+    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${recarregadosNoAno} recarregados no ano ${anoAtual}`);
+    console.log(`[spci/meta-real] Meta acumulada por mês:`, metaMeses);
+    console.log(`[spci/meta-real] Real por mês:`, realMeses);
+    console.log(`[spci/meta-real] Real acumulado por mês:`, realAcumulado);
+
+    const totalMeta = metaMeses['12']; // Dezembro deve ser 100% = total de extintores
+    const totalReal = acumuladoReal;
 
     return NextResponse.json({
       ok: true,
       meta: metaMeses,
       real: realMeses,
+      realAcumulado: realAcumulado,
+      totalExtintores,
       totalMeta,
       totalReal,
       ano: anoAtual,
