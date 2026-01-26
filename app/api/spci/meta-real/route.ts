@@ -31,9 +31,37 @@ function convertBigIntToNumber(obj: any): any {
 }
 
 /**
+ * Calcula o status de um extintor em uma data específica
+ * @param dataRecarga Data da última recarga
+ * @param dataReferencia Data de referência para calcular o status
+ * @param periodoMeses Período legal em meses (padrão: 12)
+ * @returns 'VENCIDO' se estava vencido naquela data, 'OK' caso contrário
+ */
+function calcularStatusNaData(
+  dataRecarga: Date | null,
+  dataReferencia: Date,
+  periodoMeses: number = 12
+): 'VENCIDO' | 'OK' {
+  if (!dataRecarga) {
+    return 'VENCIDO'; // Sem data de recarga = vencido
+  }
+
+  // Calcula data limite: última recarga + período
+  const dataLimite = new Date(dataRecarga);
+  dataLimite.setMonth(dataLimite.getMonth() + periodoMeses);
+  dataLimite.setHours(23, 59, 59, 999);
+
+  // Se a data de referência é posterior à data limite, está vencido
+  return dataReferencia > dataLimite ? 'VENCIDO' : 'OK';
+}
+
+/**
  * API para Meta e Real de Extintores SPCI
- * Meta = 0 (zero extintores vencidos)
- * Real = quantidade de extintores vencidos por mês
+ * Meta = 0 (zero extintores vencidos) - todos deveriam estar OK
+ * Real = quantidade de extintores vencidos em cada mês do ano
+ * 
+ * Lógica: Para cada mês do ano, verifica quantos extintores estavam vencidos
+ * naquele mês (considerando o último dia do mês como referência)
  */
 export async function GET(req: Request) {
   try {
@@ -51,9 +79,6 @@ export async function GET(req: Request) {
       whereConditions.push(`"Regional" = $${paramIndex}`);
       paramIndex++;
     }
-
-    // Não filtra por ano do planejamento, pois queremos ver vencimentos do ano especificado
-    // independente do ano de planejamento
 
     const whereSql = whereConditions.length > 0 
       ? `WHERE ${whereConditions.join(' AND ')}`
@@ -81,11 +106,11 @@ export async function GET(req: Request) {
 
     console.log(`[spci/meta-real] Processando ${rows.length} extintores para ano ${ano}, regional: ${regional || 'todas'}`);
 
-    // Meta sempre é 0 (zero extintores vencidos)
+    // Meta sempre é 0 (zero extintores vencidos) - todos deveriam estar OK
     const meta = 0;
 
-    // Real: quantidade de extintores vencidos por mês
-    // Para cada extintor, calcula quando ficou vencido baseado na última recarga
+    // Real: quantidade de extintores vencidos em cada mês do ano
+    // Para cada mês, verifica quantos extintores estavam vencidos no último dia daquele mês
     const meses: Record<string, number> = {
       '01': 0, '02': 0, '03': 0, '04': 0, '05': 0, '06': 0,
       '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0,
@@ -94,41 +119,49 @@ export async function GET(req: Request) {
     const anoAtual = parseInt(ano, 10);
     let processados = 0;
     let semDataRecarga = 0;
-    let foraDoAno = 0;
 
+    // Para cada extintor
     for (const row of rows) {
       // Usa Data Execução Recarga se existir, senão usa Última recarga
       const dataRecargaStr = row['Data Execução Recarga'] || row['Última recarga'];
       if (!dataRecargaStr) {
         semDataRecarga++;
+        // Sem data de recarga = considerado vencido em todos os meses
+        for (let mes = 1; mes <= 12; mes++) {
+          const mesStr = String(mes).padStart(2, '0');
+          meses[mesStr]++;
+        }
         continue;
       }
 
       const dataRecarga = parseDateBR(dataRecargaStr);
       if (!dataRecarga) {
         semDataRecarga++;
+        // Data inválida = considerado vencido em todos os meses
+        for (let mes = 1; mes <= 12; mes++) {
+          const mesStr = String(mes).padStart(2, '0');
+          meses[mesStr]++;
+        }
         continue;
       }
 
-      // Calcula data de vencimento (12 meses após a recarga)
-      const dataVencimento = new Date(dataRecarga);
-      dataVencimento.setMonth(dataVencimento.getMonth() + 12);
-      dataVencimento.setHours(0, 0, 0, 0);
-
-      // Se o vencimento está no ano especificado, conta no mês correspondente
-      // Não importa se já venceu ou ainda vai vencer - conta todos que venceram/vencerão naquele mês
-      if (dataVencimento.getFullYear() === anoAtual) {
-        const mesVencimento = String(dataVencimento.getMonth() + 1).padStart(2, '0');
-        if (meses[mesVencimento] !== undefined) {
-          meses[mesVencimento]++;
-          processados++;
+      // Para cada mês do ano, verifica se o extintor estava vencido no último dia daquele mês
+      for (let mes = 1; mes <= 12; mes++) {
+        // Último dia do mês como data de referência
+        // new Date(ano, mes, 0) retorna o último dia do mês anterior
+        // então new Date(ano, mes+1, 0) retorna o último dia do mês atual
+        const dataReferencia = new Date(anoAtual, mes, 0, 23, 59, 59, 999);
+        
+        const status = calcularStatusNaData(dataRecarga, dataReferencia, 12);
+        if (status === 'VENCIDO') {
+          const mesStr = String(mes).padStart(2, '0');
+          meses[mesStr]++;
         }
-      } else {
-        foraDoAno++;
       }
+      processados++;
     }
 
-    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${semDataRecarga} sem data de recarga, ${foraDoAno} fora do ano ${anoAtual}`);
+    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${semDataRecarga} sem data de recarga`);
 
     const total = Object.values(meses).reduce((acc, val) => acc + val, 0);
 
