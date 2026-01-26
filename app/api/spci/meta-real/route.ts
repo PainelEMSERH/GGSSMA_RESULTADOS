@@ -47,8 +47,8 @@ export async function GET(req: Request) {
     let paramIndex = 1;
 
     if (regional) {
-      queryParams.push(regional.trim());
-      whereConditions.push(`TRIM("Regional") = TRIM($${paramIndex})`);
+      queryParams.push(regional);
+      whereConditions.push(`"Regional" = $${paramIndex}`);
       paramIndex++;
     }
 
@@ -79,6 +79,8 @@ export async function GET(req: Request) {
     // Converte BigInt para Number para evitar erro de serialização
     rows = convertBigIntToNumber(rows);
 
+    console.log(`[spci/meta-real] Processando ${rows.length} extintores para ano ${ano}, regional: ${regional || 'todas'}`);
+
     // Meta sempre é 0 (zero extintores vencidos)
     const meta = 0;
 
@@ -90,34 +92,43 @@ export async function GET(req: Request) {
     };
 
     const anoAtual = parseInt(ano, 10);
-
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    let processados = 0;
+    let semDataRecarga = 0;
+    let foraDoAno = 0;
 
     for (const row of rows) {
       // Usa Data Execução Recarga se existir, senão usa Última recarga
       const dataRecargaStr = row['Data Execução Recarga'] || row['Última recarga'];
-      if (!dataRecargaStr) continue;
+      if (!dataRecargaStr) {
+        semDataRecarga++;
+        continue;
+      }
 
       const dataRecarga = parseDateBR(dataRecargaStr);
-      if (!dataRecarga) continue;
+      if (!dataRecarga) {
+        semDataRecarga++;
+        continue;
+      }
 
       // Calcula data de vencimento (12 meses após a recarga)
       const dataVencimento = new Date(dataRecarga);
       dataVencimento.setMonth(dataVencimento.getMonth() + 12);
       dataVencimento.setHours(0, 0, 0, 0);
 
-      // Verifica se o extintor está vencido (data de vencimento já passou)
-      if (dataVencimento < hoje) {
-        // Se o vencimento foi no ano especificado, conta no mês correspondente
-        if (dataVencimento.getFullYear() === anoAtual) {
-          const mesVencimento = String(dataVencimento.getMonth() + 1).padStart(2, '0');
-          if (meses[mesVencimento] !== undefined) {
-            meses[mesVencimento]++;
-          }
+      // Se o vencimento está no ano especificado, conta no mês correspondente
+      // Não importa se já venceu ou ainda vai vencer - conta todos que venceram/vencerão naquele mês
+      if (dataVencimento.getFullYear() === anoAtual) {
+        const mesVencimento = String(dataVencimento.getMonth() + 1).padStart(2, '0');
+        if (meses[mesVencimento] !== undefined) {
+          meses[mesVencimento]++;
+          processados++;
         }
+      } else {
+        foraDoAno++;
       }
     }
+
+    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${semDataRecarga} sem data de recarga, ${foraDoAno} fora do ano ${anoAtual}`);
 
     const total = Object.values(meses).reduce((acc, val) => acc + val, 0);
 
