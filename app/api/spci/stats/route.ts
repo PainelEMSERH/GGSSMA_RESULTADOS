@@ -5,6 +5,31 @@ import { calcularStatus, parsePossuiContrato } from '@/lib/spci/utils';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Função auxiliar para converter BigInt para Number (para serialização JSON)
+function convertBigIntToNumber(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  if (typeof obj === 'bigint') {
+    return Number(obj);
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(convertBigIntToNumber);
+  }
+  
+  if (typeof obj === 'object') {
+    const converted: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      converted[key] = convertBigIntToNumber(value);
+    }
+    return converted;
+  }
+  
+  return obj;
+}
+
 /**
  * Retorna estatísticas/resumo dos extintores
  */
@@ -56,6 +81,9 @@ export async function GET(req: Request) {
     } else {
       rows = await prisma.$queryRawUnsafe<any[]>(rowsSql);
     }
+    
+    // Converte BigInt para Number para evitar erro de serialização
+    rows = convertBigIntToNumber(rows);
 
     // Calcula estatísticas
     let total = 0;

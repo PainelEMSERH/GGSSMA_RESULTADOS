@@ -5,6 +5,31 @@ import { calcularStatus, parseDateBR, formatDateBR } from '@/lib/spci/utils';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Função auxiliar para converter BigInt para Number (para serialização JSON)
+function convertBigIntToNumber(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  if (typeof obj === 'bigint') {
+    return Number(obj);
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(convertBigIntToNumber);
+  }
+  
+  if (typeof obj === 'object') {
+    const converted: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      converted[key] = convertBigIntToNumber(value);
+    }
+    return converted;
+  }
+  
+  return obj;
+}
+
 interface QueryParams {
   page?: number;
   pageSize?: number;
@@ -156,10 +181,12 @@ export async function GET(req: Request) {
     }
 
     // Calcula status e data limite para cada registro
+    // Converte BigInt para Number/String para evitar erro de serialização
     const rowsWithStatus = rows.map((row: any) => {
       const calculo = calcularStatus(row['Última recarga']);
+      const rowConverted = convertBigIntToNumber(row);
       return {
-        ...row,
+        ...rowConverted,
         // Campos calculados (nunca vêm do banco)
         status: calculo.status,
         dataLimiteRecarga: calculo.dataLimite ? formatDateBR(calculo.dataLimite) : null,

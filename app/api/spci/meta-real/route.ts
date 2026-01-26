@@ -5,6 +5,31 @@ import { calcularStatus, parseDateBR } from '@/lib/spci/utils';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Função auxiliar para converter BigInt para Number (para serialização JSON)
+function convertBigIntToNumber(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  if (typeof obj === 'bigint') {
+    return Number(obj);
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(convertBigIntToNumber);
+  }
+  
+  if (typeof obj === 'object') {
+    const converted: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      converted[key] = convertBigIntToNumber(value);
+    }
+    return converted;
+  }
+  
+  return obj;
+}
+
 /**
  * API para Meta e Real de Extintores SPCI
  * Meta = 0 (zero extintores vencidos)
@@ -53,6 +78,9 @@ export async function GET(req: Request) {
     } else {
       rows = await prisma.$queryRawUnsafe<any[]>(rowsSql);
     }
+    
+    // Converte BigInt para Number para evitar erro de serialização
+    rows = convertBigIntToNumber(rows);
 
     // Meta sempre é 0 (zero extintores vencidos)
     const meta = 0;
