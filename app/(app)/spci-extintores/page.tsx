@@ -36,6 +36,13 @@ type StatsData = {
   porRegional: Record<string, number>;
 };
 
+type MetaRealData = {
+  meta: number;
+  real: Record<string, number>;
+  total: number;
+  ano: number;
+};
+
 const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
   try {
     const r = await fetch(url, { cache: 'no-store', ...init });
@@ -108,6 +115,11 @@ export default function SPCIExtintoresPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
+  // Meta vs Real
+  const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
+  const [metaRealLoading, setMetaRealLoading] = useState(false);
+  const [anoMetaReal, setAnoMetaReal] = useState<string>(String(new Date().getFullYear()));
+
   // Opções para filtros
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidades, setUnidades] = useState<string[]>([]);
@@ -147,6 +159,24 @@ export default function SPCIExtintoresPage() {
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
   }, [regional, unidade]);
+
+  // Carrega Meta vs Real
+  useEffect(() => {
+    if (!regional) {
+      setMetaReal(null);
+      return;
+    }
+
+    setMetaRealLoading(true);
+    const params = new URLSearchParams();
+    params.set('regional', regional);
+    params.set('ano', anoMetaReal);
+
+    fetchJSON<MetaRealData>(`/api/spci/meta-real?${params.toString()}`)
+      .then((data) => setMetaReal(data))
+      .catch(() => setMetaReal(null))
+      .finally(() => setMetaRealLoading(false));
+  }, [regional, anoMetaReal]);
 
   // Carrega lista de extintores
   useEffect(() => {
@@ -333,6 +363,92 @@ export default function SPCIExtintoresPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Meta vs Real */}
+      {regional && (
+        <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Meta vs Real - {regional}</h2>
+              <p className="text-[11px] text-muted">
+                Meta: 0 extintores vencidos | Real: quantidade de extintores vencidos por mês
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={anoMetaReal}
+                onChange={(e) => setAnoMetaReal(e.target.value)}
+                className="px-2 py-1 rounded border border-border bg-bg text-text text-xs"
+              >
+                {anos.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+              {metaRealLoading && (
+                <span className="text-[11px] text-muted">Carregando...</span>
+              )}
+            </div>
+          </div>
+
+          {metaReal && (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-20 font-bold text-sm text-text">META</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes) => (
+                    <div key={mes} className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded">
+                      0
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
+                    const quantidade = metaReal.real[mes] || 0;
+                    const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                    return (
+                      <div
+                        key={mes}
+                        className={`text-center text-xs font-bold py-1.5 rounded ${
+                          quantidade === 0
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-red-500 text-white'
+                        }`}
+                        title={`${mesesNomes[idx]}: ${quantidade} extintor(es) vencido(s)`}
+                      >
+                        {quantidade}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <div className="w-20"></div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
+                    const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                    return (
+                      <div
+                        key={mes}
+                        className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center bg-panel border border-border text-text"
+                        title={mesesNomes[idx]}
+                      >
+                        {mesesNomes[idx]}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
