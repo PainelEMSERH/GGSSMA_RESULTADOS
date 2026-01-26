@@ -58,6 +58,8 @@ export default function AdminUsersClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
+  const [verifyResults, setVerifyResults] = useState<Record<string, { verified: boolean; message: string; issues: string[] }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +149,51 @@ export default function AdminUsersClient() {
       const s2 = new Set(newSet);
       s2.delete(row.id);
       setSavingIds(s2);
+    }
+  }
+
+  async function verifyUser(row: UsuarioRow) {
+    const newSet = new Set(verifyingIds);
+    newSet.add(row.id);
+    setVerifyingIds(newSet);
+    try {
+      const r = await fetch('/api/admin/users/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, clerkUserId: row.clerkUserId }),
+      });
+      const json = await r.json();
+      if (!r.ok || !json?.ok) {
+        alert(
+          json?.error ||
+            'Não foi possível verificar esse usuário.',
+        );
+      } else {
+        setVerifyResults((prev) => ({
+          ...prev,
+          [row.id]: {
+            verified: json.verified || false,
+            message: json.message || '',
+            issues: json.issues || [],
+          },
+        }));
+        
+        // Mostra alerta com os resultados
+        if (json.verified) {
+          alert(json.message || 'Usuário verificado com sucesso!');
+        } else {
+          const issuesText = json.issues?.length
+            ? '\n\nProblemas encontrados:\n' + json.issues.map((i: string, idx: number) => `${idx + 1}. ${i}`).join('\n')
+            : '';
+          alert((json.message || 'Verificação concluída com problemas.') + issuesText);
+        }
+      }
+    } catch (e) {
+      alert('Erro inesperado ao verificar. Tente novamente.');
+    } finally {
+      const s2 = new Set(newSet);
+      s2.delete(row.id);
+      setVerifyingIds(s2);
     }
   }
 
@@ -318,13 +365,22 @@ export default function AdminUsersClient() {
                     />
                   </td>
                   <td className="px-2 py-1 text-center">
-                    <button
-                      onClick={() => saveUser(u)}
-                      disabled={isSaving}
-                      className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {isSaving ? 'Salvando...' : 'Salvar'}
-                    </button>
+                    <div className="flex items-center gap-2 justify-center">
+                      <button
+                        onClick={() => verifyUser(u)}
+                        disabled={verifyingIds.has(u.id)}
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {verifyingIds.has(u.id) ? 'Verificando...' : 'Verificar'}
+                      </button>
+                      <button
+                        onClick={() => saveUser(u)}
+                        disabled={isSaving}
+                        className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {isSaving ? 'Salvando...' : 'Salvar'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
