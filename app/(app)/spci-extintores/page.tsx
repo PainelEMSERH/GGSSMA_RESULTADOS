@@ -53,9 +53,11 @@ const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> =
       console.error('[fetchJSON] Erro na resposta:', { url, status: r.status, data });
       throw new Error(errorMsg);
     }
-    if (!data.ok && data.error) {
-      console.error('[fetchJSON] Erro no payload:', { url, error: data.error });
-      throw new Error(data.error);
+    // Se a resposta tem campo 'ok' e é false, lança erro
+    if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
+      const errorMsg = data.error || 'Erro desconhecido';
+      console.error('[fetchJSON] Erro no payload:', { url, error: errorMsg });
+      throw new Error(errorMsg);
     }
     return data as T;
   } catch (error: any) {
@@ -198,23 +200,35 @@ export default function SPCIExtintoresPage() {
     const url = `/api/spci/list?${params.toString()}`;
     console.log('[SPCI Page] Buscando dados:', url);
     
-    fetchJSON<{ ok: boolean; rows: ExtintorRow[]; totalCount: number; error?: string }>(url)
+    fetchJSON<{ ok?: boolean; rows: ExtintorRow[]; totalCount: number; error?: string }>(url)
       .then((data) => {
         console.log('[SPCI Page] Resposta completa:', {
           ok: data.ok,
           rowsCount: data.rows?.length || 0,
           totalCount: data.totalCount || 0,
-          firstRow: data.rows?.[0] || null
+          firstRow: data.rows?.[0] || null,
+          dataKeys: Object.keys(data || {})
         });
-        if (data.ok === false) {
+        
+        // Se tem campo ok e é false, trata como erro
+        if (data && 'ok' in data && data.ok === false) {
           console.error('[SPCI Page] API retornou erro:', data.error);
           setRows([]);
           setTotal(0);
           return;
         }
-        const rowsData = data.rows || [];
-        const totalData = data.totalCount || 0;
-        console.log('[SPCI Page] Dados processados:', { rows: rowsData.length, total: totalData });
+        
+        // Extrai rows e totalCount (pode estar em data.rows ou data diretamente)
+        const rowsData = (data as any).rows || (Array.isArray(data) ? data : []);
+        const totalData = (data as any).totalCount || (data as any).total || rowsData.length;
+        
+        console.log('[SPCI Page] Dados processados:', { 
+          rows: rowsData.length, 
+          total: totalData,
+          hasRows: rowsData.length > 0,
+          firstRowSample: rowsData[0] ? Object.keys(rowsData[0]) : null
+        });
+        
         setRows(rowsData);
         setTotal(totalData);
       })
