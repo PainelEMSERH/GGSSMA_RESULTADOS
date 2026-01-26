@@ -150,20 +150,23 @@ export default function SPCIExtintoresPage() {
   const [classes, setClasses] = useState<string[]>([]);
   const [anos, setAnos] = useState<number[]>([]);
 
-  // Edição inline
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editData, setEditData] = useState<{
+  // Modal de edição
+  const [modalEdicao, setModalEdicao] = useState<{
+    open: boolean;
+    unidade: string | null;
+    extintores: ExtintorRow[];
+  }>({ open: false, unidade: null, extintores: [] });
+  const [editandoExtintores, setEditandoExtintores] = useState<Record<number, {
     tag: string;
-    unidade: string;
-    regional: string;
     local: string;
     classe: string;
     massaVolume: string;
     planejRecarga: string;
     dataExecucaoRecarga: string;
     possuiContrato: boolean;
-  } | null>(null);
+  }>>({});
   const [saving, setSaving] = useState(false);
+  const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
   const [detalhesAberto, setDetalhesAberto] = useState<number | null>(null);
 
   // Carrega opções únicas
@@ -285,40 +288,72 @@ export default function SPCIExtintoresPage() {
     setPage(1);
   };
 
-  const startEdit = (row: ExtintorRow) => {
-    setEditingId(row.id);
-    setEditData({
-      tag: row.TAG || '',
-      unidade: row.Unidade || '',
-      regional: row.Regional || '',
-      local: row.Local || '',
-      classe: row.Classe || '',
-      massaVolume: row['Massa/Volume (kg/L)'] || '',
-      planejRecarga: toInputDate(row['Planej. Recarga']),
-      dataExecucaoRecarga: toInputDate(row['Data Execução Recarga']),
-      possuiContrato: row['Possui Contrato']?.toUpperCase() === 'SIM',
-    });
+  const abrirModalEdicao = async (row: ExtintorRow) => {
+    // Busca todos os extintores da mesma unidade
+    const params = new URLSearchParams();
+    params.set('unidade', row.Unidade);
+    params.set('pageSize', '1000'); // Busca todos
+    
+    try {
+      const data = await fetchJSON<{ rows: ExtintorRow[]; totalCount: number }>(`/api/spci/list?${params.toString()}`);
+      const extintoresUnidade = data.rows || [];
+      
+      // Inicializa dados de edição para cada extintor
+      const editData: Record<number, any> = {};
+      extintoresUnidade.forEach((ext) => {
+        editData[ext.id] = {
+          tag: ext.TAG || '',
+          local: ext.Local || '',
+          classe: ext.Classe || '',
+          massaVolume: ext['Massa/Volume (kg/L)'] || '',
+          planejRecarga: toInputDate(ext['Planej. Recarga']),
+          dataExecucaoRecarga: toInputDate(ext['Data Execução Recarga']),
+          possuiContrato: ext['Possui Contrato']?.toUpperCase() === 'SIM',
+        };
+      });
+      
+      setEditandoExtintores(editData);
+      setModalEdicao({
+        open: true,
+        unidade: row.Unidade,
+        extintores: extintoresUnidade,
+      });
+    } catch (error: any) {
+      alert('Erro ao carregar extintores da unidade: ' + (error.message || 'Erro desconhecido'));
+    }
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditData(null);
-    setDetalhesAberto(null);
+  const fecharModalEdicao = () => {
+    setModalEdicao({ open: false, unidade: null, extintores: [] });
+    setEditandoExtintores({});
+    setSavingIds(new Set());
   };
 
-  const saveEdit = async () => {
-    if (!editingId || !editData) return;
+  const atualizarExtintor = (id: number, campo: string, valor: any) => {
+    setEditandoExtintores((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [campo]: valor,
+      },
+    }));
+  };
 
-    setSaving(true);
+  const salvarExtintor = async (extintor: ExtintorRow) => {
+    const editData = editandoExtintores[extintor.id];
+    if (!editData) return;
+
+    const newSavingIds = new Set(savingIds);
+    newSavingIds.add(extintor.id);
+    setSavingIds(newSavingIds);
+
     try {
       await fetchJSON('/api/spci/update', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: editingId,
+          id: extintor.id,
           tag: editData.tag,
-          unidade: editData.unidade,
-          regional: editData.regional,
           local: editData.local,
           classe: editData.classe,
           massaVolume: editData.massaVolume,
@@ -328,7 +363,26 @@ export default function SPCIExtintoresPage() {
         }),
       });
 
-      // Recarrega dados
+      // Atualiza o extintor na lista do modal
+      setModalEdicao((prev) => ({
+        ...prev,
+        extintores: prev.extintores.map((e) =>
+          e.id === extintor.id
+            ? {
+                ...e,
+                TAG: editData.tag,
+                Local: editData.local,
+                Classe: editData.classe,
+                'Massa/Volume (kg/L)': editData.massaVolume,
+                'Planej. Recarga': editData.planejRecarga ? fromInputDate(editData.planejRecarga) : null,
+                'Data Execução Recarga': editData.dataExecucaoRecarga ? fromInputDate(editData.dataExecucaoRecarga) : null,
+                'Possui Contrato': editData.possuiContrato ? 'SIM' : 'NÃO',
+              }
+            : e
+        ),
+      }));
+
+      // Recarrega dados da tabela principal
       const params = new URLSearchParams();
       if (regional) params.set('regional', regional);
       if (unidade) params.set('unidade', unidade);
@@ -352,13 +406,12 @@ export default function SPCIExtintoresPage() {
       if (unidade) statsParams.set('unidade', unidade);
       const statsData = await fetchJSON<{ stats: StatsData }>(`/api/spci/stats?${statsParams.toString()}`);
       setStats(statsData.stats);
-
-      setEditingId(null);
-      setEditData(null);
     } catch (error: any) {
       alert('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
     } finally {
-      setSaving(false);
+      const newSavingIds2 = new Set(savingIds);
+      newSavingIds2.delete(extintor.id);
+      setSavingIds(newSavingIds2);
     }
   };
 
@@ -831,7 +884,6 @@ export default function SPCIExtintoresPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => {
-                  const isEditing = editingId === row.id;
                   const isVencido = row.status === 'VENCIDO';
                   const isAVencer = row.status === 'A VENCER';
 
@@ -843,90 +895,13 @@ export default function SPCIExtintoresPage() {
                       }`}
                     >
                       <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <>
-                            <input
-                              type="text"
-                              value={editData.unidade}
-                              onChange={(e) => setEditData({ ...editData, unidade: e.target.value })}
-                              className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                            />
-                            <div className="mt-2 p-2 rounded-lg border border-border bg-panel space-y-2">
-                              <div className="text-[10px] font-semibold text-muted mb-1.5">Detalhes do Extintor</div>
-                              <div>
-                                <label className="text-[10px] text-muted block mb-1">TAG</label>
-                                <input
-                                  type="text"
-                                  value={editData.tag}
-                                  onChange={(e) => setEditData({ ...editData, tag: e.target.value })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
-                                  placeholder="Ex: CAF-FEME-SESMT-003"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-muted block mb-1">Classe</label>
-                                <select
-                                  value={editData.classe}
-                                  onChange={(e) => setEditData({ ...editData, classe: e.target.value })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
-                                >
-                                  <option value="">Selecione</option>
-                                  {classes.map((c) => (
-                                    <option key={c} value={c}>
-                                      {c}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-muted block mb-1">Massa/Volume (kg/L)</label>
-                                <input
-                                  type="text"
-                                  value={editData.massaVolume}
-                                  onChange={(e) => setEditData({ ...editData, massaVolume: e.target.value })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
-                                  placeholder="Ex: 6"
-                                />
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <div>
-                            <div className="font-medium">{formatarNomeUnidade(row.Unidade)}</div>
-                            <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
-                          </div>
-                        )}
+                        <div>
+                          <div className="font-medium">{formatarNomeUnidade(row.Unidade)}</div>
+                          <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <select
-                            value={editData.regional}
-                            onChange={(e) => setEditData({ ...editData, regional: e.target.value })}
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                          >
-                            <option value="">Selecione</option>
-                            {regionais.map((r) => (
-                              <option key={r} value={r}>
-                                {r}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          row.Regional
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <input
-                            type="text"
-                            value={editData.local}
-                            onChange={(e) => setEditData({ ...editData, local: e.target.value })}
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
-                          />
-                        ) : (
-                          formatarLocal(row.Local)
-                        )}
-                      </td>
+                      <td className="px-4 py-3 text-center text-[11px]">{row.Regional}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{formatarLocal(row.Local)}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row['Última recarga'] || '-'}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.dataLimiteRecarga || '-'}</td>
                       <td className="px-4 py-3 text-center">
@@ -939,116 +914,68 @@ export default function SPCIExtintoresPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <input
-                            type="date"
-                            value={editData.planejRecarga}
-                            onChange={(e) =>
-                              setEditData({ ...editData, planejRecarga: e.target.value })
-                            }
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
-                          />
-                        ) : (
-                          <div>
-                            <div>{row['Planej. Recarga'] || '-'}</div>
-                            {row.mesPlanejRecarga && (
-                              <div className="text-[10px] text-muted mt-0.5">{row.mesPlanejRecarga}</div>
-                            )}
-                          </div>
-                        )}
+                        <div>
+                          <div>{row['Planej. Recarga'] || '-'}</div>
+                          {row.mesPlanejRecarga && (
+                            <div className="text-[10px] text-muted mt-0.5">{row.mesPlanejRecarga}</div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-[11px]">
-                        {isEditing && editData ? (
-                          <input
-                            type="date"
-                            value={editData.dataExecucaoRecarga}
-                            onChange={(e) =>
-                              setEditData({
-                                ...editData,
-                                dataExecucaoRecarga: e.target.value,
-                              })
-                            }
-                            className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
-                          />
-                        ) : (
-                          <div>
-                            <div>{row['Data Execução Recarga'] || '-'}</div>
-                            {row.mesExecRecarga && (
-                              <div className="text-[10px] text-muted mt-0.5">{row.mesExecRecarga}</div>
-                            )}
-                          </div>
-                        )}
+                        <div>
+                          <div>{row['Data Execução Recarga'] || '-'}</div>
+                          {row.mesExecRecarga && (
+                            <div className="text-[10px] text-muted mt-0.5">{row.mesExecRecarga}</div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {!isEditing && (
-                            <div className="relative">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDetalhesAberto(detalhesAberto === row.id ? null : row.id);
-                                }}
-                                className="p-1 rounded hover:bg-muted/50 text-muted hover:text-text transition-colors"
-                                title="Ver detalhes"
-                              >
-                                <Info className="w-3.5 h-3.5" />
-                              </button>
-                              {detalhesAberto === row.id && (
-                                <>
-                                  <div 
-                                    className="fixed inset-0 z-40" 
-                                    onClick={() => setDetalhesAberto(null)}
-                                  ></div>
-                                  <div className="absolute right-0 bottom-full mb-1.5 z-50 bg-panel border border-border rounded-lg shadow-xl min-w-[160px] p-2.5">
-                                    <div className="space-y-2 text-[11px]">
-                                      <div>
-                                        <div className="text-muted text-[10px] mb-0.5">TAG</div>
-                                        <div className="font-medium text-text">{row.TAG || '-'}</div>
-                                      </div>
-                                      <div className="border-t border-border pt-2">
-                                        <div className="text-muted text-[10px] mb-0.5">Classe</div>
-                                        <div className="font-medium text-text">{row.Classe || '-'}</div>
-                                      </div>
-                                      <div className="border-t border-border pt-2">
-                                        <div className="text-muted text-[10px] mb-0.5">Massa/Volume</div>
-                                        <div className="font-medium text-text">{row['Massa/Volume (kg/L)'] || '-'}</div>
-                                      </div>
-                                    </div>
-                                    <div className="absolute right-3 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-panel"></div>
-                                    <div className="absolute right-[11px] top-full w-0 h-0 border-l-[7px] border-r-[7px] border-t-[7px] border-transparent border-t-border"></div>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          )}
-                          {isEditing ? (
-                            <div className="flex gap-1 justify-center">
-                              <button
-                                onClick={saveEdit}
-                                disabled={saving}
-                                className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50 transition-colors"
-                                title="Salvar alterações"
-                              >
-                                <Save className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                disabled={saving}
-                                className="p-1 rounded hover:bg-red-500/20 text-red-400 disabled:opacity-50 transition-colors"
-                                title="Cancelar edição"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
+                          <div className="relative">
                             <button
-                              onClick={() => startEdit(row)}
-                              className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
-                              title="Editar registro"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetalhesAberto(detalhesAberto === row.id ? null : row.id);
+                              }}
+                              className="p-1 rounded hover:bg-muted/50 text-muted hover:text-text transition-colors"
+                              title="Ver detalhes"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Info className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                            {detalhesAberto === row.id && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-40" 
+                                  onClick={() => setDetalhesAberto(null)}
+                                ></div>
+                                <div className="absolute right-0 bottom-full mb-1.5 z-50 bg-panel border border-border rounded-lg shadow-xl min-w-[160px] p-2.5">
+                                  <div className="space-y-2 text-[11px]">
+                                    <div>
+                                      <div className="text-muted text-[10px] mb-0.5">TAG</div>
+                                      <div className="font-medium text-text">{row.TAG || '-'}</div>
+                                    </div>
+                                    <div className="border-t border-border pt-2">
+                                      <div className="text-muted text-[10px] mb-0.5">Classe</div>
+                                      <div className="font-medium text-text">{row.Classe || '-'}</div>
+                                    </div>
+                                    <div className="border-t border-border pt-2">
+                                      <div className="text-muted text-[10px] mb-0.5">Massa/Volume</div>
+                                      <div className="font-medium text-text">{row['Massa/Volume (kg/L)'] || '-'}</div>
+                                    </div>
+                                  </div>
+                                  <div className="absolute right-3 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-panel"></div>
+                                  <div className="absolute right-[11px] top-full w-0 h-0 border-l-[7px] border-r-[7px] border-t-[7px] border-transparent border-t-border"></div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => abrirModalEdicao(row)}
+                            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                            title="Editar extintores da unidade"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1098,6 +1025,172 @@ export default function SPCIExtintoresPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Edição de Extintores por Unidade */}
+      {modalEdicao.open && modalEdicao.unidade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-5xl rounded-xl border border-border bg-panel shadow-xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold">Editar Extintores</h2>
+                <p className="text-sm text-muted mt-0.5">
+                  Unidade: <span className="font-medium text-text">{formatarNomeUnidade(modalEdicao.unidade)}</span>
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {modalEdicao.extintores.length} extintor{modalEdicao.extintores.length !== 1 ? 'es' : ''} encontrado{modalEdicao.extintores.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={fecharModalEdicao}
+                className="p-2 rounded-lg hover:bg-bg transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {modalEdicao.extintores.map((ext) => {
+                  const editData = editandoExtintores[ext.id];
+                  if (!editData) return null;
+
+                  return (
+                    <div
+                      key={ext.id}
+                      className="rounded-lg border border-border bg-card p-4 space-y-3"
+                    >
+                      <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
+                        <div>
+                          <div className="text-sm font-semibold text-text">TAG: {ext.TAG || '-'}</div>
+                          <div className="text-xs text-muted mt-0.5">
+                            Local: {formatarLocal(ext.Local)} | Status: {ext.status}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => salvarExtintor(ext)}
+                          disabled={savingIds.has(ext.id)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                        >
+                          {savingIds.has(ext.id) ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Salvando...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-3.5 h-3.5" />
+                              Salvar
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1.5">TAG</label>
+                          <input
+                            type="text"
+                            value={editData.tag}
+                            onChange={(e) => atualizarExtintor(ext.id, 'tag', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-text text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                            placeholder="Ex: CAF-FEME-SESMT-003"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1.5">Classe</label>
+                          <select
+                            value={editData.classe}
+                            onChange={(e) => atualizarExtintor(ext.id, 'classe', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-text text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          >
+                            <option value="">Selecione</option>
+                            {classes.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1.5">Massa/Volume (kg/L)</label>
+                          <input
+                            type="text"
+                            value={editData.massaVolume}
+                            onChange={(e) => atualizarExtintor(ext.id, 'massaVolume', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-text text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                            placeholder="Ex: 6"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1.5">Local</label>
+                          <input
+                            type="text"
+                            value={editData.local}
+                            onChange={(e) => atualizarExtintor(ext.id, 'local', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-text text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                            placeholder="Ex: Sala da Distribuição"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1.5">Planej. Recarga</label>
+                          <input
+                            type="date"
+                            value={editData.planejRecarga}
+                            onChange={(e) => atualizarExtintor(ext.id, 'planejRecarga', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-text text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1.5">Data Execução Recarga</label>
+                          <input
+                            type="date"
+                            value={editData.dataExecucaoRecarga}
+                            onChange={(e) => atualizarExtintor(ext.id, 'dataExecucaoRecarga', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-text text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1.5">Possui Contrato</label>
+                          <select
+                            value={editData.possuiContrato ? 'SIM' : 'NÃO'}
+                            onChange={(e) => atualizarExtintor(ext.id, 'possuiContrato', e.target.value === 'SIM')}
+                            className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-text text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          >
+                            <option value="SIM">Sim</option>
+                            <option value="NÃO">Não</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-border bg-card px-6 py-4 flex items-center justify-between">
+              <div className="text-sm text-muted">
+                Edite os campos e clique em "Salvar" em cada extintor para aplicar as alterações
+              </div>
+              <button
+                onClick={fecharModalEdicao}
+                className="px-4 py-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
