@@ -199,16 +199,23 @@ export default function SPCIExtintoresPage() {
     
     fetchJSON<{ ok: boolean; rows: ExtintorRow[]; totalCount: number; error?: string }>(url)
       .then((data) => {
-        console.log('[SPCI Page] Resposta completa:', data);
+        console.log('[SPCI Page] Resposta completa:', {
+          ok: data.ok,
+          rowsCount: data.rows?.length || 0,
+          totalCount: data.totalCount || 0,
+          firstRow: data.rows?.[0] || null
+        });
         if (data.ok === false) {
           console.error('[SPCI Page] API retornou erro:', data.error);
           setRows([]);
           setTotal(0);
           return;
         }
-        console.log('[SPCI Page] Dados recebidos:', { rows: data.rows?.length || 0, total: data.totalCount || 0 });
-        setRows(data.rows || []);
-        setTotal(data.totalCount || 0);
+        const rowsData = data.rows || [];
+        const totalData = data.totalCount || 0;
+        console.log('[SPCI Page] Dados processados:', { rows: rowsData.length, total: totalData });
+        setRows(rowsData);
+        setTotal(totalData);
       })
       .catch((error) => {
         console.error('[SPCI Page] Erro ao carregar extintores:', error);
@@ -589,13 +596,64 @@ export default function SPCIExtintoresPage() {
         </div>
       </div>
 
+      {/* Resumo de Resultados */}
+      {!loading && rows.length > 0 && (
+        <div className="rounded-xl border border-border bg-panel p-3 shadow-sm">
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-muted">
+              Mostrando <span className="font-semibold text-text">{rows.length}</span> de{' '}
+              <span className="font-semibold text-text">{total.toLocaleString()}</span> extintores
+            </div>
+            {(regional || unidade || status || possuiContrato || classe || anoPlanejamento || search) && (
+              <button
+                onClick={() => {
+                  setRegional('');
+                  setUnidade('');
+                  setStatus('');
+                  setPossuiContrato('');
+                  setClasse('');
+                  setAnoPlanejamento('');
+                  setSearch('');
+                  setPage(1);
+                }}
+                className="text-xs text-emerald-500 hover:text-emerald-400"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Tabela */}
       <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="text-center py-8 text-muted">Carregando...</div>
+            <div className="text-center py-8 text-muted">
+              <div className="inline-block w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
+              <div>Carregando extintores...</div>
+            </div>
           ) : rows.length === 0 ? (
-            <div className="text-center py-8 text-muted">Nenhum registro encontrado</div>
+            <div className="text-center py-8">
+              <div className="text-muted mb-2">Nenhum registro encontrado</div>
+              {(regional || unidade || status || possuiContrato || classe || anoPlanejamento || search) && (
+                <button
+                  onClick={() => {
+                    setRegional('');
+                    setUnidade('');
+                    setStatus('');
+                    setPossuiContrato('');
+                    setClasse('');
+                    setAnoPlanejamento('');
+                    setSearch('');
+                    setPage(1);
+                  }}
+                  className="text-xs text-emerald-500 hover:text-emerald-400"
+                >
+                  Limpar filtros para ver todos os registros
+                </button>
+              )}
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-bg/50 border-b border-border">
