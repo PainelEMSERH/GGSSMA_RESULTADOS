@@ -442,7 +442,7 @@ export default function SPCIExtintoresPage() {
                   return (
                     <div 
                       key={mes} 
-                      className="text-center text-xs font-bold py-1.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/50"
+                      className="text-center text-xs font-bold py-1.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
                       title={`${mesesNomes[idx]}: ${quantidade} extintor(es) planejado(s) para recarga`}
                     >
                       {quantidade}
@@ -453,23 +453,16 @@ export default function SPCIExtintoresPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
+              <div className="w-20 font-bold text-sm text-red-600 dark:text-red-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
                   const quantidadeReal = metaReal.real[mes] || 0;
                   const quantidadeMeta = metaReal.meta[mes] || 0;
                   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  const atingiuMeta = quantidadeReal >= quantidadeMeta;
                   return (
                     <div
                       key={mes}
-                      className={`text-center text-xs font-bold py-1.5 rounded ${
-                        quantidadeReal === 0
-                          ? 'bg-gray-500/30 text-gray-300'
-                          : atingiuMeta
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-yellow-500 text-white'
-                      }`}
+                      className="text-center text-xs font-bold py-1.5 rounded bg-red-500/20 text-red-300 border border-red-500/50"
                       title={`${mesesNomes[idx]}: ${quantidadeReal} recarregado(s) de ${quantidadeMeta} planejado(s)`}
                     >
                       {quantidadeReal}
@@ -494,6 +487,35 @@ export default function SPCIExtintoresPage() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Resumo e Explicação */}
+            <div className="pt-3 border-t border-border space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted">Soma das metas mensais:</span>
+                <span className="font-semibold text-text">
+                  {Object.values(metaReal.meta).reduce((acc, val) => acc + val, 0).toLocaleString('pt-BR')}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted">Total de extintores:</span>
+                <span className="font-semibold text-text">
+                  {stats?.total.toLocaleString('pt-BR') || 0}
+                </span>
+              </div>
+              <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
+                <p className="text-[10px] text-muted leading-relaxed">
+                  <strong className="text-text">Por que a soma das metas não bate com o total de extintores?</strong>
+                  <br />
+                  A soma das metas mensais pode ser diferente do total de extintores porque:
+                  <br />
+                  • Cada extintor conta na META apenas do mês em que vence (última recarga + 12 meses)
+                  <br />
+                  • Extintores sem data de recarga são contados em TODOS os meses (urgência)
+                  <br />
+                  • O total de extintores é a contagem total de equipamentos, independente do vencimento
+                </p>
               </div>
             </div>
           </>
