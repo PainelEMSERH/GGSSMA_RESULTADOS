@@ -34,14 +34,16 @@ function convertBigIntToNumber(obj: any): any {
  * API para Meta e Real de Extintores SPCI
  * 
  * META = quantidade de extintores que DEVERIAM ser recarregados em cada mês
- *        (baseado no campo "Planej. Recarga")
+ *        Calculado automaticamente: última recarga + 12 meses = data de vencimento
+ *        Se a data de vencimento cai em janeiro/2026, então META de janeiro = +1
  * 
  * REAL = quantidade de extintores que FORAM REALMENTE recarregados em cada mês
- *        (baseado no campo "Data Execução Recarga")
+ *        Baseado no campo "Data Execução Recarga"
  * 
  * Exemplo:
- * - Em janeiro, se 40 extintores têm "Planej. Recarga" = janeiro, então META = 40
- * - Em janeiro, se 25 extintores têm "Data Execução Recarga" = janeiro, então REAL = 25
+ * - Extintor com última recarga em 01/01/2025 → vencimento em 01/01/2026
+ *   → META de janeiro/2026 = +1
+ * - Se foi recarregado em 15/01/2026 → REAL de janeiro/2026 = +1
  */
 export async function GET(req: Request) {
   try {
@@ -64,11 +66,11 @@ export async function GET(req: Request) {
       ? `WHERE ${whereConditions.join(' AND ')}`
       : '';
 
-    // Busca todos os extintores com dados de planejamento e execução
+    // Busca todos os extintores com dados de recarga
     const rowsSql = `
       SELECT 
         id,
-        "Planej. Recarga",
+        "Última recarga",
         "Data Execução Recarga"
       FROM spci_planilha
       ${whereSql}
@@ -100,25 +102,40 @@ export async function GET(req: Request) {
     };
 
     let processados = 0;
-    let semPlanejamento = 0;
-    let semExecucao = 0;
+    let semDataRecarga = 0;
 
     // Para cada extintor
     for (const row of rows) {
       processados++;
 
-      // META: Conta extintores com "Planej. Recarga" em cada mês do ano
-      const planejRecargaStr = row['Planej. Recarga'];
-      if (planejRecargaStr) {
-        const planejRecarga = parseDateBR(planejRecargaStr);
-        if (planejRecarga && planejRecarga.getFullYear() === anoAtual) {
-          const mesPlanej = String(planejRecarga.getMonth() + 1).padStart(2, '0');
-          if (metaMeses[mesPlanej] !== undefined) {
-            metaMeses[mesPlanej]++;
+      // META: Calcula quando o extintor precisa ser recarregado (última recarga + 12 meses)
+      // Usa "Data Execução Recarga" se existir (pois é a recarga mais recente), senão usa "Última recarga"
+      const dataRecargaStr = row['Data Execução Recarga'] || row['Última recarga'];
+      
+      if (dataRecargaStr) {
+        const dataRecarga = parseDateBR(dataRecargaStr);
+        if (dataRecarga) {
+          // Calcula data de vencimento: última recarga + 12 meses
+          const dataVencimento = new Date(dataRecarga);
+          dataVencimento.setMonth(dataVencimento.getMonth() + 12);
+          
+          // Se o vencimento cai no ano especificado, conta na META do mês correspondente
+          if (dataVencimento.getFullYear() === anoAtual) {
+            const mesVencimento = String(dataVencimento.getMonth() + 1).padStart(2, '0');
+            if (metaMeses[mesVencimento] !== undefined) {
+              metaMeses[mesVencimento]++;
+            }
           }
+        } else {
+          semDataRecarga++;
         }
       } else {
-        semPlanejamento++;
+        semDataRecarga++;
+        // Sem data de recarga = precisa recarregar urgentemente, conta em todos os meses
+        for (let mes = 1; mes <= 12; mes++) {
+          const mesStr = String(mes).padStart(2, '0');
+          metaMeses[mesStr]++;
+        }
       }
 
       // REAL: Conta extintores com "Data Execução Recarga" em cada mês do ano
@@ -131,12 +148,10 @@ export async function GET(req: Request) {
             realMeses[mesExec]++;
           }
         }
-      } else {
-        semExecucao++;
       }
     }
 
-    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados`);
+    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${semDataRecarga} sem data de recarga`);
     console.log(`[spci/meta-real] Meta por mês:`, metaMeses);
     console.log(`[spci/meta-real] Real por mês:`, realMeses);
 
