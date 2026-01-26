@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X, Download, Filter, RefreshCw, Settings } from 'lucide-react';
+import { Flame, AlertTriangle, Clock, FileX, Search, ChevronLeft, ChevronRight, Edit2, Save, X, Download, Filter, RefreshCw, Info } from 'lucide-react';
 import { formatarNomeUnidade } from '@/lib/spci/unidadeMapper';
 
 type ExtintorRow = {
@@ -851,22 +851,24 @@ export default function SPCIExtintoresPage() {
                               onChange={(e) => setEditData({ ...editData, unidade: e.target.value })}
                               className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
                             />
-                            <div className="mt-1 space-y-1">
+                            <div className="mt-2 p-2 rounded-lg border border-border bg-panel space-y-2">
+                              <div className="text-[10px] font-semibold text-muted mb-1.5">Detalhes do Extintor</div>
                               <div>
-                                <label className="text-[10px] text-muted block mb-0.5">TAG:</label>
+                                <label className="text-[10px] text-muted block mb-1">TAG</label>
                                 <input
                                   type="text"
                                   value={editData.tag}
                                   onChange={(e) => setEditData({ ...editData, tag: e.target.value })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
+                                  placeholder="Ex: CAF-FEME-SESMT-003"
                                 />
                               </div>
                               <div>
-                                <label className="text-[10px] text-muted block mb-0.5">Classe:</label>
+                                <label className="text-[10px] text-muted block mb-1">Classe</label>
                                 <select
                                   value={editData.classe}
                                   onChange={(e) => setEditData({ ...editData, classe: e.target.value })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
                                 >
                                   <option value="">Selecione</option>
                                   {classes.map((c) => (
@@ -877,12 +879,13 @@ export default function SPCIExtintoresPage() {
                                 </select>
                               </div>
                               <div>
-                                <label className="text-[10px] text-muted block mb-0.5">Massa/Volume:</label>
+                                <label className="text-[10px] text-muted block mb-1">Massa/Volume (kg/L)</label>
                                 <input
                                   type="text"
                                   value={editData.massaVolume}
                                   onChange={(e) => setEditData({ ...editData, massaVolume: e.target.value })}
-                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px] text-center"
+                                  className="w-full px-2 py-1 rounded border border-border bg-bg text-text text-[11px]"
+                                  placeholder="Ex: 6"
                                 />
                               </div>
                             </div>
@@ -977,41 +980,47 @@ export default function SPCIExtintoresPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="relative">
-                            <button
-                              onClick={() => setDetalhesAberto(detalhesAberto === row.id ? null : row.id)}
-                              className="p-1 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
-                              title="Ver detalhes (TAG, Classe, Massa)"
-                            >
-                              <Settings className="w-4 h-4" />
-                            </button>
-                            {detalhesAberto === row.id && (
-                              <>
-                                <div 
-                                  className="fixed inset-0 z-40" 
-                                  onClick={() => setDetalhesAberto(null)}
-                                ></div>
-                                <div className="absolute right-0 bottom-full mb-2 z-50 bg-gray-900 dark:bg-gray-800 text-white text-[10px] px-3 py-2 rounded shadow-lg min-w-[180px]">
-                                  <div className="space-y-1.5">
-                                    <div>
-                                      <span className="text-gray-400">TAG:</span>
-                                      <div className="font-semibold mt-0.5">{row.TAG || '-'}</div>
+                        <div className="flex items-center justify-center gap-1.5">
+                          {!isEditing && (
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetalhesAberto(detalhesAberto === row.id ? null : row.id);
+                                }}
+                                className="p-1 rounded hover:bg-muted/50 text-muted hover:text-text transition-colors"
+                                title="Ver detalhes"
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                              </button>
+                              {detalhesAberto === row.id && (
+                                <>
+                                  <div 
+                                    className="fixed inset-0 z-40" 
+                                    onClick={() => setDetalhesAberto(null)}
+                                  ></div>
+                                  <div className="absolute right-0 bottom-full mb-1.5 z-50 bg-panel border border-border rounded-lg shadow-xl min-w-[160px] p-2.5">
+                                    <div className="space-y-2 text-[11px]">
+                                      <div>
+                                        <div className="text-muted text-[10px] mb-0.5">TAG</div>
+                                        <div className="font-medium text-text">{row.TAG || '-'}</div>
+                                      </div>
+                                      <div className="border-t border-border pt-2">
+                                        <div className="text-muted text-[10px] mb-0.5">Classe</div>
+                                        <div className="font-medium text-text">{row.Classe || '-'}</div>
+                                      </div>
+                                      <div className="border-t border-border pt-2">
+                                        <div className="text-muted text-[10px] mb-0.5">Massa/Volume</div>
+                                        <div className="font-medium text-text">{row['Massa/Volume (kg/L)'] || '-'}</div>
+                                      </div>
                                     </div>
-                                    <div className="border-t border-gray-700 pt-1.5">
-                                      <span className="text-gray-400">Classe:</span>
-                                      <div className="font-semibold mt-0.5">{row.Classe || '-'}</div>
-                                    </div>
-                                    <div className="border-t border-gray-700 pt-1.5">
-                                      <span className="text-gray-400">Massa/Volume:</span>
-                                      <div className="font-semibold mt-0.5">{row['Massa/Volume (kg/L)'] || '-'}</div>
-                                    </div>
+                                    <div className="absolute right-3 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-panel"></div>
+                                    <div className="absolute right-[11px] top-full w-0 h-0 border-l-[7px] border-r-[7px] border-t-[7px] border-transparent border-t-border"></div>
                                   </div>
-                                  <div className="absolute right-2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                                </>
+                              )}
+                            </div>
+                          )}
                           {isEditing ? (
                             <div className="flex gap-1 justify-center">
                               <button
