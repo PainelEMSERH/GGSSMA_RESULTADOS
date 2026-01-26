@@ -884,24 +884,9 @@ export default function SPCIExtintoresPage() {
                             </div>
                           </>
                         ) : (
-                          <div className="flex items-center justify-center gap-1.5">
-                            {row.TAG && (
-                              <div className="relative group flex-shrink-0">
-                                <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border border-gray-400 dark:border-gray-500 flex items-center justify-center cursor-help">
-                                  <div className="w-1 h-1 rounded-full bg-gray-600 dark:bg-gray-300"></div>
-                                </div>
-                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50">
-                                  <div className="bg-gray-900 dark:bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
-                                    {row.TAG}
-                                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            <div className="flex-1">
-                              <div className="font-medium">{formatarNomeUnidade(row.Unidade)}</div>
-                              <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
-                            </div>
+                          <div>
+                            <div className="font-medium">{formatarNomeUnidade(row.Unidade)}</div>
+                            <div className="text-[10px] text-muted mt-0.5">{row.Unidade}</div>
                           </div>
                         )}
                       </td>
@@ -1018,34 +1003,49 @@ export default function SPCIExtintoresPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {isEditing ? (
-                          <div className="flex gap-1 justify-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {row.TAG && (
+                            <div className="relative group flex-shrink-0">
+                              <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border border-gray-400 dark:border-gray-500 flex items-center justify-center cursor-help">
+                                <div className="w-1 h-1 rounded-full bg-gray-600 dark:bg-gray-300"></div>
+                              </div>
+                              <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block z-50">
+                                <div className="bg-gray-900 dark:bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
+                                  {row.TAG}
+                                  <div className="absolute right-2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {isEditing ? (
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={saveEdit}
+                                disabled={saving}
+                                className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50 transition-colors"
+                                title="Salvar alterações"
+                              >
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                disabled={saving}
+                                className="p-1 rounded hover:bg-red-500/20 text-red-400 disabled:opacity-50 transition-colors"
+                                title="Cancelar edição"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
                             <button
-                              onClick={saveEdit}
-                              disabled={saving}
-                              className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50 transition-colors"
-                              title="Salvar alterações"
+                              onClick={() => startEdit(row)}
+                              className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                              title="Editar registro"
                             >
-                              <Save className="w-4 h-4" />
+                              <Edit2 className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={cancelEdit}
-                              disabled={saving}
-                              className="p-1 rounded hover:bg-red-500/20 text-red-400 disabled:opacity-50 transition-colors"
-                              title="Cancelar edição"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => startEdit(row)}
-                            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
-                            title="Editar registro"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

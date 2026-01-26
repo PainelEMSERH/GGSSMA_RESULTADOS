@@ -108,6 +108,8 @@ export async function GET(req: Request) {
     let processados = 0;
     let recarregadosNoAno = 0;
     let semDataRecarga = 0;
+    let vencidosSemData = 0;
+    let vencemEmOutroAno = 0;
 
     // Para cada extintor
     for (const row of rows) {
@@ -130,12 +132,25 @@ export async function GET(req: Request) {
             if (metaMeses[mesVencimento] !== undefined) {
               metaMeses[mesVencimento]++;
             }
+          } else if (dataVencimento.getFullYear() < anoAtual) {
+            // Já vencido antes de 2026 → precisa recarregar no início de janeiro (ano começa devendo)
+            metaMeses['01']++;
+            vencemEmOutroAno++;
           }
+          // Se vence depois de 2026, não precisa recarregar em 2026, então não entra na meta
         } else {
+          // Data inválida → sem data de recarga → vencido
           semDataRecarga++;
+          vencidosSemData++;
+          // Conta como urgente em janeiro
+          metaMeses['01']++;
         }
       } else {
+        // Sem data de recarga → vencido
         semDataRecarga++;
+        vencidosSemData++;
+        // Conta como urgente em janeiro
+        metaMeses['01']++;
       }
 
       // REAL: Conta extintores com "Data Execução Recarga" em cada mês do ano
@@ -176,7 +191,9 @@ export async function GET(req: Request) {
       realAcumulado[mesStr] = acumuladoReal;
     }
 
-    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${recarregadosNoAno} recarregados no ano ${anoAtual}, ${semDataRecarga} sem data de recarga`);
+    console.log(`[spci/meta-real] Resultado: ${processados} extintores processados, ${recarregadosNoAno} recarregados no ano ${anoAtual}`);
+    console.log(`[spci/meta-real] - ${semDataRecarga} sem data de recarga (vencidos, contados em janeiro)`);
+    console.log(`[spci/meta-real] - ${vencemEmOutroAno} vencidos antes de ${anoAtual} (contados em janeiro)`);
     console.log(`[spci/meta-real] Meta por mês (vencimentos):`, metaMeses);
     console.log(`[spci/meta-real] Meta acumulada por mês:`, metaAcumulada);
     console.log(`[spci/meta-real] Real por mês:`, realMeses);
