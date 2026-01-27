@@ -46,12 +46,10 @@ enum EntidadeArquivo {
 }
 
 enum TipoAcidente {
-  queda
-  acidente_transito
-  perfurocortante
-  exposicao_biologica
-  ergonomia
-  choque_eletrico
+  biologico
+  trajeto
+  tipico
+  de_trabalho
   outros
 }
 

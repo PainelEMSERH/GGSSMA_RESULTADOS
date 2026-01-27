@@ -83,12 +83,10 @@ function toInputDate(iso: string | null | undefined) {
 }
 
 const TIPOS_ACIDENTE = [
-  { value: 'queda', label: 'Queda' },
-  { value: 'acidente_transito', label: 'Acidente de Trânsito' },
-  { value: 'perfurocortante', label: 'Perfurocortante' },
-  { value: 'exposicao_biologica', label: 'Exposição a material biológico' },
-  { value: 'ergonomia', label: 'Esforço excessivo / ergonomia' },
-  { value: 'choque_eletrico', label: 'Choque elétrico' },
+  { value: 'biologico', label: 'Exposição a material biológico / Perfurocortante' },
+  { value: 'trajeto', label: 'Acidente de Trânsito / Trajeto' },
+  { value: 'tipico', label: 'Acidente Típico' },
+  { value: 'de_trabalho', label: 'Acidente de Trabalho' },
   { value: 'outros', label: 'Outros' },
 ];
 
