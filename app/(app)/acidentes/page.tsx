@@ -295,6 +295,14 @@ export default function AcidentesPage() {
   const [taxaTrabalhadores, setTaxaTrabalhadores] = useState<string>('');
   const [taxaPeriodo, setTaxaPeriodo] = useState<'ano' | 'mes'>('ano');
 
+  // Taxa de Frequência (TF)
+  const [tfAcidentes, setTfAcidentes] = useState<string>('');
+  const [tfHoras, setTfHoras] = useState<string>('');
+  const [tfMes, setTfMes] = useState<string>(
+    String(new Date().getMonth() + 1).padStart(2, '0'),
+  );
+  const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear()));
+
   // Carrega regional do localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -714,12 +722,12 @@ export default function AcidentesPage() {
               {/* Modo 1 – Manual */}
               <div className="rounded-lg border border-border bg-bg p-3 space-y-2">
                 <div className="text-xs font-semibold text-text">
-                  Modo 1 — Taxa Institucional Manual
+                  Modo 1 — Taxa Institucional Manual (Curto Prazo)
                 </div>
                 <p className="text-[11px] text-muted">
-                  Utilizado enquanto a integração automática com as bases corporativas não estiver
-                  disponível. Os dados são informados manualmente pelo serviço de Saúde e Segurança
-                  do Trabalho.
+                  Taxa calculada com base em dados informados manualmente pelo serviço de Saúde e
+                  Segurança do Trabalho, enquanto a integração automática com as bases corporativas
+                  oficiais não estiver disponível.
                 </p>
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   <div className="flex flex-col gap-1">
@@ -761,7 +769,7 @@ export default function AcidentesPage() {
                   </p>
                   <p className="text-[11px] text-muted">
                     Taxa calculada com base em dados informados manualmente, enquanto a integração
-                    automática não estiver disponível.
+                    automática com as bases corporativas oficiais não estiver disponível.
                   </p>
                 </div>
 
@@ -789,17 +797,131 @@ export default function AcidentesPage() {
                   Modo 2 — Taxa Oficial Integrada (futuro)
                 </div>
                 <p className="text-[11px] text-muted">
-                  Área reservada para integração automática com as bases oficiais da EMSERH e do
-                  IADVH, contemplando número de trabalhadores, horas trabalhadas e indicadores
-                  normatizados.
+                  Campo reservado para futura integração automática com as bases oficiais da EMSERH
+                  e do IADVH, contemplando número de trabalhadores, horas-homem trabalhadas e
+                  indicadores normatizados de Saúde e Segurança do Trabalho.
                 </p>
                 <p className="text-[11px] text-muted">
-                  Este indicador será automaticamente alimentado após a conclusão das integrações
-                  corporativas, garantindo rastreabilidade e confiabilidade dos dados utilizados
-                  para tomada de decisão.
+                  Este indicador será automaticamente alimentado após integração com as bases
+                  corporativas oficiais, garantindo rastreabilidade e confiabilidade dos dados
+                  utilizados para monitoramento institucional.
                 </p>
               </div>
             </div>
+          </section>
+
+          {/* Bloco 1B: Taxa de Frequência (TF) */}
+          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Taxa de Frequência de Acidentes de Trabalho (TF)</h2>
+                <p className="mt-1 text-[11px] text-muted">
+                  Indicador calculado mensalmente com base no número de acidentes de trabalho e no
+                  total de horas-homem trabalhadas, permitindo o monitoramento da frequência de
+                  acidentes ao longo do tempo.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-muted">
+                  Número de Acidentes de Trabalho no período *
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                  value={tfAcidentes}
+                  onChange={(e) => setTfAcidentes(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-muted">
+                  Total de Horas-Homem Trabalhadas no período *
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                  value={tfHoras}
+                  onChange={(e) => setTfHoras(e.target.value)}
+                />
+                <span className="text-[10px] text-muted">Unidade: horas</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-muted">Período de referência</span>
+                <div className="flex gap-2">
+                  <select
+                    className="w-24 rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={tfMes}
+                    onChange={(e) => setTfMes(e.target.value)}
+                  >
+                    <option value="01">01</option>
+                    <option value="02">02</option>
+                    <option value="03">03</option>
+                    <option value="04">04</option>
+                    <option value="05">05</option>
+                    <option value="06">06</option>
+                    <option value="07">07</option>
+                    <option value="08">08</option>
+                    <option value="09">09</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
+                  </select>
+                  <input
+                    type="number"
+                    className="w-24 rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={tfAno}
+                    onChange={(e) => setTfAno(e.target.value)}
+                  />
+                </div>
+                <span className="text-[10px] text-muted">
+                  Exemplo: {tfMes}/{tfAno}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-2 rounded-lg border border-dashed border-border bg-panel/70 p-3 space-y-1">
+              <p className="text-[11px] text-muted">
+                Fórmula oficial da Taxa de Frequência (TF):
+                <br />
+                <span className="font-mono text-[11px] text-text">
+                  TF = (Número de Acidentes de Trabalho × 1.000.000) / Total de Horas-Homem
+                  Trabalhadas
+                </span>
+              </p>
+              <p className="text-[11px] text-muted">
+                O fator <span className="font-mono">1.000.000</span> é fixo e não editável. O
+                cálculo é realizado automaticamente após o preenchimento dos dados obrigatórios.
+              </p>
+            </div>
+
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-[11px] text-muted">Taxa de Frequência calculada (TF)</span>
+              <div className="text-right">
+                <div className="text-xl font-semibold text-text">
+                  {(() => {
+                    const acidentes = parseInt(tfAcidentes || '0', 10);
+                    const horas = parseFloat((tfHoras || '0').replace(',', '.'));
+                    if (!acidentes || !horas || horas <= 0) return '--';
+                    const tf = (acidentes * 1_000_000) / horas;
+                    return tf.toFixed(2);
+                  })()}
+                </div>
+                <div className="text-[10px] text-muted">
+                  Período: {tfMes}/{tfAno}
+                </div>
+              </div>
+            </div>
+
+            <p className="pt-2 text-[11px] text-muted border-t border-border">
+              A Taxa de Frequência deverá ser armazenada em base corporativa, permitindo consulta
+              histórica mensal e comparação entre períodos, conforme evolução das integrações com os
+              sistemas oficiais da EMSERH.
+            </p>
           </section>
 
           {/* Bloco 2: Investigação */}

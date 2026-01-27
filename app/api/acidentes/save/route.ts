@@ -48,6 +48,12 @@ export async function POST(req: Request) {
     if (!data) {
       return NextResponse.json({ ok: false, error: 'Data é obrigatória' }, { status: 400 });
     }
+    if (!descricao || !descricao.trim()) {
+      return NextResponse.json(
+        { ok: false, error: 'Descrição detalhada do acidente é obrigatória' },
+        { status: 400 },
+      );
+    }
 
     const dataObj = new Date(data);
     const mes = dataObj.getMonth() + 1;
