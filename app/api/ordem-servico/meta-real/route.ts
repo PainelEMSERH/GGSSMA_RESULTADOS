@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
 
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS idx_ordem_servico_colaborador_cpf ON ordem_servico(colaborador_cpf);
+    `);
+    await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS idx_ordem_servico_data_entrega ON ordem_servico(data_entrega);
     `);
 
