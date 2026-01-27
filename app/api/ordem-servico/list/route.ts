@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
       ? `LEFT JOIN stg_unid_reg ur ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(ur.nmdepartamento, '')))`
       : '';
 
-    const query = `
+    const query = useJoin ? `
       WITH colaboradores_base AS (
         SELECT 
           a.cpf as id,
@@ -121,6 +121,38 @@ export async function GET(req: NextRequest) {
           END as "dataAdmissao"
         FROM stg_alterdata_v2 a
         ${joinClause}
+        ${whereClause}
+      )
+      SELECT 
+        cb.*,
+        COALESCE(os.entregue, false) as "osEntregue",
+        os.data_entrega::text as "dataEntregaOS",
+        os.responsavel as "responsavelEntrega"
+      FROM colaboradores_base cb
+      LEFT JOIN ordem_servico os ON os.colaborador_cpf = cb.id
+      ORDER BY 
+        ${sortBy === 'nome' ? 'cb.nome' : 
+          sortBy === 'unidade' ? 'cb.unidade' : 
+          sortBy === 'regional' ? 'cb.regional' :
+          sortBy === 'dataAdmissao' ? 'cb."dataAdmissao"' :
+          'cb.nome'} ${sortDir.toUpperCase()}
+      LIMIT ${pageSize} OFFSET ${offset}
+    ` : `
+      WITH colaboradores_base AS (
+        SELECT 
+          a.cpf as id,
+          a.colaborador as nome,
+          a.cpf,
+          COALESCE(a.matricula, '') as matricula,
+          COALESCE(NULLIF(TRIM(a.unidade_hospitalar), ''), '') as unidade,
+          '' as regional,
+          COALESCE(a.funcao,'') as funcao,
+          CASE 
+            WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
+            WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+            ELSE NULL
+          END as "dataAdmissao"
+        FROM stg_alterdata_v2 a
         ${whereClause}
       )
       SELECT 
