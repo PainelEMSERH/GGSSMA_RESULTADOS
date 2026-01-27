@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileText, CheckCircle2, XCircle, Search, Filter, RefreshCw, Download } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, Filter, RefreshCw, Download } from 'lucide-react';
 
 type Row = {
   id: string;
@@ -286,19 +286,23 @@ export default function OrdemServicoPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      {/* Header — igual ao de Entregas de EPI (sem ícone) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <FileText className="w-6 h-6" />
-            Ordem de Serviço
-          </h1>
-          <p className="text-sm text-muted mt-1">
-            Colaboradores ativos em 2026 - Controle de entrega de Ordem de Serviço
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
+            SST • Ordem de Serviço
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">Ordem de Serviço</h1>
+          <p className="mt-1 text-xs text-muted">
+            Colaboradores ativos em {anoMetaReal} - Controle de entrega de Ordem de Serviço
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            <span>Colaboradores ativos em {anoMetaReal}</span>
+          </div>
           <button
             onClick={exportarExcel}
             className="p-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center"
@@ -318,42 +322,51 @@ export default function OrdemServicoPage() {
         </div>
       </div>
 
-      {/* Card Meta vs Real */}
+      {/* Abas — mesma estrutura de Entregas */}
+      <div className="border-b border-border">
+        <nav className="-mb-px flex gap-4 text-xs">
+          <button type="button" className="border-b-2 border-emerald-500 text-emerald-500 px-3 py-2">
+            Lista de colaboradores
+          </button>
+        </nav>
+      </div>
+
+      {/* Meta vs Real — primeiro, META em cinza como em Entregas */}
       {metaRealLoading ? (
-        <div className="rounded-xl border border-border bg-panel p-6 shadow-sm">
-          <div className="text-center py-4 text-muted">
-            <div className="inline-block w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
-            <div>Carregando Meta vs Real...</div>
+        <div className="rounded-xl border border-border bg-panel p-4 text-center">
+          <div className="flex items-center justify-center gap-2">
+            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-muted">Carregando meta e progresso...</span>
           </div>
         </div>
       ) : metaReal ? (
-        <div className="rounded-xl border border-border bg-panel p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Meta vs Real - Ordem de Serviço</h2>
+        <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
             <select
               value={anoMetaReal}
               onChange={(e) => setAnoMetaReal(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-border bg-bg text-sm"
+              className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
             >
               {[2024, 2025, 2026, 2027].map((a) => (
-                <option key={a} value={String(a)}>
-                  {a}
-                </option>
+                <option key={a} value={String(a)}>{a}</option>
               ))}
             </select>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
+            {/* Linha META — fundo cinza (bg-muted/30), igual Entregas */}
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">META</div>
+              <div className="w-20 font-bold text-sm text-text">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidadeMeta = Number(metaReal.meta[mes] || 0);
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes) => {
+                  const quantidadeMeta = Number(metaReal.meta?.[mes] ?? 0);
                   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  const idx = parseInt(mes, 10) - 1;
                   return (
                     <div
                       key={mes}
-                      className="text-center text-xs font-bold py-1.5 rounded bg-emerald-500 text-white"
+                      className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
                       title={`${mesesNomes[idx]}: ${quantidadeMeta} colaborador(es) devem ter recebido a OS`}
                     >
                       {quantidadeMeta}
@@ -363,23 +376,22 @@ export default function OrdemServicoPage() {
               </div>
             </div>
 
+            {/* Linha REAL — verde/vermelho por mês */}
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-red-600 dark:text-red-400">REAL</div>
+              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
                   const quantidadeRealAcumulado = Number(metaReal.realAcumulado?.[mes] || 0);
-                  const quantidadeMeta = Number(metaReal.meta[mes] || 0);
+                  const quantidadeMeta = Number(metaReal.meta?.[mes] ?? metaReal.totalMeta ?? 0);
                   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta;
+                  const atingiuMeta = quantidadeMeta > 0 && quantidadeRealAcumulado >= quantidadeMeta;
                   return (
                     <div
                       key={mes}
                       className={`text-center text-xs font-bold py-1.5 rounded ${
-                        atingiuMeta
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-red-500 text-white'
+                        atingiuMeta ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
                       }`}
-                      title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} OS entregue(s) acumulado de ${quantidadeMeta} planejado(s) acumulado`}
+                      title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} OS entregue(s) de ${quantidadeMeta} planejado(s)`}
                     >
                       {quantidadeRealAcumulado}
                     </div>
@@ -388,24 +400,41 @@ export default function OrdemServicoPage() {
               </div>
             </div>
 
+            {/* Meses — alinhados às colunas */}
             <div className="flex items-center gap-2 pt-2 border-t border-border">
-              <div className="text-xs text-muted">
+              <div className="w-20" />
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((nome, i) => (
+                  <div key={nome} className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border">
+                    {nome}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
+              <div>
                 Total: <span className="font-semibold text-text">{Number(metaReal.totalReal || 0)}</span> de{' '}
                 <span className="font-semibold text-text">{Number(metaReal.totalMeta || 0)}</span> OS entregues
               </div>
-              <div className="ml-auto text-xs text-muted">
-                {Number(metaReal.totalColaboradores || 0)} colaborador(es) ativo(s) em 2026
+              <div>
+                {Number(metaReal.totalColaboradores || 0)} colaborador(es) ativo(s) em {anoMetaReal}
               </div>
             </div>
           </div>
         </div>
       ) : null}
 
-      {/* Filtros */}
-      <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-          <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Regional</label>
+      {/* Filtros — mesmo card e divisória de Entregas */}
+      <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">Filtros</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="max-w-[200px]">
+            <label className="text-xs font-medium block mb-1.5 text-text">Regional</label>
             <select
               value={regional}
               onChange={(e) => {
@@ -413,85 +442,72 @@ export default function OrdemServicoPage() {
                 setUnidade('');
                 setPage(1);
               }}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm"
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+              aria-label="Selecione a Regional"
             >
-              <option value="">Todas</option>
+              <option value="">Selecione…</option>
               {regionais.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
+                <option key={r} value={r}>{r}</option>
               ))}
             </select>
           </div>
-
           <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Unidade</label>
+            <label className="text-xs font-medium block mb-1.5 text-text">Unidade</label>
             <select
               value={unidade}
-              onChange={(e) => {
-                setUnidade(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm"
+              onChange={(e) => { setUnidade(e.target.value); setPage(1); }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={!regional}
+              aria-label="Selecione a Unidade"
             >
-              <option value="">Todas</option>
+              <option value="">(todas)</option>
               {unidadesFiltradas.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
+                <option key={u} value={u}>{u}</option>
               ))}
             </select>
           </div>
-
           <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Status</label>
+            <label className="text-xs font-medium block mb-1.5 text-text">Status</label>
             <select
               value={entregue}
-              onChange={(e) => {
-                setEntregue(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm"
+              onChange={(e) => { setEntregue(e.target.value); setPage(1); }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+              aria-label="Filtrar por situação de entrega"
             >
               <option value="">Todos</option>
               <option value="sim">OS Entregue</option>
               <option value="nao">OS Pendente</option>
             </select>
           </div>
-
           <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Buscar</label>
+            <label className="text-xs font-medium block mb-1.5 text-text">Buscar</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted" />
               <input
                 type="text"
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder="Nome, CPF ou Matrícula"
-                className="w-full pl-10 pr-3 py-2 rounded-lg border border-border bg-bg text-sm"
+                className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                aria-label="Buscar por nome, CPF ou matrícula"
               />
             </div>
           </div>
-
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                setRegional('');
-                setUnidade('');
-                setEntregue('');
-                setSearch('');
-                setPage(1);
-              }}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              Limpar
-            </button>
-          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+          <button
+            onClick={() => {
+              setRegional('');
+              setUnidade('');
+              setEntregue('');
+              setSearch('');
+              setPage(1);
+            }}
+            className="px-4 py-2.5 rounded-xl border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <Filter className="w-4 h-4" />
+            Limpar
+          </button>
         </div>
       </div>
 
