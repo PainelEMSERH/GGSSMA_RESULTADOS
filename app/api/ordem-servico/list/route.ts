@@ -77,13 +77,13 @@ export async function GET(req: NextRequest) {
 
     if (regional && useJoin) {
       whereConditions.push(`(UPPER(TRIM(COALESCE(ur.regional_responsavel, ''))) = UPPER(TRIM('${regional.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
-        SELECT UPPER(TRIM(COALESCE(nmddepartamento, nmd_departamento, ''))) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regional.replace(/'/g, "''")}'))
+        SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regional.replace(/'/g, "''")}'))
       ))`);
     }
 
     if (unidade) {
       if (useJoin) {
-        whereConditions.push(`(UPPER(TRIM(COALESCE(ur.nmddepartamento, ur.nmd_departamento, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(ur.nmddepartamento, ur.nmd_departamento, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
+        whereConditions.push(`(UPPER(TRIM(COALESCE(ur.nmdepartamento, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(ur.nmdepartamento, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
       } else {
         whereConditions.push(`(UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
       }
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const joinClause = useJoin 
-      ? `LEFT JOIN stg_unid_reg ur ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(ur.nmddepartamento, ur.nmd_departamento, '')))`
+      ? `LEFT JOIN stg_unid_reg ur ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(ur.nmdepartamento, '')))`
       : '';
 
     const query = `
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
           a.colaborador as nome,
           a.cpf,
           COALESCE(a.matricula, '') as matricula,
-          COALESCE(NULLIF(TRIM(COALESCE(ur.nmddepartamento, ur.nmd_departamento, '')), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') as unidade,
+          COALESCE(NULLIF(TRIM(ur.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') as unidade,
           COALESCE(NULLIF(TRIM(ur.regional_responsavel), ''), '') as regional,
           COALESCE(a.funcao,'') as funcao,
           CASE 

@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
     if (regional) {
       whereConditions.push(`COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
-                        WHERE COALESCE(ur.nmddepartamento, ur.nmd_departamento) = a.unidade_hospitalar 
+                        WHERE ur.nmdepartamento = a.unidade_hospitalar 
                         LIMIT 1),'') = '${regional.replace(/'/g, "''")}'`);
     }
 
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
       WHERE os.entregue = true
         AND EXTRACT(YEAR FROM os.data_entrega) = ${anoAtual}
         ${regional ? `AND COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
-                        WHERE COALESCE(ur.nmddepartamento, ur.nmd_departamento) = a.unidade_hospitalar 
+                        WHERE ur.nmdepartamento = a.unidade_hospitalar 
                         LIMIT 1),'') = '${regional.replace(/'/g, "''")}'` : ''}
       GROUP BY EXTRACT(MONTH FROM os.data_entrega)
       ORDER BY mes
