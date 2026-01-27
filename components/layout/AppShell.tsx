@@ -8,7 +8,6 @@ import { UserButton } from "@clerk/nextjs";
 import ThemeSwitcherGeist from "@/components/components/ThemeSwitcherGeist";
 import {
   LayoutDashboard,
-  Table2,
   PackageCheck,
   Boxes,
   BarChart3,
@@ -17,7 +16,6 @@ import {
   Flame,
   FileText,
   Shield,
-  UploadCloud,
   Users,
 } from "lucide-react";
 
@@ -34,37 +32,25 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Visão Geral",
+    label: "VISÃO GERAL",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
+      { label: "Estoque SESMT", href: "/estoque", icon: Boxes },
     ],
   },
   {
-    label: "Gestão de EPI",
+    label: "Indicadores",
     items: [
+      { label: "Acidentes", href: "/acidentes", icon: AlertTriangle },
+      { label: "Extintores", href: "/spci-extintores", icon: Flame },
       { label: "Entregas", href: "/entregas", icon: PackageCheck },
-      { label: "Estoque", href: "/estoque", icon: Boxes },
+      { label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText },
+      { label: "CIPA", href: "/cipa", icon: Users },
     ],
   },
   {
-    label: "Gestão de Acidentes",
-    items: [{ label: "Acidentes", href: "/acidentes", icon: AlertTriangle }],
-  },
-  {
-    label: "Gestão de SPCI",
-    items: [{ label: "SPCI / Extintores", href: "/spci-extintores", icon: Flame }],
-  },
-  {
-    label: "Gestão de CIPA",
-    items: [{ label: "CIPA", href: "/cipa", icon: Users }],
-  },
-  {
-    label: "Gestão de Ordem de Serviço",
-    items: [{ label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText }],
-  },
-  {
-    label: "Administração",
+    label: "ADMINISTRAÇÃO",
     items: [
       { label: "Admin", href: "/admin", icon: Shield },
       { label: "Configurações", href: "/configuracoes", icon: Settings },
@@ -78,7 +64,7 @@ function Sidebar() {
   return (
     <aside className="w-72 shrink-0 border-r border-border bg-bg/50">
       <div className="px-4 py-5 text-sm font-semibold tracking-wide text-text">
-        EMSERH • Gestão SSMA
+        Menu
       </div>
       <nav className="flex flex-col px-2 pb-6 gap-4">
         {NAV_GROUPS.map((group) => (
@@ -86,7 +72,7 @@ function Sidebar() {
             <div className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted">
               {group.label}
             </div>
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
                 const active =
                   (item.href === "/dashboard" && pathname === "/dashboard") ||
@@ -98,10 +84,10 @@ function Sidebar() {
                     href={item.href}
                     prefetch={false}
                     className={clsx(
-                      "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors duration-150",
+                      "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all duration-200 ease-out",
                       active
                         ? "bg-panel text-text ring-1 ring-inset ring-border"
-                        : "text-muted hover:bg-panel hover:text-text"
+                        : "text-muted hover:bg-panel/80 hover:text-text"
                     )}
                   >
                     {Icon && <Icon className="w-4 h-4 shrink-0" />}
