@@ -203,6 +203,17 @@ export default function DashboardEPI(){
     }
   }, [acidentes])
 
+  const osPct = useMemo(() => {
+    if (!osMeta || !osMeta.totalMeta) return 0
+    return Math.max(0, Math.min(100, (osMeta.totalReal / osMeta.totalMeta) * 100))
+  }, [osMeta])
+
+  const spciSaudavelPct = useMemo(() => {
+    if (!spci || !spci.stats.total) return 0
+    const ruins = spci.stats.totalVencidos + spci.stats.totalAVencer
+    return Math.max(0, Math.min(100, ((spci.stats.total - ruins) / spci.stats.total) * 100))
+  }, [spci])
+
   if(loading){
     return (
       <div className="space-y-6">
@@ -237,17 +248,6 @@ export default function DashboardEPI(){
 
   const variacaoCor = epi.kpis.variacaoMensalPerc >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
   const variacaoIcon = epi.kpis.variacaoMensalPerc >= 0 ? '↑' : '↓'
-
-  const osPct = useMemo(() => {
-    if (!osMeta || !osMeta.totalMeta) return 0
-    return Math.max(0, Math.min(100, (osMeta.totalReal / osMeta.totalMeta) * 100))
-  }, [osMeta])
-
-  const spciSaudavelPct = useMemo(() => {
-    if (!spci || !spci.stats.total) return 0
-    const ruins = spci.stats.totalVencidos + spci.stats.totalAVencer
-    return Math.max(0, Math.min(100, ((spci.stats.total - ruins) / spci.stats.total) * 100))
-  }, [spci])
 
   return (
     <div className="space-y-6">
