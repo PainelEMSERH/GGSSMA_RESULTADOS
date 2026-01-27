@@ -303,10 +303,6 @@ export default function AcidentesPage() {
   const [metaRealLoading, setMetaRealLoading] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState<string | null>(null);
 
-  // Taxa de acidentes - modo manual
-  const [taxaTrabalhadores, setTaxaTrabalhadores] = useState<string>('');
-  const [taxaPeriodo, setTaxaPeriodo] = useState<'ano' | 'mes'>('ano');
-
   // Taxa de Frequência (TF) - edição anual (12 meses)
   const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear()));
   const [tfMeses, setTfMeses] = useState<
@@ -567,15 +563,6 @@ export default function AcidentesPage() {
     return total > 0 ? Math.ceil(total / pageSize) : 1;
   }, [total]);
 
-  const taxaManual = useMemo(() => {
-    const trabalhadores = parseFloat(taxaTrabalhadores.replace(',', '.'));
-    if (!stats || !trabalhadores || trabalhadores <= 0) return null;
-    const acidentesBase =
-      taxaPeriodo === 'mes' ? stats.totalMes || 0 : stats.totalAno || 0;
-    const taxa = (acidentesBase / trabalhadores) * 1000;
-    return { acidentesBase, trabalhadores, valor: taxa };
-  }, [stats, taxaTrabalhadores, taxaPeriodo]);
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -768,117 +755,7 @@ export default function AcidentesPage() {
       {/* VISÃO GERAL – blocos institucionais */}
       {tab === 'visao' && (
         <div className="space-y-4">
-          {/* Bloco 1: Taxa de Acidentes */}
-          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold">Taxa de Acidentes de Trabalho</h2>
-                <p className="mt-1 text-[11px] text-muted">
-                  Indicador institucional que relaciona o número de acidentes de trabalho ao efetivo
-                  de trabalhadores expostos no período analisado.
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1 text-right">
-                <StatusPill status={taxaManual ? 'andamento' : 'pendente'} />
-                <span className="text-[10px] text-muted">
-                  Responsável técnico: SESMT Corporativo
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Modo 1 – Manual */}
-              <div className="rounded-lg border border-border bg-bg p-3 space-y-2">
-                <div className="text-xs font-semibold text-text">
-                  Modo 1 — Taxa Institucional Manual (Curto Prazo)
-                </div>
-                <p className="text-[11px] text-muted">
-                  Taxa calculada com base em dados informados manualmente pelo serviço de Saúde e
-                  Segurança do Trabalho, enquanto a integração automática com as bases corporativas
-                  oficiais não estiver disponível.
-                </p>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-medium text-muted">
-                      Número de trabalhadores
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
-                      value={taxaTrabalhadores}
-                      onChange={(e) => setTaxaTrabalhadores(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-medium text-muted">
-                      Período de referência
-                    </span>
-                    <select
-                      className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
-                      value={taxaPeriodo}
-                      onChange={(e) =>
-                        setTaxaPeriodo(e.target.value === 'mes' ? 'mes' : 'ano')
-                      }
-                    >
-                      <option value="ano">Ano atual</option>
-                      <option value="mes">Mês atual</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mt-2 rounded-lg border border-dashed border-border bg-panel/70 p-3 space-y-1">
-                  <p className="text-[11px] text-muted">
-                    Fórmula institucional:
-                    <br />
-                    <span className="font-mono text-[11px] text-text">
-                      Taxa de Acidentes = (Número de Acidentes / Número de Trabalhadores) × 1.000
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    Taxa calculada com base em dados informados manualmente, enquanto a integração
-                    automática com as bases corporativas oficiais não estiver disponível.
-                  </p>
-                </div>
-
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-[11px] text-muted">
-                    Taxa institucional calculada
-                  </span>
-                  <div className="text-right">
-                    <div className="text-xl font-semibold text-text">
-                      {taxaManual ? taxaManual.valor.toFixed(2) : '--'}‰
-                    </div>
-                    {taxaManual && (
-                      <div className="text-[10px] text-muted">
-                        {taxaManual.acidentesBase} acidente(s) / {taxaManual.trabalhadores}{' '}
-                        trabalhador(es)
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Modo 2 – Integrado (futuro) */}
-              <div className="rounded-lg border border-dashed border-border bg-bg/60 p-3 space-y-2">
-                <div className="text-xs font-semibold text-text">
-                  Modo 2 — Taxa Oficial Integrada (futuro)
-                </div>
-                <p className="text-[11px] text-muted">
-                  Campo reservado para futura integração automática com as bases oficiais da EMSERH
-                  e do IADVH, contemplando número de trabalhadores, horas-homem trabalhadas e
-                  indicadores normatizados de Saúde e Segurança do Trabalho.
-                </p>
-                <p className="text-[11px] text-muted">
-                  Este indicador será automaticamente alimentado após integração com as bases
-                  corporativas oficiais, garantindo rastreabilidade e confiabilidade dos dados
-                  utilizados para monitoramento institucional.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Bloco 1B: Taxa de Frequência (TF) */}
+          {/* Bloco 1: Taxa de Frequência (TF) */}
           <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
