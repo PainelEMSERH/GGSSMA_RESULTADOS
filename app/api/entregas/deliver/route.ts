@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
+import { auth, currentUser } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
 
 async function ensureTables() {
@@ -59,6 +60,18 @@ export async function POST(req: Request) {
     
     if (!cpf) return NextResponse.json({ ok: false, error: "cpf é obrigatório" }, { status: 200 });
 
+    // Quem está registrando a baixa (para histórico de qualidade)
+    let entregue_por: string = '';
+    let entregue_em: string = new Date().toISOString();
+    try {
+      const user = await currentUser();
+      const { userId } = await auth();
+      if (user?.fullName) entregue_por = user.fullName;
+      else if (user?.primaryEmailAddress?.emailAddress) entregue_por = user.primaryEmailAddress.emailAddress;
+      else if (userId) entregue_por = userId;
+    } catch (_) {}
+    if (!entregue_por) entregue_por = 'Sistema';
+
     // Suporte para entrega em massa (array de itens)
     if (Array.isArray(body?.items) && body.items.length > 0) {
       const results: any[] = [];
@@ -85,7 +98,7 @@ export async function POST(req: Request) {
             VALUES (
               $1, $2, $3,
               LEAST($3, $4),
-              jsonb_build_array(jsonb_build_object('date', $5, 'qty', LEAST($3, $6)))
+              jsonb_build_array(jsonb_build_object('date', $5, 'qty', LEAST($3, $6), 'entregue_por', $7, 'entregue_em', $8))
             )
             ON CONFLICT (cpf, item) DO UPDATE SET
               qty_required = EXCLUDED.qty_required,
@@ -93,7 +106,7 @@ export async function POST(req: Request) {
               deliveries = CASE
                 WHEN epi_entregas.qty_delivered >= EXCLUDED.qty_required THEN epi_entregas.deliveries
                 ELSE epi_entregas.deliveries || jsonb_build_array(
-                  jsonb_build_object('date', $5, 'qty', LEAST(EXCLUDED.qty_required - epi_entregas.qty_delivered, $6))
+                  jsonb_build_object('date', $5, 'qty', LEAST(EXCLUDED.qty_required - epi_entregas.qty_delivered, $6), 'entregue_por', $7, 'entregue_em', $8)
                 )
               END,
               updated_at = now()
@@ -106,7 +119,7 @@ export async function POST(req: Request) {
               deliveries,
               created_at,
               updated_at;
-          `, cpf, item, required, qty, date, qty);
+          `, cpf, item, required, qty, date, qty, entregue_por, entregue_em);
           
           if (up && up[0]) {
             results.push(up[0]);
@@ -144,7 +157,7 @@ export async function POST(req: Request) {
       VALUES (
         $1, $2, $3,
         LEAST($3, $4),
-        jsonb_build_array(jsonb_build_object('date', $5, 'qty', LEAST($3, $6)))
+        jsonb_build_array(jsonb_build_object('date', $5, 'qty', LEAST($3, $6), 'entregue_por', $7, 'entregue_em', $8))
       )
       ON CONFLICT (cpf, item) DO UPDATE SET
         qty_required = EXCLUDED.qty_required,
@@ -152,7 +165,7 @@ export async function POST(req: Request) {
         deliveries = CASE
           WHEN epi_entregas.qty_delivered >= EXCLUDED.qty_required THEN epi_entregas.deliveries
           ELSE epi_entregas.deliveries || jsonb_build_array(
-            jsonb_build_object('date', $5, 'qty', LEAST(EXCLUDED.qty_required - epi_entregas.qty_delivered, $6))
+            jsonb_build_object('date', $5, 'qty', LEAST(EXCLUDED.qty_required - epi_entregas.qty_delivered, $6), 'entregue_por', $7, 'entregue_em', $8)
           )
         END,
         updated_at = now()
@@ -165,7 +178,7 @@ export async function POST(req: Request) {
         deliveries,
         created_at,
         updated_at;
-    `, cpf, item, required, qty, date, qty);
+    `, cpf, item, required, qty, date, qty, entregue_por, entregue_em);
     return NextResponse.json({ ok: true, row: up?.[0] ?? null });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message||e) }, { status: 200 });

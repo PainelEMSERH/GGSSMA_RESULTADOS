@@ -6,7 +6,7 @@ import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle, Clock } fr
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; entregue?: boolean; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
-type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number}>; };
+type Deliver = { item: string; qty_delivered: number; qty_required: number; deliveries: Array<{date:string, qty:number; entregue_por?: string; entregue_em?: string}>; };
 
 const LS_KEY = 'entregas:v2025-11-07';
 
@@ -261,6 +261,11 @@ export default function EntregasPage() {
   
   // Toggle para mostrar EPIs não-obrigatórios
   const [mostrarNaoObrigatorios, setMostrarNaoObrigatorios] = useState(false);
+
+  // Alertas de entregas vencidas (controle de qualidade: quando entregar de novo)
+  type AlertaVencida = { cpf: string; nome: string; item: string; ultima_entrega_em: string; proxima_entrega_em: string; meses_validade: number; vencida: boolean; dias_vencido: number };
+  const [alertasVencidas, setAlertasVencidas] = useState<AlertaVencida[]>([]);
+  const [loadingAlertas, setLoadingAlertas] = useState(false);
   
   function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
     const id = Date.now().toString() + Math.random().toString(36);
@@ -344,6 +349,32 @@ export default function EntregasPage() {
     
     loadSituacoesFromDB();
   }, [rows]);
+
+  // Carrega alertas de entregas vencidas (quando entregar de novo — controle de qualidade)
+  useEffect(() => {
+    if (!state.regional) {
+      setAlertasVencidas([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingAlertas(true);
+    const params = new URLSearchParams();
+    params.set('regional', state.regional);
+    if (state.unidade) params.set('unidade', state.unidade);
+    fetch(`/api/entregas/alertas-vencidas?${params.toString()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled || !j?.ok) return;
+        setAlertasVencidas(Array.isArray(j.alertas) ? j.alertas : []);
+      })
+      .catch(() => {
+        if (!cancelled) setAlertasVencidas([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAlertas(false);
+      });
+    return () => { cancelled = true; };
+  }, [state.regional, state.unidade]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1185,6 +1216,63 @@ export default function EntregasPage() {
             )}
 
             {state.regional && (
+              <>
+                {/* Alertas de entregas vencidas — quando entregar de novo (controle de qualidade, não entra na meta) */}
+                {(loadingAlertas || alertasVencidas.length > 0) && (
+                  <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Alertas de entregas vencidas</h3>
+                          <p className="text-[11px] text-amber-700 dark:text-amber-300">Quando entregar de novo — controle de qualidade (não impacta meta)</p>
+                        </div>
+                      </div>
+                      {loadingAlertas && (
+                        <div className="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      )}
+                      {!loadingAlertas && alertasVencidas.length > 0 && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100">
+                          {alertasVencidas.length} vencida{alertasVencidas.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                    {!loadingAlertas && alertasVencidas.length > 0 && (
+                      <div className="max-h-48 overflow-y-auto">
+                        <table className="min-w-full text-[11px]">
+                          <thead className="bg-amber-100/50 dark:bg-amber-900/30 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold text-amber-900 dark:text-amber-100">Colaborador</th>
+                              <th className="px-3 py-2 text-left font-semibold text-amber-900 dark:text-amber-100">EPI</th>
+                              <th className="px-3 py-2 text-left font-semibold text-amber-900 dark:text-amber-100">Última entrega</th>
+                              <th className="px-3 py-2 text-left font-semibold text-amber-900 dark:text-amber-100">Próxima entrega em</th>
+                              <th className="px-3 py-2 text-center font-semibold text-amber-900 dark:text-amber-100">Vencido há</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-amber-200 dark:divide-amber-800">
+                            {alertasVencidas.slice(0, 50).map((a, i) => (
+                              <tr key={`${a.cpf}-${a.item}-${i}`} className="hover:bg-amber-100/30 dark:hover:bg-amber-900/20">
+                                <td className="px-3 py-2 font-medium text-amber-900 dark:text-amber-100 truncate max-w-[140px]" title={a.nome}>{a.nome || a.cpf}</td>
+                                <td className="px-3 py-2 text-amber-800 dark:text-amber-200 truncate max-w-[140px]" title={a.item}>{a.item}</td>
+                                <td className="px-3 py-2 text-amber-800 dark:text-amber-200">{new Date(a.ultima_entrega_em).toLocaleDateString('pt-BR')}</td>
+                                <td className="px-3 py-2 text-amber-800 dark:text-amber-200">{new Date(a.proxima_entrega_em).toLocaleDateString('pt-BR')}</td>
+                                <td className="px-3 py-2 text-center">
+                                  <span className="font-semibold text-amber-700 dark:text-amber-300">{a.dias_vencido} dia{a.dias_vencido !== 1 ? 's' : ''}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {alertasVencidas.length > 50 && (
+                          <div className="px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-100/30 dark:bg-amber-900/30">
+                            Exibindo as 50 primeiras de {alertasVencidas.length} vencidas. Ajuste filtros para refinar.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
               <div className="rounded-xl border border-border bg-panel overflow-hidden">
                 <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
                   <table className="min-w-full text-[11px] align-middle">
@@ -1345,10 +1433,9 @@ export default function EntregasPage() {
                   </div>
                 </div>
               </div>
+              </>
             )}
 
-      
-      
         </>
       )}
 
@@ -1923,9 +2010,21 @@ export default function EntregasPage() {
                                   </div>
                                   <div className="space-y-0.5">
                                     {d.deliveries.map((x: any, idx: number) => (
-                                      <div key={idx} className="flex items-center justify-between">
-                                        <span>{new Date(x.date).toLocaleDateString('pt-BR')}</span>
-                                        <span className="font-medium">{x.qty} unidade{x.qty !== 1 ? 's' : ''}</span>
+                                      <div key={idx} className="flex items-start justify-between gap-2 text-xs">
+                                        <div className="min-w-0">
+                                          <span className="font-medium">{new Date(x.date).toLocaleDateString('pt-BR')}</span>
+                                          <span className="ml-1 font-medium">{x.qty} unidade{x.qty !== 1 ? 's' : ''}</span>
+                                          {(x.entregue_por || x.entregue_em) && (
+                                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                                              {x.entregue_por && <span title="Quem deu baixa">{x.entregue_por}</span>}
+                                              {x.entregue_em && (
+                                                <span className="ml-1" title="Data e hora do lançamento">
+                                                  {new Date(x.entregue_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
