@@ -1263,15 +1263,14 @@ export default function EntregasPage() {
                               </span>
                             </td>
                             <td className="px-3 py-2.5">
-                              <div className="flex items-center justify-center gap-2 flex-wrap">
+                              <div className="flex items-center justify-center gap-2">
                                 <button
                                   onClick={() => openStatusModal(r)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium text-text transition-colors"
+                                  className="p-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-text transition-colors"
                                   aria-label={`Ajustar situação de ${r.nome}`}
                                   title="Ajustar situação do colaborador"
                                 >
-                                  <Settings className="w-3.5 h-3.5" />
-                                  Situação
+                                  <Settings className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => openDeliver(r)}
@@ -1285,7 +1284,7 @@ export default function EntregasPage() {
                                   title={isForaMeta ? 'Colaborador fora da meta - entrega desabilitada' : 'Registrar entrega de EPIs'}
                                 >
                                   <Package className="w-3.5 h-3.5" />
-                                  Entregar
+                                  <span className="hidden sm:inline">Entregar</span>
                                 </button>
                                 <button
                                   onClick={() => openDeliver(r)}
@@ -1294,7 +1293,7 @@ export default function EntregasPage() {
                                   title="Ver/editar histórico de entregas"
                                 >
                                   <Clock className="w-3.5 h-3.5" />
-                                  Histórico
+                                  <span className="hidden sm:inline">Histórico</span>
                                 </button>
                               </div>
                             </td>

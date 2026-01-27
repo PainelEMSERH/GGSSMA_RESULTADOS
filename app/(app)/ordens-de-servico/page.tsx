@@ -249,10 +249,26 @@ export default function OrdemServicoPage() {
     }
   };
 
-  const exportarCSV = () => {
-    const headers = ['Nome', 'Matrícula', 'Unidade', 'Regional', 'Função', 'Data Admissão', 'OS Entregue', 'Data Entrega OS'];
-    const rowsCSV = rows.map((r) => [
+  const exportarExcel = async () => {
+    if (!rows.length) return;
+    const { utils, writeFile } = await import('xlsx');
+
+    const headers = [
+      'Nome',
+      'CPF',
+      'Matrícula',
+      'Unidade',
+      'Regional',
+      'Função',
+      'Data Admissão',
+      'OS Entregue',
+      'Data Entrega OS',
+      'Responsável Entrega',
+    ];
+
+    const data = rows.map((r) => [
       r.nome,
+      maskCPF(r.cpf),
       formatMatricula(r.matricula),
       r.unidade,
       r.regional,
@@ -260,16 +276,13 @@ export default function OrdemServicoPage() {
       formatDate(r.dataAdmissao),
       r.osEntregue ? 'Sim' : 'Não',
       formatDate(r.dataEntregaOS),
+      r.responsavelEntrega || '',
     ]);
 
-    const csv = [headers, ...rowsCSV].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ordem-servico-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const ws = utils.aoa_to_sheet([headers, ...data]);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'OrdemServico');
+    writeFile(wb, `ordem-servico-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
@@ -287,11 +300,12 @@ export default function OrdemServicoPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={exportarCSV}
-            className="px-4 py-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center gap-2"
+            onClick={exportarExcel}
+            className="p-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center"
+            title="Exportar para Excel"
+            aria-label="Exportar para Excel"
           >
             <Download className="w-4 h-4" />
-            Exportar CSV
           </button>
           <button
             onClick={() => { loadData(); loadMetaReal(); }}

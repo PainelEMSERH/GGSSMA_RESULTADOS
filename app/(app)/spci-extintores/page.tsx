@@ -759,39 +759,61 @@ export default function SPCIExtintoresPage() {
                 Atualizar
               </button>
               <button
-                onClick={() => {
-                  // Exporta para CSV
-                  const headers = ['TAG', 'Unidade', 'Regional', 'Local', 'Classe', 'Massa/Volume', 'Última Recarga', 'Data Limite', 'Status', 'Planej. Recarga', 'Exec. Recarga'];
-                  const csvRows = [
-                    headers.join(','),
-                    ...rows.map(row => [
-                      `"${row.TAG || ''}"`,
-                      `"${row.Unidade || ''}"`,
-                      `"${row.Regional || ''}"`,
-                      `"${row.Local || ''}"`,
-                      `"${row.Classe || ''}"`,
-                      `"${row['Massa/Volume (kg/L)'] || ''}"`,
-                      `"${row['Última recarga'] || ''}"`,
-                      `"${row.dataLimiteRecarga || ''}"`,
-                      `"${row.status || ''}"`,
-                      `"${row['Planej. Recarga'] || ''}"`,
-                      `"${row['Data Execução Recarga'] || ''}"`
-                    ].join(','))
+                onClick={async () => {
+                  if (!rows.length) return;
+                  const { utils, writeFile } = await import('xlsx');
+
+                  const headers = [
+                    'ID',
+                    'TAG',
+                    'Unidade',
+                    'Regional',
+                    'Local',
+                    'Classe',
+                    'Massa/Volume (kg/L)',
+                    'TAG Controle Mensal',
+                    'Data Tagueamento',
+                    'Lote Contrato',
+                    'Possui Contrato',
+                    'Nº série (Selo INMETRO)',
+                    'Última recarga',
+                    'Data Limite',
+                    'Status',
+                    'Planej. Recarga',
+                    'Data Execução Recarga',
                   ];
-                  const csvContent = csvRows.join('\n');
-                  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `extintores_${new Date().toISOString().split('T')[0]}.csv`;
-                  link.click();
-                  URL.revokeObjectURL(url);
+
+                  // Exporta todos os campos relevantes, nada fica oculto na planilha
+                  const data = rows.map((row) => [
+                    row.id,
+                    row.TAG || '',
+                    row.Unidade || '',
+                    row.Regional || '',
+                    row.Local || '',
+                    row.Classe || '',
+                    row['Massa/Volume (kg/L)'] || '',
+                    row['TAG de Controle Mensal'] || '',
+                    row['Data Tagueamento'] || '',
+                    row['Lote Contrato'] || '',
+                    row['Possui Contrato'] || '',
+                    row['Nº série (Selo INMETRO)'] || '',
+                    row['Última recarga'] || '',
+                    row.dataLimiteRecarga || '',
+                    row.status || '',
+                    row['Planej. Recarga'] || '',
+                    row['Data Execução Recarga'] || '',
+                  ]);
+
+                  const ws = utils.aoa_to_sheet([headers, ...data]);
+                  const wb = utils.book_new();
+                  utils.book_append_sheet(wb, ws, 'Extintores');
+                  writeFile(wb, `extintores_${new Date().toISOString().split('T')[0]}.xlsx`);
                 }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-bg text-xs text-text transition-colors"
-                title="Exportar para CSV"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border bg-panel hover:bg-bg text-xs text-text transition-colors"
+                title="Exportar para Excel"
+                aria-label="Exportar para Excel"
               >
                 <Download className="w-3.5 h-3.5" />
-                Exportar CSV
               </button>
               {(regional || unidade || status || possuiContrato || classe || anoPlanejamento || search) && (
                 <button

@@ -384,8 +384,8 @@ export default function AcidentesPage() {
         </nav>
       </div>
 
-      {/* Filtro de Regional */}
-      <div className="rounded-xl border border-border bg-panel p-4 flex flex-wrap items-center gap-3 text-xs">
+      {/* Filtros - card padronizado */}
+      <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex flex-wrap items-center gap-3 text-xs">
         <div className="flex flex-col gap-1">
           <span className="font-medium">Regional</span>
           <select
@@ -714,7 +714,7 @@ export default function AcidentesPage() {
         <div className="space-y-4">
           {/* Meta e Real */}
           {regional && (
-            <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold">Meta vs Real - {regional}</h2>
