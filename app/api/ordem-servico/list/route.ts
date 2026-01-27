@@ -63,8 +63,8 @@ export async function GET(req: NextRequest) {
     // Monta condições WHERE - EXATAMENTE como entregas
     const wh: string[] = [];
 
-    // Filtro de demissão: Mantém apenas vazios ou que contenham '2026'
-    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text LIKE '%2026%')`);
+    // Filtro de demissão: EXATAMENTE como entregas - apenas demitidos antes de 2026-01-01 são removidos
+    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
 
     // Filtro de regional
     if (regional && useJoin) {
@@ -122,6 +122,8 @@ export async function GET(req: NextRequest) {
         LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
         LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
         ${whereSql}
+        AND COALESCE(a.cpf, '') != ''
+        AND COALESCE(a.funcao, '') != ''
         ORDER BY a.cpf, a.colaborador
       ) sub
       ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
@@ -149,6 +151,8 @@ export async function GET(req: NextRequest) {
         FROM stg_alterdata_v2 a
         LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
         ${whereSql}
+        AND COALESCE(a.cpf, '') != ''
+        AND COALESCE(a.funcao, '') != ''
         ORDER BY a.cpf, a.colaborador
       ) sub
       ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
@@ -156,15 +160,20 @@ export async function GET(req: NextRequest) {
     `;
 
     // Um colaborador por CPF (stg_alterdata_v2 pode ter várias linhas por pessoa)
+    // EXATAMENTE como entregas: filtra CPF e função não vazios
     const countSql = useJoin ? `
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
+      AND COALESCE(a.cpf, '') != ''
+      AND COALESCE(a.funcao, '') != ''
     ` : `
       SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
       ${whereSql}
+      AND COALESCE(a.cpf, '') != ''
+      AND COALESCE(a.funcao, '') != ''
     `;
 
     const [rowsResult, totalResult] = await Promise.all([
