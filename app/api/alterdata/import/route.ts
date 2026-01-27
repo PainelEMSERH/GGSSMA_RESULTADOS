@@ -185,10 +185,21 @@ export async function POST(req: Request) {
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ ok:false, error:'Envie um arquivo .xlsx ou .csv' }, { status:400 });
 
+    // Verifica se deve limpar antes de importar
+    const clearBeforeImport = form.get('clearBeforeImport') === 'true';
+
     const filename = (file.name || 'alterdata').toLowerCase();
     const buf = Buffer.from(await file.arrayBuffer());
 
     await ensureSetup();
+
+    // Limpa as tabelas antes de importar se solicitado
+    if (clearBeforeImport) {
+      console.log('[alterdata/import] Limpando tabelas antes de importar...');
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE stg_alterdata_v2 CASCADE`);
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE stg_alterdata_v2_raw CASCADE`);
+      console.log('[alterdata/import] Tabelas limpas com sucesso');
+    }
 
     let rows: any[] = [];
     if (filename.endsWith('.xlsx')) {

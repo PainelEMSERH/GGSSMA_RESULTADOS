@@ -20,6 +20,7 @@ type Stats = {
 
 export default function ImportarAlterdataClient() {
   const [file, setFile] = useState<File | null>(null);
+  const [clearBeforeImport, setClearBeforeImport] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -55,6 +56,9 @@ export default function ImportarAlterdataClient() {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      if (clearBeforeImport) {
+        fd.append('clearBeforeImport', 'true');
+      }
       const r = await fetch('/api/alterdata/import', {
         method: 'POST',
         body: fd,
@@ -115,6 +119,32 @@ export default function ImportarAlterdataClient() {
             <p className="text-xs text-muted mt-2">
               Formatos aceitos: Excel (.xlsx) ou CSV. O sistema processa automaticamente a primeira aba/planilha.
             </p>
+          </div>
+
+          {/* Opção para limpar antes de importar */}
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/50 dark:bg-amber-900/10">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={clearBeforeImport}
+                onChange={(e) => setClearBeforeImport(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+              />
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  ⚠️ Limpar dados existentes antes de importar
+                </div>
+                <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  Se marcado, todas as tabelas serão limpas antes de importar os novos dados. 
+                  <strong className="block mt-1">Use isso se você notar que os dados estão duplicados ou acumulados.</strong>
+                  {stats?.total_alterdata && (
+                    <span className="block mt-1">
+                      Atualmente há <strong>{stats.total_alterdata.toLocaleString()}</strong> registro(s) na base.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </label>
           </div>
 
           {/* Informações sobre colunas esperadas */}
