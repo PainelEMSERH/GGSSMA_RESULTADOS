@@ -186,56 +186,67 @@ async function fetchCIPAData(filters: ReportFilters, selectedColumns: string[]):
   }
 }
 
-// Função para buscar dados de Acidentes
+// Função para buscar dados de Acidentes (view stg_acidentes ou fallback Prisma Acidente)
 async function fetchAcidentesData(filters: ReportFilters, selectedColumns: string[]): Promise<any[]> {
   const { regional, unidade, de, ate } = filters;
-  
+
+  const mapRow = (r: any): any => {
+    const row: any = {};
+    if (selectedColumns.includes('data_acidente')) row.data_acidente = r.data_acidente ? new Date(r.data_acidente).toISOString().slice(0, 10) : null;
+    if (selectedColumns.includes('nome')) row.nome = String(r.nome || '');
+    if (selectedColumns.includes('cpf')) row.cpf = String(r.cpf || '');
+    if (selectedColumns.includes('funcao')) row.funcao = String(r.funcao || '');
+    if (selectedColumns.includes('unidade')) row.unidade = String(r.unidade || '');
+    if (selectedColumns.includes('tipo_acidente')) row.tipo_acidente = String(r.tipo_acidente || '');
+    if (selectedColumns.includes('gravidade')) row.gravidade = String(r.gravidade || '');
+    if (selectedColumns.includes('descricao')) row.descricao = String(r.descricao || '');
+    if (selectedColumns.includes('causa')) row.causa = String(r.causa || '');
+    if (selectedColumns.includes('medidas_corretivas')) row.medidas_corretivas = String(r.medidas_corretivas || '');
+    return row;
+  };
+
   const where: string[] = [];
   const params: any[] = [];
-  
-  if (de) {
-    params.push(de);
-    where.push(`data_acidente >= $${params.length}::date`);
-  }
-  if (ate) {
-    params.push(ate);
-    where.push(`data_acidente <= $${params.length}::date`);
-  }
+  if (de) { params.push(de); where.push(`data_acidente >= $${params.length}::date`); }
+  if (ate) { params.push(ate); where.push(`data_acidente <= $${params.length}::date`); }
   if (regional) {
     params.push(regional.toUpperCase());
-    where.push(`upper(coalesce(unidade, '')) IN (
-      SELECT upper(coalesce(nmdepartamento, '')) 
-      FROM stg_unid_reg 
-      WHERE upper(coalesce(regional_responsavel, '')) = $${params.length}
-    )`);
+    where.push(`upper(coalesce(unidade, '')) IN (SELECT upper(coalesce(nmdepartamento, '')) FROM stg_unid_reg WHERE upper(coalesce(regional_responsavel, '')) = $${params.length})`);
   }
-  if (unidade) {
-    params.push(unidade.toUpperCase());
-    where.push(`upper(coalesce(unidade, '')) = $${params.length}`);
-  }
-  
+  if (unidade) { params.push(unidade.toUpperCase()); where.push(`upper(coalesce(unidade, '')) = $${params.length}`); }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  
   const sql = `SELECT * FROM stg_acidentes ${whereSql} ORDER BY data_acidente DESC, nome`;
-  
+
   try {
     const rows: any[] = await prisma.$queryRawUnsafe<any[]>(sql, ...params);
-    return rows.map((r) => {
-      const row: any = {};
-      if (selectedColumns.includes('data_acidente')) row.data_acidente = r.data_acidente ? new Date(r.data_acidente).toISOString().slice(0, 10) : null;
-      if (selectedColumns.includes('nome')) row.nome = String(r.nome || '');
-      if (selectedColumns.includes('cpf')) row.cpf = String(r.cpf || '');
-      if (selectedColumns.includes('funcao')) row.funcao = String(r.funcao || '');
-      if (selectedColumns.includes('unidade')) row.unidade = String(r.unidade || '');
-      if (selectedColumns.includes('tipo_acidente')) row.tipo_acidente = String(r.tipo_acidente || '');
-      if (selectedColumns.includes('gravidade')) row.gravidade = String(r.gravidade || '');
-      if (selectedColumns.includes('descricao')) row.descricao = String(r.descricao || '');
-      if (selectedColumns.includes('causa')) row.causa = String(r.causa || '');
-      if (selectedColumns.includes('medidas_corretivas')) row.medidas_corretivas = String(r.medidas_corretivas || '');
-      return row;
-    });
+    return rows.map(mapRow);
   } catch {
-    return [];
+    // Fallback: usar modelo Prisma Acidente
+    try {
+      const wherePrisma: any = {};
+      if (de || ate) {
+        wherePrisma.data = {};
+        if (de) wherePrisma.data.gte = new Date(de);
+        if (ate) wherePrisma.data.lte = new Date(ate + 'T23:59:59.999Z');
+      }
+      if (regional) wherePrisma.regional = { contains: regional, mode: 'insensitive' };
+      if (unidade) wherePrisma.unidadeHospitalar = { contains: unidade, mode: 'insensitive' };
+      const list = await prisma.acidente.findMany({ where: wherePrisma, orderBy: { data: 'desc' } });
+      return list.map((a) => mapRow({
+        data_acidente: a.data,
+        nome: a.nome,
+        cpf: '',
+        funcao: a.funcaoTrabalhador ?? '',
+        unidade: a.unidadeHospitalar,
+        tipo_acidente: a.tipo,
+        gravidade: a.comAfastamento ? 'Com afastamento' : 'Sem afastamento',
+        descricao: a.descricao ?? '',
+        causa: [a.causaImediata, a.causaRaiz].filter(Boolean).join(' / ') || '',
+        medidas_corretivas: a.fatoresContrib ?? '',
+      }));
+    } catch {
+      return [];
+    }
   }
 }
 

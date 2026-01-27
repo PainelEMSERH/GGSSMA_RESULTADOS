@@ -1,3 +1,5 @@
+import ConfiguracoesPreferencias from '@/components/configuracoes/ConfiguracoesPreferencias';
+
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
@@ -12,35 +14,7 @@ export default async function Page() {
 
       {/* Primeira linha: uso diário */}
       <div className="grid gap-4 md:grid-cols-3">
-        <section className="rounded-xl border border-border bg-bg/40 p-4 space-y-3">
-          <h2 className="text-sm font-semibold">Padrões de exibição</h2>
-          <p className="text-xs text-muted">
-            Definições que impactam todas as telas (Alterdata, Entregas, OS, Estoque).
-          </p>
-          <div className="space-y-2 text-xs text-muted">
-            <p className="flex items-center justify-between">
-              <span>Regional padrão</span>
-              <span className="inline-flex rounded-full border border-border px-2 py-0.5 text-[11px] bg-panel">
-                Coordenador
-              </span>
-            </p>
-            <p className="flex items-center justify-between">
-              <span>Unidade padrão</span>
-              <span className="inline-flex rounded-full border border-border px-2 py-0.5 text-[11px] bg-panel">
-                Todas
-              </span>
-            </p>
-            <p className="flex items-center justify-between">
-              <span>Itens por página</span>
-              <span className="inline-flex gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] bg-panel">
-                25 • 50 • 100
-              </span>
-            </p>
-            <p className="text-[11px] text-muted mt-2">
-              Futuro: esses campos podem virar seleção por usuário (preferências salvas).
-            </p>
-          </div>
-        </section>
+        <ConfiguracoesPreferencias />
 
         <section className="rounded-xl border border-border bg-bg/40 p-4 space-y-3">
           <h2 className="text-sm font-semibold">Integrações &amp; dados</h2>

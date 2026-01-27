@@ -1,7 +1,34 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, XCircle, Search, Filter, RefreshCw, Download } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
+import { CheckCircle2, XCircle, Info, Search, Filter, RefreshCw, Download } from 'lucide-react';
+
+type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
+function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
+  return (
+    <div className="fixed top-20 right-4 z-50 flex flex-col gap-2" role="region" aria-label="Notificações">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg min-w-[300px] max-w-md ${
+            t.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-200' :
+            t.type === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200' :
+            'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200'
+          }`}
+        >
+          {t.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          {t.type === 'error' && <XCircle className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          {t.type === 'info' && <Info className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          <span className="text-sm font-medium flex-1">{t.message}</span>
+          <button type="button" onClick={() => removeToast(t.id)} className="text-current opacity-70 hover:opacity-100" aria-label="Fechar notificação">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type Row = {
   id: string;
@@ -63,6 +90,9 @@ function formatMatricula(mat?: string) {
 }
 
 export default function OrdemServicoPage() {
+  const { user } = useUser();
+  const responsavelLogado = user?.fullName ?? (user?.primaryEmailAddress?.emailAddress ?? 'Sistema');
+
   const [regional, setRegional] = useState<string>('');
   const [unidade, setUnidade] = useState<string>('');
   const [entregue, setEntregue] = useState<string>('');
@@ -86,6 +116,13 @@ export default function OrdemServicoPage() {
   const [modalConfirmacao, setModalConfirmacao] = useState<{ open: boolean; row: Row | null }>({ open: false, row: null });
   const [saving, setSaving] = useState(false);
   const [dataEntrega, setDataEntrega] = useState<string>('');
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2);
+    setToasts((p) => [...p, { id, message: msg, type }]);
+    setTimeout(() => setToasts((p) => p.filter((x) => x.id !== id)), 5000);
+  };
+  const removeToast = (id: string) => setToasts((p) => p.filter((x) => x.id !== id));
 
   // Carrega opções
   useEffect(() => {
@@ -210,15 +247,16 @@ export default function OrdemServicoPage() {
           colaboradorCpf: modalConfirmacao.row.cpf,
           entregue: true,
           dataEntrega: dataEntrega,
-          responsavel: 'Sistema',
+          responsavel: responsavelLogado,
         }),
       });
 
       fecharModalConfirmacao();
       loadData();
       loadMetaReal();
+      showToast('Entrega confirmada com sucesso.', 'success');
     } catch (error: any) {
-      alert('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
+      showToast('Erro ao salvar: ' + (error.message || 'Erro desconhecido'), 'error');
     } finally {
       setSaving(false);
     }
@@ -242,8 +280,9 @@ export default function OrdemServicoPage() {
 
       loadData();
       loadMetaReal();
+      showToast('Marcado como não entregue.', 'success');
     } catch (error: any) {
-      alert('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
+      showToast('Erro ao salvar: ' + (error.message || 'Erro desconhecido'), 'error');
     } finally {
       setSaving(false);
     }
@@ -287,6 +326,7 @@ export default function OrdemServicoPage() {
 
   return (
     <div className="space-y-4">
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
       {/* Header — igual ao de Entregas de EPI (sem ícone) */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>

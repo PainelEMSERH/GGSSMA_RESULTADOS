@@ -334,3 +334,14 @@ model TaxaFrequenciaAcidente {
   @@unique([ano, mes], name: "ano_mes")
   @@index([ano, mes])
 }
+
+model PreferenciaUsuario {
+  id              String   @id @default(cuid())
+  clerkUserId     String   @unique
+  regionalPadrao  String?
+  unidadePadrao   String?
+  itensPorPagina  Int?     // 25, 50, 100
+  atualizadoEm    DateTime @updatedAt
+
+  @@index([clerkUserId])
+}

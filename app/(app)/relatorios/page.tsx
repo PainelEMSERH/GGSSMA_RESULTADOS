@@ -1,7 +1,34 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, XCircle, Info } from 'lucide-react';
 import { REPORT_MODULES, ReportColumn, ReportFilters } from '@/lib/relatorios/config';
+
+type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
+function ToastList({ toasts, remove }: { toasts: Toast[]; remove: (id: string) => void }) {
+  return (
+    <div className="fixed top-20 right-4 z-50 flex flex-col gap-2" role="region" aria-label="Notificações">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg min-w-[300px] max-w-md ${
+            t.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-200' :
+            t.type === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200' :
+            'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200'
+          }`}
+        >
+          {t.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          {t.type === 'error' && <XCircle className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          {t.type === 'info' && <Info className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          <span className="text-sm font-medium flex-1">{t.message}</span>
+          <button type="button" onClick={() => remove(t.id)} className="text-current opacity-70 hover:opacity-100" aria-label="Fechar notificação">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type SelectedModule = {
   id: string;
@@ -37,6 +64,13 @@ export default function RelatoriosPage() {
 
   const [expandedModule, setExpandedModule] = useState<string | null>('entregas');
   const [generating, setGenerating] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2);
+    setToasts((p) => [...p, { id, message: msg, type }]);
+    setTimeout(() => setToasts((p) => p.filter((x) => x.id !== id)), 5000);
+  };
+  const removeToast = (id: string) => setToasts((p) => p.filter((x) => x.id !== id));
 
   useEffect(() => {
     let cancelled = false;
@@ -117,14 +151,13 @@ export default function RelatoriosPage() {
 
   async function handleGenerate() {
     if (selectedModules.length === 0) {
-      alert('Selecione pelo menos um módulo para gerar o relatório.');
+      showToast('Selecione pelo menos um módulo para gerar o relatório.', 'error');
       return;
     }
 
-    // Valida se cada módulo tem pelo menos uma coluna selecionada
     for (const mod of selectedModules) {
       if (mod.selectedColumns.length === 0) {
-        alert(`O módulo "${REPORT_MODULES.find(m => m.id === mod.id)?.name}" precisa ter pelo menos uma coluna selecionada.`);
+        showToast(`O módulo "${REPORT_MODULES.find(m => m.id === mod.id)?.name}" precisa ter pelo menos uma coluna selecionada.`, 'error');
         return;
       }
     }
@@ -145,7 +178,6 @@ export default function RelatoriosPage() {
         throw new Error(error.error || 'Erro ao gerar relatório');
       }
 
-      // Download do arquivo
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -155,8 +187,9 @@ export default function RelatoriosPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      showToast('Relatório gerado e download iniciado.', 'success');
     } catch (error: any) {
-      alert(`Erro ao gerar relatório: ${error.message}`);
+      showToast(`Erro ao gerar relatório: ${error.message}`, 'error');
     } finally {
       setGenerating(false);
     }
@@ -164,6 +197,7 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
+      <ToastList toasts={toasts} remove={removeToast} />
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -321,6 +355,7 @@ export default function RelatoriosPage() {
                           type="button"
                           onClick={() => selectAllColumns(module.id)}
                           className="text-xs px-2 py-1 rounded border border-border hover:bg-muted"
+                          aria-label={`Selecionar todas as colunas do módulo ${module.name}`}
                         >
                           Selecionar todas
                         </button>
@@ -328,6 +363,7 @@ export default function RelatoriosPage() {
                           type="button"
                           onClick={() => deselectAllColumns(module.id)}
                           className="text-xs px-2 py-1 rounded border border-border hover:bg-muted"
+                          aria-label={`Desmarcar todas as colunas do módulo ${module.name}`}
                         >
                           Limpar
                         </button>
@@ -384,6 +420,7 @@ export default function RelatoriosPage() {
           onClick={handleGenerate}
           disabled={generating || selectedModules.length === 0}
           className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20"
+          aria-label={generating ? 'Gerando relatório em Excel…' : 'Gerar relatório Excel com os módulos e filtros selecionados'}
         >
           {generating ? (
             <span className="flex items-center gap-2">

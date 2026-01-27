@@ -128,7 +128,7 @@ export const REPORT_MODULES: Omit<ReportModule, 'fetchData'>[] = [
     name: 'Acidentes',
     description: 'Relatório de acidentes de trabalho registrados',
     icon: '⚠️',
-    enabled: false, // Será habilitado quando a página estiver pronta
+    enabled: true,
     columns: ACIDENTES_COLUMNS,
   },
   {
@@ -136,7 +136,7 @@ export const REPORT_MODULES: Omit<ReportModule, 'fetchData'>[] = [
     name: 'Ordens de Serviço',
     description: 'Relatório de ordens de serviço abertas e executadas',
     icon: '🔧',
-    enabled: false, // Será habilitado quando a página estiver pronta
+    enabled: true,
     columns: ORDENS_SERVICO_COLUMNS,
   },
 ];
