@@ -899,12 +899,6 @@ export default function AcidentesPage() {
                   trabalho, garantindo conformidade legal e rastreabilidade das informações.
                 </p>
               </div>
-              <div className="flex flex-col items-end gap-1 text-right">
-                <StatusPill status={total > 0 ? 'andamento' : 'pendente'} />
-                <span className="text-[10px] text-muted">
-                  Responsável técnico: SESMT / Núcleo de Saúde e Segurança
-                </span>
-              </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3 text-[11px] text-muted">
@@ -933,11 +927,7 @@ export default function AcidentesPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
-              <div className="text-[11px] text-muted">
-                Os documentos RIAT, CAT, SINAN e demais evidências devem ser anexados e vinculados
-                diretamente ao registro do acidente.
-              </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
               <button
                 type="button"
                 onClick={() => handleOpenModal()}
