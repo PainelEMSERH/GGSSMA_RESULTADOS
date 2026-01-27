@@ -63,9 +63,25 @@ export async function GET(req: NextRequest) {
     // Monta condições WHERE - EXATAMENTE como entregas
     const wh: string[] = [];
 
-    // Filtro de demissão: EXATAMENTE como entregas
-    // Remove apenas demitidos antes de 2026-01-01
-    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
+    // Filtro de demissão: Remove apenas demitidos antes de 2026-01-01
+    // Converte data corretamente antes de comparar (suporta YYYY-MM-DD e DD/MM/YYYY)
+    wh.push(`(
+      a.demissao IS NULL 
+      OR a.demissao = '' 
+      OR TRIM(a.demissao) = ''
+      OR (
+        CASE 
+          WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN a.demissao::date
+          WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(a.demissao, 'DD/MM/YYYY')
+          ELSE NULL
+        END IS NULL
+        OR CASE 
+          WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN a.demissao::date
+          WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(a.demissao, 'DD/MM/YYYY')
+          ELSE NULL
+        END >= '${DEMISSAO_LIMITE}'::date
+      )
+    )`);
 
     // Filtro de regional
     if (regional && useJoin) {
