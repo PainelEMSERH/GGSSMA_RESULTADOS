@@ -532,7 +532,6 @@ export default function OrdemServicoPage() {
               Limpar
             </button>
           </div>
-        </div>
       </div>
 
       {/* Tabela */}
