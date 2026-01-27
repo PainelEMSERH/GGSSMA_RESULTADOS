@@ -307,36 +307,58 @@ export default function AcidentesPage() {
   const [taxaTrabalhadores, setTaxaTrabalhadores] = useState<string>('');
   const [taxaPeriodo, setTaxaPeriodo] = useState<'ano' | 'mes'>('ano');
 
-  // Taxa de Frequência (TF)
-  const [tfAcidentes, setTfAcidentes] = useState<string>('');
-  const [tfHoras, setTfHoras] = useState<string>('');
-  const [tfMes, setTfMes] = useState<string>(
-    String(new Date().getMonth() + 1).padStart(2, '0'),
-  );
+  // Taxa de Frequência (TF) - edição anual (12 meses)
   const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear()));
-  const [tfHistorico, setTfHistorico] = useState<
-    Array<{ id: string; ano: number; mes: number; numeroAcidentes: number; horasHomemTrabalhadas: number; taxaFrequencia: number }>
-  >([]);
+  const [tfMeses, setTfMeses] = useState<
+    Record<
+      string,
+      {
+        accidentes: string;
+        horas: string;
+        tf: string;
+      }
+    >
+  >(() => {
+    const base: any = {};
+    ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
+      base[m] = { accidentes: '', horas: '', tf: '--' };
+    });
+    return base;
+  });
 
   useEffect(() => {
     if (tab !== 'visao') return;
     const params = new URLSearchParams();
-    params.set('ano', ano);
+    params.set('ano', tfAno);
     fetchJSON<{ registros: any[] }>('/api/acidentes/taxa-frequencia?' + params.toString())
       .then((d) => {
-        setTfHistorico(
-          (d.registros || []).map((r) => ({
-            id: r.id,
-            ano: r.ano,
-            mes: r.mes,
-            numeroAcidentes: r.numeroAcidentes,
-            horasHomemTrabalhadas: r.horasHomemTrabalhadas,
-            taxaFrequencia: r.taxaFrequencia,
-          })),
-        );
+        const base: any = {};
+        ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
+          base[m] = { accidentes: '', horas: '', tf: '--' };
+        });
+        (d.registros || []).forEach((r: any) => {
+          const mes = String(r.mes).padStart(2, '0');
+          const acidentes = String(r.numeroAcidentes ?? '');
+          const horas =
+            r.horasHomemTrabalhadas != null
+              ? String(r.horasHomemTrabalhadas)
+              : '';
+          const tf =
+            r.taxaFrequencia != null
+              ? Number(r.taxaFrequencia).toFixed(2)
+              : '--';
+          base[mes] = { accidentes: acidentes, horas, tf };
+        });
+        setTfMeses(base);
       })
-      .catch(() => setTfHistorico([]));
-  }, [tab, ano]);
+      .catch(() => {
+        const base: any = {};
+        ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
+          base[m] = { accidentes: '', horas: '', tf: '--' };
+        });
+        setTfMeses(base);
+      });
+  }, [tab, tfAno]);
 
   // Carrega regional do localStorage
   useEffect(() => {
@@ -869,64 +891,104 @@ export default function AcidentesPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-muted">
-                  Número de Acidentes de Trabalho no período *
+                  Ano de referência
                 </span>
                 <input
                   type="number"
-                  min={0}
-                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
-                  value={tfAcidentes}
-                  onChange={(e) => setTfAcidentes(e.target.value)}
+                  className="w-28 rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                  value={tfAno}
+                  onChange={(e) => setTfAno(e.target.value)}
                 />
               </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium text-muted">
-                  Total de Horas-Homem Trabalhadas no período *
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
-                  value={tfHoras}
-                  onChange={(e) => setTfHoras(e.target.value)}
-                />
-                <span className="text-[10px] text-muted">Unidade: horas</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium text-muted">Período de referência</span>
-                <div className="flex gap-2">
-                  <select
-                    className="w-24 rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
-                    value={tfMes}
-                    onChange={(e) => setTfMes(e.target.value)}
-                  >
-                    <option value="01">01</option>
-                    <option value="02">02</option>
-                    <option value="03">03</option>
-                    <option value="04">04</option>
-                    <option value="05">05</option>
-                    <option value="06">06</option>
-                    <option value="07">07</option>
-                    <option value="08">08</option>
-                    <option value="09">09</option>
-                    <option value="10">10</option>
-                    <option value="11">11</option>
-                    <option value="12">12</option>
-                  </select>
-                  <input
-                    type="number"
-                    className="w-24 rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
-                    value={tfAno}
-                    onChange={(e) => setTfAno(e.target.value)}
-                  />
-                </div>
-                <span className="text-[10px] text-muted">
-                  Exemplo: {tfMes}/{tfAno}
-                </span>
+
+              <div className="overflow-x-auto rounded-lg border border-border bg-bg/60">
+                <table className="min-w-full text-[11px]">
+                  <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Mês</th>
+                      <th className="px-2 py-2 text-right">Nº Acidentes *</th>
+                      <th className="px-2 py-2 text-right">Horas-Homem *</th>
+                      <th className="px-2 py-2 text-right">TF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                      (m, idx) => {
+                        const nomes = [
+                          'Jan',
+                          'Fev',
+                          'Mar',
+                          'Abr',
+                          'Mai',
+                          'Jun',
+                          'Jul',
+                          'Ago',
+                          'Set',
+                          'Out',
+                          'Nov',
+                          'Dez',
+                        ];
+                        const linha = tfMeses[m];
+                        return (
+                          <tr key={m} className="border-t border-border/40">
+                            <td className="px-2 py-1">{nomes[idx]}</td>
+                            <td className="px-2 py-1 text-right">
+                              <input
+                                type="number"
+                                min={0}
+                                className="w-20 rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
+                                value={linha?.accidentes ?? ''}
+                                onChange={(e) => {
+                                  const accidentes = e.target.value;
+                                  const horas = linha?.horas ?? '';
+                                  let tf = '--';
+                                  const aNum = parseInt(accidentes || '0', 10);
+                                  const hNum = parseFloat((horas || '0').replace(',', '.'));
+                                  if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
+                                    tf = ((aNum * 1_000_000) / hNum).toFixed(2);
+                                  }
+                                  setTfMeses((prev) => ({
+                                    ...prev,
+                                    [m]: { accidentes, horas, tf },
+                                  }));
+                                }}
+                              />
+                            </td>
+                            <td className="px-2 py-1 text-right">
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                className="w-28 rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
+                                value={linha?.horas ?? ''}
+                                onChange={(e) => {
+                                  const horas = e.target.value;
+                                  const accidentes = linha?.accidentes ?? '';
+                                  let tf = '--';
+                                  const aNum = parseInt(accidentes || '0', 10);
+                                  const hNum = parseFloat((horas || '0').replace(',', '.'));
+                                  if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
+                                    tf = ((aNum * 1_000_000) / hNum).toFixed(2);
+                                  }
+                                  setTfMeses((prev) => ({
+                                    ...prev,
+                                    [m]: { accidentes, horas, tf },
+                                  }));
+                                }}
+                              />
+                            </td>
+                            <td className="px-2 py-1 text-right font-semibold">
+                              {linha?.tf ?? '--'}
+                            </td>
+                          </tr>
+                        );
+                      },
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -945,116 +1007,46 @@ export default function AcidentesPage() {
               </p>
             </div>
 
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-[11px] text-muted">Taxa de Frequência calculada (TF)</span>
-              <div className="text-right">
-                <div className="text-xl font-semibold text-text">
-                  {(() => {
-                    const acidentes = parseInt(tfAcidentes || '0', 10);
-                    const horas = parseFloat((tfHoras || '0').replace(',', '.'));
-                    if (!acidentes || !horas || horas <= 0) return '--';
-                    const tf = (acidentes * 1_000_000) / horas;
-                    return tf.toFixed(2);
-                  })()}
-                </div>
-                <div className="text-[10px] text-muted">
-                  Período: {tfMes}/{tfAno}
-                </div>
-              </div>
-            </div>
-
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
               <p className="text-[11px] text-muted">
-                A Taxa de Frequência é armazenada para fins de histórico mensal e comparação entre
-                períodos, conforme metodologia de Saúde e Segurança do Trabalho.
+                As taxas mensais de frequência serão armazenadas para fins de histórico anual e
+                comparação entre períodos.
               </p>
               <button
                 type="button"
                 className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-500"
                 onClick={async () => {
-                  const acidentes = parseInt(tfAcidentes || '0', 10);
-                  const horas = parseFloat((tfHoras || '0').replace(',', '.'));
-                  if (Number.isNaN(acidentes) || acidentes < 0) {
-                    alert('Informe um número de acidentes válido.');
-                    return;
-                  }
-                  if (!horas || Number.isNaN(horas) || horas <= 0) {
-                    alert('O total de horas-homem trabalhadas deve ser maior que zero.');
-                    return;
-                  }
                   try {
-                    await fetchJSON('/api/acidentes/taxa-frequencia', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        ano: parseInt(tfAno || String(new Date().getFullYear()), 10),
-                        mes: parseInt(tfMes || '1', 10),
-                        numeroAcidentes: acidentes,
-                        horasHomemTrabalhadas: horas,
-                      }),
-                    });
-                    const params = new URLSearchParams();
-                    params.set('ano', tfAno || String(new Date().getFullYear()));
-                    const d = await fetchJSON<{ registros: any[] }>(
-                      '/api/acidentes/taxa-frequencia?' + params.toString(),
-                    );
-                    setTfHistorico(
-                      (d.registros || []).map((r) => ({
-                        id: r.id,
-                        ano: r.ano,
-                        mes: r.mes,
-                        numeroAcidentes: r.numeroAcidentes,
-                        horasHomemTrabalhadas: r.horasHomemTrabalhadas,
-                        taxaFrequencia: r.taxaFrequencia,
-                      })),
-                    );
+                    const anoNum = parseInt(tfAno || String(new Date().getFullYear()), 10);
+                    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+                    for (const m of meses) {
+                      const linha = tfMeses[m];
+                      if (!linha) continue;
+                      const acidentes = parseInt(linha.accidentes || '0', 10);
+                      const horas = parseFloat((linha.horas || '0').replace(',', '.'));
+                      if (Number.isNaN(acidentes) || Number.isNaN(horas) || horas <= 0) {
+                        continue;
+                      }
+                      await fetchJSON('/api/acidentes/taxa-frequencia', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          ano: anoNum,
+                          mes: parseInt(m, 10),
+                          numeroAcidentes: acidentes,
+                          horasHomemTrabalhadas: horas,
+                        }),
+                      });
+                    }
+                    alert('Taxas de Frequência do ano salvas com sucesso.');
                   } catch (e: any) {
-                    alert(e?.message || 'Erro ao salvar Taxa de Frequência');
+                    alert(e?.message || 'Erro ao salvar Taxas de Frequência');
                   }
                 }}
               >
-                Salvar TF do período
+                Salvar taxas do ano
               </button>
             </div>
-
-            {tfHistorico.length > 0 && (
-              <div className="mt-3 rounded-lg border border-border bg-bg/60 p-3 text-[11px]">
-                <div className="mb-2 text-xs font-semibold text-text">
-                  Histórico de Taxa de Frequência ({tfAno})
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-[11px]">
-                    <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
-                      <tr>
-                        <th className="px-2 py-1 text-left">Mês</th>
-                        <th className="px-2 py-1 text-right">Nº Acidentes</th>
-                        <th className="px-2 py-1 text-right">Horas-Homem</th>
-                        <th className="px-2 py-1 text-right">TF</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tfHistorico.map((r) => (
-                        <tr key={r.id} className="border-t border-border/50">
-                          <td className="px-2 py-1">
-                            {String(r.mes).padStart(2, '0')}/{r.ano}
-                          </td>
-                          <td className="px-2 py-1 text-right">{r.numeroAcidentes}</td>
-                          <td className="px-2 py-1 text-right">
-                            {r.horasHomemTrabalhadas.toLocaleString('pt-BR', {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 2,
-                            })}
-                          </td>
-                          <td className="px-2 py-1 text-right">
-                            {r.taxaFrequencia.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </section>
 
           {/* Bloco 2: Investigação */}
@@ -1152,14 +1144,23 @@ export default function AcidentesPage() {
       )}
 
       {/* Meta e Real - card principal (sempre na primeira tela) */}
-      {regional && metaReal && (
+      {metaReal && (
         <div className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold">Meta vs Real - {regional}</h2>
-              <p className="text-[11px] text-muted">
-                Meta: 0 acidentes | Real: quantidade de acidentes por mês
-              </p>
+              <h2 className="text-sm font-semibold">
+                Meta vs Real - {regional || 'Consolidado EMSERH'}
+              </h2>
+              {regional ? (
+                <p className="text-[11px] text-muted">
+                  Meta: 0 acidentes | Real: quantidade de acidentes por mês na regional selecionada.
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted">
+                  Meta: 0 acidentes | Real: quantidade de acidentes por mês consolidada para todas as
+                  regionais da EMSERH.
+                </p>
+              )}
             </div>
             {metaRealLoading && (
               <span className="text-[11px] text-muted">Carregando...</span>
