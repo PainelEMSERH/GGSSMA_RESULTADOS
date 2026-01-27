@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileText, CheckCircle2, XCircle, Search, Filter, RefreshCw, Download, Settings } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, Filter, RefreshCw, Download } from 'lucide-react';
 
 type OrdemServicoRow = {
   id: string;
@@ -281,7 +281,7 @@ export default function OrdemServicoPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header — igual ao de Entregas de EPI */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
@@ -289,10 +289,14 @@ export default function OrdemServicoPage() {
           </p>
           <h1 className="mt-1 text-lg font-semibold">Ordem de Serviço</h1>
           <p className="mt-1 text-xs text-muted">
-            Colaboradores que iniciaram em 01/01/2026 - Controle de entrega de Ordem de Serviço
+            Colaboradores ativos em {anoMetaReal} - Controle de entrega de Ordem de Serviço
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            <span>Colaboradores ativos em {anoMetaReal}</span>
+          </div>
           <button
             onClick={exportarExcel}
             className="p-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center"
@@ -317,101 +321,19 @@ export default function OrdemServicoPage() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-          <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Regional</label>
-            <select
-              value={regional}
-              onChange={(e) => {
-                setRegional(e.target.value);
-                setUnidade('');
-                setPage(1);
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm"
-            >
-              <option value="">Todas</option>
-              {regionais.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Unidade</label>
-            <select
-              value={unidade}
-              onChange={(e) => {
-                setUnidade(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm"
-              disabled={!regional}
-            >
-              <option value="">Todas</option>
-              {unidadesFiltradas.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Status</label>
-            <select
-              value={entregue}
-              onChange={(e) => {
-                setEntregue(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-bg text-sm"
-            >
-              <option value="">Todos</option>
-              <option value="sim">OS Entregue</option>
-              <option value="nao">OS Pendente</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted block mb-1.5">Buscar</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                placeholder="Nome, CPF ou Matrícula"
-                className="w-full pl-10 pr-3 py-2 rounded-lg border border-border bg-bg text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                setRegional('');
-                setUnidade('');
-                setEntregue('');
-                setSearch('');
-                setPage(1);
-              }}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              Limpar
-            </button>
-          </div>
-        </div>
+      {/* Abas — mesma estrutura de Entregas (uma aba ativa) */}
+      <div className="border-b border-border">
+        <nav className="-mb-px flex gap-4 text-xs">
+          <button
+            type="button"
+            className="border-b-2 border-emerald-500 text-emerald-500 px-3 py-2"
+          >
+            Lista de colaboradores
+          </button>
+        </nav>
       </div>
 
-      {/* Card Meta vs Real (layout idêntico ao de Entregas de EPI) */}
+      {/* Meta vs Real — primeiro, igual ao de Entregas */}
       {metaReal && (() => {
         const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
         const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -422,8 +344,8 @@ export default function OrdemServicoPage() {
         const percentualRealAtual = metaTotal > 0 ? (totalReal / metaTotal) * 100 : 0;
 
         return (
-          <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
+          <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
+            <div className="flex items-center justify-between mb-1">
               <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
               <select
                 value={anoMetaReal}
@@ -438,8 +360,8 @@ export default function OrdemServicoPage() {
               </select>
             </div>
 
-            <div className="space-y-2 text-[11px]">
-              {/* Linha META */}
+            <div className="space-y-2">
+              {/* Linha META — fundo cinza como em Entregas */}
               <div className="flex items-center gap-2">
                 <div className="w-20 font-bold text-sm text-text">META</div>
                 <div className="flex-1 grid grid-cols-12 gap-1">
@@ -480,6 +402,21 @@ export default function OrdemServicoPage() {
                 </div>
               </div>
 
+              {/* Botões mensais — alinhados com as colunas, igual Entregas */}
+              <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <div className="w-20" />
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {meses.map((mes, idx) => (
+                    <div
+                      key={mes}
+                      className="px-2 py-1.5 rounded-lg text-[10px] font-medium text-center text-muted bg-panel border border-border"
+                    >
+                      {mesesNomes[idx]}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
                 <div>
                   Total: <span className="font-semibold text-text">{totalReal}</span> de{' '}
@@ -493,6 +430,110 @@ export default function OrdemServicoPage() {
           </div>
         );
       })()}
+
+      {/* Filtros — mesmo card e divisória de Entregas */}
+      <div className="rounded-xl border border-border bg-panel p-4 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-semibold text-muted uppercase tracking-wide px-2">Filtros</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="max-w-[200px]">
+            <label className="text-xs font-medium block mb-1.5 text-text">Regional</label>
+            <select
+              value={regional}
+              onChange={(e) => {
+                setRegional(e.target.value);
+                setUnidade('');
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+              aria-label="Selecione a Regional"
+            >
+              <option value="">Selecione…</option>
+              {regionais.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium block mb-1.5 text-text">Unidade</label>
+            <select
+              value={unidade}
+              onChange={(e) => {
+                setUnidade(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!regional}
+              aria-label="Selecione a Unidade"
+            >
+              <option value="">(todas)</option>
+              {unidadesFiltradas.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium block mb-1.5 text-text">Status</label>
+            <select
+              value={entregue}
+              onChange={(e) => {
+                setEntregue(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+              aria-label="Filtrar por situação de entrega"
+            >
+              <option value="">Todos</option>
+              <option value="sim">OS Entregue</option>
+              <option value="nao">OS Pendente</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium block mb-1.5 text-text">Buscar</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Nome, CPF ou Matrícula"
+                className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                aria-label="Buscar por nome, CPF ou matrícula"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+          <button
+            onClick={() => {
+              setRegional('');
+              setUnidade('');
+              setEntregue('');
+              setSearch('');
+              setPage(1);
+            }}
+            className="px-4 py-2.5 rounded-xl border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center gap-2"
+          >
+              <Filter className="w-4 h-4" />
+              Limpar
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Tabela */}
       <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
