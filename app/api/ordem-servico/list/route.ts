@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
-type OrdemServicoRow = {
-  id: string; // CPF
-  nome: string;
-  cpf: string;
-  matricula: string;
-  unidade: string;
-  regional: string;
-  funcao: string;
-  dataAdmissao: string | null;
-  osEntregue: boolean;
-  dataEntregaOS: string | null;
-  responsavelEntrega: string | null;
-};
-
 export async function GET(req: NextRequest) {
   try {
     // Garante que a tabela ordem_servico existe
@@ -39,71 +25,85 @@ export async function GET(req: NextRequest) {
     `);
 
     const url = new URL(req.url);
-    const regional = url.searchParams.get('regional') || '';
-    const unidade = url.searchParams.get('unidade') || '';
+    const regional = (url.searchParams.get('regional') || '').trim();
+    const unidade = (url.searchParams.get('unidade') || '').trim();
     const entregue = url.searchParams.get('entregue') || '';
-    const search = url.searchParams.get('search') || '';
-    const page = parseInt(url.searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(url.searchParams.get('pageSize') || '25', 10);
+    const search = (url.searchParams.get('search') || '').trim();
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+    const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
     const sortBy = url.searchParams.get('sortBy') || 'nome';
     const sortDir = url.searchParams.get('sortDir') || 'asc';
 
     const offset = (page - 1) * pageSize;
-
-    // Filtro: colaboradores ativos em 2026
-    // - Admitidos em qualquer data (não importa o ano)
-    // - NÃO demitidos antes de 2026-01-01
-    // - Se foi demitido em 2026 ou depois, ainda conta (estava ativo no início de 2026)
     const DEMISSAO_LIMITE = '2026-01-01';
-    let whereConditions: string[] = [];
+
+    // Verifica se stg_alterdata_v2 existe
+    const hasTable: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_alterdata_v2'
+      ) AS exists
+    `);
     
-    // Filtro de demissão: remove apenas os demitidos ANTES de 2026-01-01
-    whereConditions.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR 
-      CASE 
-        WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-        WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-        ELSE NULL
-      END >= '${DEMISSAO_LIMITE}'::date)`);
+    if (!hasTable?.[0]?.exists) {
+      return NextResponse.json({ ok: true, rows: [], total: 0 });
+    }
 
     // Verifica se stg_unid_reg existe
-    const hasUnidRegCheck: any[] = await prisma.$queryRawUnsafe(`
+    const hasUnidReg: any[] = await prisma.$queryRawUnsafe(`
       SELECT EXISTS (
         SELECT 1 FROM pg_catalog.pg_class c
         JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_unid_reg'
       ) AS exists
     `);
-    const useJoin = hasUnidRegCheck?.[0]?.exists;
+    const useJoin = hasUnidReg?.[0]?.exists;
 
+    // Monta condições WHERE - EXATAMENTE como entregas
+    const wh: string[] = [];
+
+    // Filtro de demissão: remove apenas os demitidos ANTES de 2026-01-01
+    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR 
+      CASE 
+        WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
+        WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
+        ELSE NULL
+      END >= '${DEMISSAO_LIMITE}'::date)`);
+
+    // Filtro de regional
     if (regional && useJoin) {
-      whereConditions.push(`(UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${regional.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
-        SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regional.replace(/'/g, "''")}'))
+      const escReg = regional.replace(/'/g, "''");
+      wh.push(`(UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${escReg}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+        SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${escReg}'))
       ))`);
     }
 
+    // Filtro de unidade
     if (unidade) {
+      const escUni = unidade.replace(/'/g, "''");
       if (useJoin) {
-        whereConditions.push(`(UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
+        wh.push(`(UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) = UPPER(TRIM('${escUni}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${escUni}')) OR UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) LIKE UPPER(TRIM('%${escUni}%')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${escUni}%')))`);
       } else {
-        whereConditions.push(`(UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
+        wh.push(`(UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${escUni}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${escUni}%')))`);
       }
     }
 
+    // Filtro de busca
     if (search) {
-      const searchEscaped = search.replace(/'/g, "''");
-      whereConditions.push(`(
-        a.colaborador ILIKE '%${searchEscaped}%' OR
-        a.cpf ILIKE '%${searchEscaped}%' OR
-        a.matricula ILIKE '%${searchEscaped}%'
+      const escSearch = search.replace(/'/g, "''");
+      wh.push(`(
+        a.colaborador ILIKE '%${escSearch}%' OR
+        a.cpf ILIKE '%${escSearch}%' OR
+        a.matricula ILIKE '%${escSearch}%'
       )`);
     }
 
-    const whereSql = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 
-    // Usa exatamente o mesmo padrão da página de entregas
-    const query = useJoin ? `
+    // Query EXATAMENTE como entregas - linhas 339-368
+    const rowsSql = useJoin ? `
       SELECT
-        COALESCE(a.cpf, '') AS id,
         COALESCE(a.cpf, '') AS cpf,
         COALESCE(a.colaborador, '') AS nome,
         COALESCE(a.matricula, '') AS matricula,
@@ -131,7 +131,6 @@ export async function GET(req: NextRequest) {
       LIMIT ${pageSize} OFFSET ${offset}
     ` : `
       SELECT
-        COALESCE(a.cpf, '') AS id,
         COALESCE(a.cpf, '') AS cpf,
         COALESCE(a.colaborador, '') AS nome,
         COALESCE(a.matricula, '') AS matricula,
@@ -158,7 +157,7 @@ export async function GET(req: NextRequest) {
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
-    const countQuery = useJoin ? `
+    const countSql = useJoin ? `
       SELECT COUNT(*)::int AS total
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
@@ -169,49 +168,38 @@ export async function GET(req: NextRequest) {
       ${whereSql}
     `;
 
-    // Executa queries
-    console.log('[ordem-servico/list] Query:', query);
-    console.log('[ordem-servico/list] Count query:', countQuery);
-    
-    const rows: any[] = await prisma.$queryRawUnsafe(query);
-    const countResult: any[] = await prisma.$queryRawUnsafe(countQuery);
-    const total = parseInt(countResult[0]?.total || '0', 10);
-    
-    console.log('[ordem-servico/list] Total encontrado:', total);
-    console.log('[ordem-servico/list] Rows retornados:', rows.length);
+    const [rowsResult, totalResult] = await Promise.all([
+      prisma.$queryRawUnsafe<any[]>(rowsSql),
+      prisma.$queryRawUnsafe<any[]>(countSql),
+    ]);
+
+    const rowsRaw = Array.isArray(rowsResult) ? rowsResult : [];
+    const total = Number((totalResult as any)?.[0]?.total ?? 0);
 
     // Filtra por status de entrega se necessário
-    let filteredRows = rows;
+    let filteredRows = rowsRaw;
     if (entregue === 'sim') {
-      filteredRows = rows.filter((r) => r.osEntregue === true);
+      filteredRows = rowsRaw.filter((r: any) => r.osEntregue === true);
     } else if (entregue === 'nao') {
-      filteredRows = rows.filter((r) => !r.osEntregue);
+      filteredRows = rowsRaw.filter((r: any) => !r.osEntregue);
     }
 
+    // Retorna EXATAMENTE como a query retorna - sem transformações complexas
     return NextResponse.json({
       ok: true,
-      rows: filteredRows.map((r) => {
-        // Função helper para garantir que seja sempre string
-        const toStr = (val: any): string => {
-          if (val === null || val === undefined) return '';
-          if (typeof val === 'object') return JSON.stringify(val);
-          return String(val);
-        };
-
-        return {
-          id: toStr(r.id),
-          nome: toStr(r.nome),
-          cpf: toStr(r.cpf),
-          matricula: toStr(r.matricula),
-          unidade: toStr(r.unidade),
-          regional: toStr(r.regional),
-          funcao: toStr(r.funcao),
-          dataAdmissao: r.dataAdmissao ? toStr(r.dataAdmissao) : null,
-          osEntregue: Boolean(r.osEntregue),
-          dataEntregaOS: r.dataEntregaOS ? toStr(r.dataEntregaOS) : null,
-          responsavelEntrega: r.responsavelEntrega ? toStr(r.responsavelEntrega) : null,
-        };
-      }),
+      rows: filteredRows.map((r: any) => ({
+        id: String(r.cpf || ''),
+        nome: String(r.nome || ''),
+        cpf: String(r.cpf || ''),
+        matricula: String(r.matricula || ''),
+        unidade: String(r.unidade || ''),
+        regional: String(r.regional || ''),
+        funcao: String(r.funcao || ''),
+        dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
+        osEntregue: Boolean(r.osEntregue),
+        dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
+        responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
+      })),
       total: entregue ? filteredRows.length : total,
     });
   } catch (e: any) {
