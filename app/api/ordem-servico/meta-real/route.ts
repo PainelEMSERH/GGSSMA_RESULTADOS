@@ -83,8 +83,6 @@ export async function GET(req: NextRequest) {
       SELECT COUNT(*) as total
       FROM stg_alterdata_v2 a
       ${whereClause}
-      AND COALESCE(a.cpf, '') != ''
-      AND COALESCE(a.funcao, '') != ''
     `;
     const totalMetaResult: any[] = await prisma.$queryRawUnsafe(totalMetaQuery);
     const totalMeta = parseInt(totalMetaResult[0]?.total || '0', 10);
