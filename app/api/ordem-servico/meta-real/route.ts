@@ -47,13 +47,25 @@ export async function GET(req: NextRequest) {
     // Colaboradores ativos em 2026: admitidos em qualquer data, mas não demitidos antes de 2026
     let whereConditions: string[] = [];
     
-    // Filtro de demissão: remove apenas os demitidos ANTES de 2026-01-01
-    whereConditions.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR 
-      CASE 
-        WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-        WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-        ELSE NULL
-      END >= '${DEMISSAO_LIMITE}'::date)`);
+    // Filtro de demissão: EXCLUI todos os demitidos ANTES de 2026-01-01
+    // Inclui apenas: NULL/vazio (não demitido) OU demissão >= 2026-01-01
+    whereConditions.push(`(
+      a.demissao IS NULL 
+      OR a.demissao = '' 
+      OR TRIM(a.demissao) = ''
+      OR (
+        CASE 
+          WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
+          WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
+          ELSE NULL
+        END IS NULL
+        OR CASE 
+          WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
+          WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
+          ELSE NULL
+        END >= '${DEMISSAO_LIMITE}'::date
+      )
+    )`);
 
     if (regional) {
       whereConditions.push(`COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
@@ -87,7 +99,7 @@ export async function GET(req: NextRequest) {
       '07': 0, '08': 0, '09': 0, '10': 0, '11': 0, '12': 0,
     };
 
-    // Busca entregas de OS por mês
+    // Busca entregas de OS por mês (apenas de colaboradores não demitidos antes de 2026)
     const realQuery = `
       SELECT 
         EXTRACT(MONTH FROM os.data_entrega)::int as mes,
@@ -96,6 +108,21 @@ export async function GET(req: NextRequest) {
       INNER JOIN stg_alterdata_v2 a ON a.cpf = os.colaborador_cpf
       WHERE os.entregue = true
         AND EXTRACT(YEAR FROM os.data_entrega) = ${anoAtual}
+        AND (
+          a.demissao IS NULL 
+          OR a.demissao = '' 
+          OR TRIM(a.demissao) = ''
+          OR CASE 
+            WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
+            WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
+            ELSE NULL
+          END IS NULL
+          OR CASE 
+            WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
+            WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
+            ELSE NULL
+          END >= '${DEMISSAO_LIMITE}'::date
+        )
         ${regional ? `AND COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
                         WHERE ur.nmdepartamento = a.unidade_hospitalar 
                         LIMIT 1),'') = '${regional.replace(/'/g, "''")}'` : ''}
