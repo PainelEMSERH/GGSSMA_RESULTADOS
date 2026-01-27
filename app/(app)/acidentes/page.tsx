@@ -1301,6 +1301,70 @@ export default function AcidentesPage() {
                           <tr>
                             <td colSpan={14} className="px-3 py-3 bg-panel/50">
                               <div className="space-y-3 text-[11px]">
+                                <div className="grid gap-3 md:grid-cols-3">
+                                  <div className="space-y-1">
+                                    <div className="font-semibold mb-1">Identificação do acidente</div>
+                                    <p className="text-muted">
+                                      <span className="font-medium text-text">Data/Hora: </span>
+                                      {formatDate(row.data)} {row.hora || ''}
+                                    </p>
+                                    <p className="text-muted">
+                                      <span className="font-medium text-text">Unidade: </span>
+                                      {row.unidadeHospitalar}
+                                    </p>
+                                    <p className="text-muted">
+                                      <span className="font-medium text-text">Regional: </span>
+                                      {row.regional || 'Não informada'}
+                                    </p>
+                                    {row.setor && (
+                                      <p className="text-muted">
+                                        <span className="font-medium text-text">Setor: </span>
+                                        {row.setor}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="font-semibold mb-1">Perfil do trabalhador</div>
+                                    <p className="text-muted">
+                                      <span className="font-medium text-text">Nome: </span>
+                                      {row.nome}
+                                    </p>
+                                    {row.funcaoTrabalhador && (
+                                      <p className="text-muted">
+                                        <span className="font-medium text-text">Função: </span>
+                                        {row.funcaoTrabalhador}
+                                      </p>
+                                    )}
+                                    {row.tipoVinculo && (
+                                      <p className="text-muted">
+                                        <span className="font-medium text-text">Tipo de vínculo: </span>
+                                        {row.tipoVinculo}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="font-semibold mb-1">Análise técnica</div>
+                                    {row.causaImediata && (
+                                      <p className="text-muted">
+                                        <span className="font-medium text-text">Causa imediata: </span>
+                                        {row.causaImediata}
+                                      </p>
+                                    )}
+                                    {row.causaRaiz && (
+                                      <p className="text-muted">
+                                        <span className="font-medium text-text">Causa raiz: </span>
+                                        {row.causaRaiz}
+                                      </p>
+                                    )}
+                                    {row.fatoresContrib && (
+                                      <p className="text-muted">
+                                        <span className="font-medium text-text">Fatores contribuintes: </span>
+                                        {row.fatoresContrib}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
                                 <div>
                                   <div className="font-semibold mb-1">Descrição detalhada do acidente</div>
                                   <p className="mb-2 text-muted">
