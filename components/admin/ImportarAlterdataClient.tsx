@@ -95,10 +95,6 @@ export default function ImportarAlterdataClient() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold mb-2">Importar Alterdata</h2>
-        <p className="text-sm text-muted mb-4">
-          Envie o Excel (.xlsx) ou CSV da base Alterdata oficial. Apenas o administrador raiz pode
-          executar esta operação.
-        </p>
       </div>
 
       <div className="rounded-xl border border-border bg-panel p-5">
@@ -121,57 +117,16 @@ export default function ImportarAlterdataClient() {
             </p>
           </div>
 
-          {/* Opção para limpar antes de importar */}
-          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/50 dark:bg-amber-900/10">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={clearBeforeImport}
-                onChange={(e) => setClearBeforeImport(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-              />
-              <div className="flex-1">
-                <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                  ⚠️ Limpar dados existentes antes de importar
-                </div>
-                <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                  Se marcado, todas as tabelas serão limpas antes de importar os novos dados. 
-                  <strong className="block mt-1">Use isso se você notar que os dados estão duplicados ou acumulados.</strong>
-                  {stats?.total_alterdata && (
-                    <span className="block mt-1">
-                      Atualmente há <strong>{stats.total_alterdata.toLocaleString()}</strong> registro(s) na base.
-                    </span>
-                  )}
-                </div>
-              </div>
-            </label>
-          </div>
-
-          {/* Informações sobre colunas esperadas */}
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/10">
-            <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-200 mb-2">
-              📋 Colunas que o sistema busca no arquivo:
-            </div>
-            <div className="text-xs text-emerald-700 dark:text-emerald-300 space-y-1">
-              <p><strong>Colunas obrigatórias principais:</strong></p>
-              <ul className="list-disc list-inside ml-2 space-y-0.5">
-                <li><strong>CPF</strong> - Identificação do colaborador</li>
-                <li><strong>Colaborador</strong> - Nome completo</li>
-                <li><strong>Unidade Hospitalar</strong> - Unidade de lotação</li>
-                <li><strong>Função</strong> - Cargo/função do colaborador</li>
-              </ul>
-              <p className="mt-2"><strong>Colunas opcionais (mas recomendadas):</strong></p>
-              <ul className="list-disc list-inside ml-2 space-y-0.5">
-                <li><strong>Matrícula</strong> - Se não tiver, será gerada automaticamente</li>
-                <li><strong>Admissão</strong> - Data de admissão (DD/MM/YYYY ou YYYY-MM-DD)</li>
-                <li><strong>Demissão</strong> - Data de demissão, se houver</li>
-              </ul>
-              <p className="mt-2 text-emerald-600 dark:text-emerald-400">
-                💡 <strong>Importante:</strong> O sistema é flexível e aceita variações de nomes de colunas. 
-                Se seu arquivo tiver outras colunas além dessas, elas serão ignoradas, mas não causarão erro.
-              </p>
-            </div>
-          </div>
+          {/* Opção para limpar antes de importar - versão compacta */}
+          <label className="inline-flex items-center gap-2 cursor-pointer text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={clearBeforeImport}
+              onChange={(e) => setClearBeforeImport(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+            />
+            <span>Limpar base antes de importar (usar só quando precisar zerar tudo).</span>
+          </label>
 
           <button
             type="submit"
@@ -346,17 +301,7 @@ export default function ImportarAlterdataClient() {
         )}
       </div>
 
-      {/* Informações adicionais */}
-      <div className="rounded-xl border border-border bg-panel p-4">
-        <h3 className="text-sm font-semibold mb-2">ℹ️ Como funciona a atualização</h3>
-        <ul className="text-xs text-muted space-y-1 list-disc list-inside">
-          <li>Os dados são atualizados baseado em <strong>CPF + Matrícula</strong></li>
-          <li>Se um colaborador já existe, os dados serão atualizados (nome, função, unidade, etc.)</li>
-          <li>Novos colaboradores serão adicionados automaticamente</li>
-          <li>O sistema processa em lotes para melhor performance</li>
-          <li>Após a importação, os dados estarão disponíveis imediatamente no sistema</li>
-        </ul>
-      </div>
+      {/* Informações adicionais removidas para deixar a tela mais limpa */}
     </div>
   );
 }

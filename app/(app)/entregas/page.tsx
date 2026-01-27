@@ -1205,7 +1205,7 @@ export default function EntregasPage() {
                         <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
                           Regional
                         </th>
-                        <th className="px-2 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm" title="Situação da entrega">
+                        <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm" title="Situação geral das entregas">
                           Entrega
                         </th>
                         <th className="px-3 py-2.5 text-center border-b border-border whitespace-nowrap text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-panel/95 backdrop-blur-sm">
@@ -1251,8 +1251,19 @@ export default function EntregasPage() {
                             <td className="px-3 py-2.5 text-center text-text" title={r.funcao || '—'}>{r.funcao || '—'}</td>
                             <td className="px-3 py-2.5 text-center text-text" title={r.unidade || '—'}>{r.unidade || '—'}</td>
                             <td className="px-3 py-2.5 text-center text-text" title={r.regional || '—'}>{r.regional || '—'}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span
+                                className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                                  r.entregue
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-200 dark:border-emerald-800'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-700'
+                                }`}
+                              >
+                                {r.entregue ? 'Entregue' : 'Pendente'}
+                              </span>
+                            </td>
                             <td className="px-3 py-2.5">
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex items-center justify-center gap-2 flex-wrap">
                                 <button
                                   onClick={() => openStatusModal(r)}
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium text-text transition-colors"

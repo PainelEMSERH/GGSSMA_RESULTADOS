@@ -250,10 +250,9 @@ export default function OrdemServicoPage() {
   };
 
   const exportarCSV = () => {
-    const headers = ['Nome', 'CPF', 'Matrícula', 'Unidade', 'Regional', 'Função', 'Data Admissão', 'OS Entregue', 'Data Entrega OS'];
+    const headers = ['Nome', 'Matrícula', 'Unidade', 'Regional', 'Função', 'Data Admissão', 'OS Entregue', 'Data Entrega OS'];
     const rowsCSV = rows.map((r) => [
       r.nome,
-      maskCPF(r.cpf),
       formatMatricula(r.matricula),
       r.unidade,
       r.regional,
@@ -508,7 +507,6 @@ export default function OrdemServicoPage() {
                     >
                       Nome {sortBy === 'nome' && (sortDir === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">CPF</th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Matrícula</th>
                     <th
                       className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
@@ -532,7 +530,6 @@ export default function OrdemServicoPage() {
                   {rows.map((row) => (
                     <tr key={row.id} className="hover:bg-bg/30">
                       <td className="px-4 py-3 text-left text-[11px] font-medium">{row.nome}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{maskCPF(row.cpf)}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{formatMatricula(row.matricula)}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.unidade}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.regional}</td>
@@ -636,7 +633,7 @@ export default function OrdemServicoPage() {
                 <div className="text-sm font-medium text-muted mb-1">Colaborador</div>
                 <div className="text-base font-semibold text-text">{modalConfirmacao.row.nome}</div>
                 <div className="text-xs text-muted mt-0.5">
-                  CPF: {maskCPF(modalConfirmacao.row.cpf)} | Matrícula: {modalConfirmacao.row.matricula}
+                  Matrícula: {modalConfirmacao.row.matricula}
                 </div>
               </div>
 
