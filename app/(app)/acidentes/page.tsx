@@ -21,6 +21,12 @@ type AcidenteRow = {
   sinan: string | null;
   status: string;
   descricao: string | null;
+  setor?: string | null;
+  funcaoTrabalhador?: string | null;
+  tipoVinculo?: string | null;
+  causaImediata?: string | null;
+  causaRaiz?: string | null;
+  fatoresContrib?: string | null;
 };
 
 type StatsData = {
@@ -77,10 +83,12 @@ function toInputDate(iso: string | null | undefined) {
 }
 
 const TIPOS_ACIDENTE = [
-  { value: 'biologico', label: 'Biológico' },
-  { value: 'trajeto', label: 'Trajeto' },
-  { value: 'tipico', label: 'Típico' },
-  { value: 'de_trabalho', label: 'De Trabalho' },
+  { value: 'queda', label: 'Queda' },
+  { value: 'acidente_transito', label: 'Acidente de Trânsito' },
+  { value: 'perfurocortante', label: 'Perfurocortante' },
+  { value: 'exposicao_biologica', label: 'Exposição a material biológico' },
+  { value: 'ergonomia', label: 'Esforço excessivo / ergonomia' },
+  { value: 'choque_eletrico', label: 'Choque elétrico' },
   { value: 'outros', label: 'Outros' },
 ];
 
@@ -278,6 +286,12 @@ export default function AcidentesPage() {
     sinan: '',
     status: 'aberto',
     descricao: '',
+    setor: '',
+    funcaoTrabalhador: '',
+    tipoVinculo: '',
+    causaImediata: '',
+    causaRaiz: '',
+    fatoresContrib: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -302,6 +316,29 @@ export default function AcidentesPage() {
     String(new Date().getMonth() + 1).padStart(2, '0'),
   );
   const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear()));
+  const [tfHistorico, setTfHistorico] = useState<
+    Array<{ id: string; ano: number; mes: number; numeroAcidentes: number; horasHomemTrabalhadas: number; taxaFrequencia: number }>
+  >([]);
+
+  useEffect(() => {
+    if (tab !== 'visao') return;
+    const params = new URLSearchParams();
+    params.set('ano', ano);
+    fetchJSON<{ registros: any[] }>('/api/acidentes/taxa-frequencia?' + params.toString())
+      .then((d) => {
+        setTfHistorico(
+          (d.registros || []).map((r) => ({
+            id: r.id,
+            ano: r.ano,
+            mes: r.mes,
+            numeroAcidentes: r.numeroAcidentes,
+            horasHomemTrabalhadas: r.horasHomemTrabalhadas,
+            taxaFrequencia: r.taxaFrequencia,
+          })),
+        );
+      })
+      .catch(() => setTfHistorico([]));
+  }, [tab, ano]);
 
   // Carrega regional do localStorage
   useEffect(() => {
@@ -403,6 +440,12 @@ export default function AcidentesPage() {
         sinan: row.sinan || '',
         status: row.status,
         descricao: row.descricao || '',
+        setor: row.setor || '',
+        funcaoTrabalhador: row.funcaoTrabalhador || '',
+        tipoVinculo: row.tipoVinculo || '',
+        causaImediata: row.causaImediata || '',
+        causaRaiz: row.causaRaiz || '',
+        fatoresContrib: row.fatoresContrib || '',
       });
     } else {
       setEditing(null);
@@ -420,6 +463,12 @@ export default function AcidentesPage() {
         sinan: '',
         status: 'aberto',
         descricao: '',
+        setor: '',
+        funcaoTrabalhador: '',
+        tipoVinculo: '',
+        causaImediata: '',
+        causaRaiz: '',
+        fatoresContrib: '',
       });
     }
     setModalOpen(true);
@@ -917,11 +966,98 @@ export default function AcidentesPage() {
               </div>
             </div>
 
-            <p className="pt-2 text-[11px] text-muted border-t border-border">
-              A Taxa de Frequência deverá ser armazenada em base corporativa, permitindo consulta
-              histórica mensal e comparação entre períodos, conforme evolução das integrações com os
-              sistemas oficiais da EMSERH.
-            </p>
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
+              <p className="text-[11px] text-muted">
+                A Taxa de Frequência é armazenada para fins de histórico mensal e comparação entre
+                períodos, conforme metodologia de Saúde e Segurança do Trabalho.
+              </p>
+              <button
+                type="button"
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                onClick={async () => {
+                  const acidentes = parseInt(tfAcidentes || '0', 10);
+                  const horas = parseFloat((tfHoras || '0').replace(',', '.'));
+                  if (Number.isNaN(acidentes) || acidentes < 0) {
+                    alert('Informe um número de acidentes válido.');
+                    return;
+                  }
+                  if (!horas || Number.isNaN(horas) || horas <= 0) {
+                    alert('O total de horas-homem trabalhadas deve ser maior que zero.');
+                    return;
+                  }
+                  try {
+                    await fetchJSON('/api/acidentes/taxa-frequencia', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        ano: parseInt(tfAno || String(new Date().getFullYear()), 10),
+                        mes: parseInt(tfMes || '1', 10),
+                        numeroAcidentes: acidentes,
+                        horasHomemTrabalhadas: horas,
+                      }),
+                    });
+                    const params = new URLSearchParams();
+                    params.set('ano', tfAno || String(new Date().getFullYear()));
+                    const d = await fetchJSON<{ registros: any[] }>(
+                      '/api/acidentes/taxa-frequencia?' + params.toString(),
+                    );
+                    setTfHistorico(
+                      (d.registros || []).map((r) => ({
+                        id: r.id,
+                        ano: r.ano,
+                        mes: r.mes,
+                        numeroAcidentes: r.numeroAcidentes,
+                        horasHomemTrabalhadas: r.horasHomemTrabalhadas,
+                        taxaFrequencia: r.taxaFrequencia,
+                      })),
+                    );
+                  } catch (e: any) {
+                    alert(e?.message || 'Erro ao salvar Taxa de Frequência');
+                  }
+                }}
+              >
+                Salvar TF do período
+              </button>
+            </div>
+
+            {tfHistorico.length > 0 && (
+              <div className="mt-3 rounded-lg border border-border bg-bg/60 p-3 text-[11px]">
+                <div className="mb-2 text-xs font-semibold text-text">
+                  Histórico de Taxa de Frequência ({tfAno})
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-[11px]">
+                    <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
+                      <tr>
+                        <th className="px-2 py-1 text-left">Mês</th>
+                        <th className="px-2 py-1 text-right">Nº Acidentes</th>
+                        <th className="px-2 py-1 text-right">Horas-Homem</th>
+                        <th className="px-2 py-1 text-right">TF</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tfHistorico.map((r) => (
+                        <tr key={r.id} className="border-t border-border/50">
+                          <td className="px-2 py-1">
+                            {String(r.mes).padStart(2, '0')}/{r.ano}
+                          </td>
+                          <td className="px-2 py-1 text-right">{r.numeroAcidentes}</td>
+                          <td className="px-2 py-1 text-right">
+                            {r.horasHomemTrabalhadas.toLocaleString('pt-BR', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            {r.taxaFrequencia.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Bloco 2: Investigação */}
@@ -1278,7 +1414,22 @@ export default function AcidentesPage() {
                                 </div>
 
                                 <div className="pt-2 border-t border-border">
-                                  <div className="font-semibold mb-1">Plano de Ação Automático</div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="font-semibold">Plano de Ação Automático</div>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[10px] font-semibold hover:bg-card"
+                                      onClick={() => {
+                                        // A geração é automática com base no tipo; este botão existe para tornar
+                                        // a regra explícita para o usuário.
+                                        alert(
+                                          'O plano de ação foi gerado automaticamente com base na classificação do acidente e pode ser ajustado pelo SESMT.',
+                                        );
+                                      }}
+                                    >
+                                      Gerar Plano de Ação
+                                    </button>
+                                  </div>
                                   <p className="mb-2 text-muted">
                                     Ações sugeridas automaticamente com base na classificação do acidente. O SESMT pode
                                     revisar, complementar e registrar as evidências de conclusão de cada etapa.
@@ -1564,6 +1715,35 @@ export default function AcidentesPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
+                  <span className="font-medium">Setor</span>
+                  <input
+                    type="text"
+                    className="rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={formData.setor}
+                    onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium">Função do trabalhador</span>
+                  <input
+                    type="text"
+                    className="rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={formData.funcaoTrabalhador}
+                    onChange={(e) =>
+                      setFormData({ ...formData, funcaoTrabalhador: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium">Tipo de vínculo</span>
+                  <input
+                    type="text"
+                    className="rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={formData.tipoVinculo}
+                    onChange={(e) => setFormData({ ...formData, tipoVinculo: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
                   <span className="font-medium">Hora</span>
                   <input
                     type="time"
@@ -1614,12 +1794,46 @@ export default function AcidentesPage() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1 md:col-span-2">
-                  <span className="font-medium">Descrição Detalhada</span>
+                  <span className="font-medium">Descrição Detalhada *</span>
+                  <p className="text-[11px] text-muted">
+                    Responda de forma objetiva: o que aconteceu? como aconteceu? onde aconteceu? por
+                    que aconteceu? havia EPI? havia treinamento? houve condição insegura ou ato
+                    inseguro?
+                  </p>
                   <textarea
                     className="min-h-[120px] rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                     value={formData.descricao}
                     onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                    placeholder="Descreva detalhadamente o acidente..."
+                    placeholder="Descreva detalhadamente o acidente, contemplando o que, como, onde, por que, uso de EPI, treinamento e condições/atos inseguros."
+                  />
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <span className="font-medium">Análise Técnica — Causa imediata</span>
+                  <textarea
+                    className="min-h-[80px] rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={formData.causaImediata}
+                    onChange={(e) => setFormData({ ...formData, causaImediata: e.target.value })}
+                    placeholder="Descreva os eventos e condições que levaram diretamente ao acidente (causa imediata)."
+                  />
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <span className="font-medium">Análise Técnica — Causa raiz</span>
+                  <textarea
+                    className="min-h-[80px] rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={formData.causaRaiz}
+                    onChange={(e) => setFormData({ ...formData, causaRaiz: e.target.value })}
+                    placeholder="Descreva as causas básicas ou sistêmicas que permitiram a ocorrência do acidente (causa raiz)."
+                  />
+                </div>
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <span className="font-medium">
+                    Fatores contribuintes (ambiente, processo, comportamento)
+                  </span>
+                  <textarea
+                    className="min-h-[80px] rounded border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+                    value={formData.fatoresContrib}
+                    onChange={(e) => setFormData({ ...formData, fatoresContrib: e.target.value })}
+                    placeholder="Registre fatores contribuintes relacionados a ambiente, processo de trabalho e comportamento."
                   />
                 </div>
               </div>

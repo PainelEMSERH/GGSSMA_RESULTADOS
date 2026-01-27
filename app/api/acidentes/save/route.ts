@@ -30,6 +30,12 @@ export async function POST(req: Request) {
       sinan,
       status,
       descricao,
+      setor,
+      funcaoTrabalhador,
+      tipoVinculo,
+      causaImediata,
+      causaRaiz,
+      fatoresContrib,
     } = body;
 
     // Validações
@@ -75,6 +81,12 @@ export async function POST(req: Request) {
       sinan: sinan?.trim() || null,
       status: status || 'aberto',
       descricao: descricao?.trim() || null,
+      setor: setor?.trim() || null,
+      funcaoTrabalhador: funcaoTrabalhador?.trim() || null,
+      tipoVinculo: tipoVinculo?.trim() || null,
+      causaImediata: causaImediata?.trim() || null,
+      causaRaiz: causaRaiz?.trim() || null,
+      fatoresContrib: fatoresContrib?.trim() || null,
       criadoPor: user?.id || userId,
     };
 

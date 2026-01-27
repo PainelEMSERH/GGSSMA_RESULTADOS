@@ -46,10 +46,12 @@ enum EntidadeArquivo {
 }
 
 enum TipoAcidente {
-  biologico
-  trajeto
-  tipico
-  de_trabalho
+  queda
+  acidente_transito
+  perfurocortante
+  exposicao_biologica
+  ergonomia
+  choque_eletrico
   outros
 }
 
@@ -303,6 +305,12 @@ model Acidente {
   sinan             String?
   status            StatusAcidente  @default(aberto)
   descricao         String?         @db.Text
+  setor             String?
+  funcaoTrabalhador String?
+  tipoVinculo       String?
+  causaImediata     String?         @db.Text
+  causaRaiz         String?         @db.Text
+  fatoresContrib    String?         @db.Text
   criadoEm          DateTime        @default(now())
   atualizadoEm      DateTime        @updatedAt
   criadoPor         String?
@@ -314,4 +322,17 @@ model Acidente {
   @@index([status])
   @@index([ano, mes])
   @@index([data])
+}
+
+model TaxaFrequenciaAcidente {
+  id                 String   @id @default(cuid())
+  ano                Int
+  mes                Int
+  numeroAcidentes    Int
+  horasHomemTrabalhadas Float
+  taxaFrequencia     Float
+  criadoEm           DateTime @default(now())
+
+  @@unique([ano, mes], name: "ano_mes")
+  @@index([ano, mes])
 }
