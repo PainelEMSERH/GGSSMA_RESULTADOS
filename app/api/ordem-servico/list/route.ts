@@ -33,18 +33,44 @@ export async function GET(req: NextRequest) {
     const dataInicio = '2026-01-01';
 
     // Monta query para buscar colaboradores que iniciaram em 01/01/2026
+    // Usa a mesma lógica da página de entregas - parse da data como TEXT
     let whereConditions: string[] = [];
-    whereConditions.push(`a.admissao::date = '${dataInicio}'::date`);
-    whereConditions.push(`(a.demissao IS NULL OR a.demissao::date > NOW()::date)`);
+    whereConditions.push(`(
+      CASE 
+        WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::date
+        WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')
+        ELSE NULL
+      END
+    ) = '${dataInicio}'::date`);
+    whereConditions.push(`(a.demissao IS NULL OR 
+      CASE 
+        WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
+        WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
+        ELSE NULL
+      END > NOW()::date OR a.demissao = '' OR TRIM(a.demissao) = '')`);
 
-    if (regional) {
-      whereConditions.push(`md5(COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
-                        WHERE COALESCE(ur.nmddepartamento, ur.nmd_departamento) = a.unidade_hospitalar 
-                        LIMIT 1),'')) = '${regional.replace(/'/g, "''")}'`);
+    // Verifica se stg_unid_reg existe
+    const hasUnidRegCheck: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'stg_unid_reg'
+      ) AS exists
+    `);
+    const useJoin = hasUnidRegCheck?.[0]?.exists;
+
+    if (regional && useJoin) {
+      whereConditions.push(`(UPPER(TRIM(COALESCE(ur.regional_responsavel, ''))) = UPPER(TRIM('${regional.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+        SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regional.replace(/'/g, "''")}'))
+      ))`);
     }
 
     if (unidade) {
-      whereConditions.push(`md5(COALESCE(a.unidade_hospitalar,'')) = '${unidade.replace(/'/g, "''")}'`);
+      if (useJoin) {
+        whereConditions.push(`(UPPER(TRIM(COALESCE(ur.nmdepartamento, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(ur.nmdepartamento, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
+      } else {
+        whereConditions.push(`(UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
+      }
     }
 
     if (search) {
@@ -58,18 +84,19 @@ export async function GET(req: NextRequest) {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    // Busca dados de entrega de OS
+    const joinClause = useJoin 
+      ? `LEFT JOIN stg_unid_reg ur ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(ur.nmddepartamento, ur.nmd_departamento, '')))`
+      : '';
+
     const query = `
       WITH colaboradores_base AS (
         SELECT 
           a.cpf as id,
           a.colaborador as nome,
           a.cpf,
-          a.matricula,
-          COALESCE(a.unidade_hospitalar,'') as unidade,
-          COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
-                   WHERE COALESCE(ur.nmddepartamento, ur.nmd_departamento) = a.unidade_hospitalar 
-                   LIMIT 1),'') as regional,
+          COALESCE(a.matricula, '') as matricula,
+          COALESCE(NULLIF(TRIM(ur.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') as unidade,
+          COALESCE(NULLIF(TRIM(ur.regional_responsavel), ''), '') as regional,
           COALESCE(a.funcao,'') as funcao,
           CASE 
             WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
@@ -77,6 +104,7 @@ export async function GET(req: NextRequest) {
             ELSE NULL
           END as "dataAdmissao"
         FROM stg_alterdata_v2 a
+        ${joinClause}
         ${whereClause}
       )
       SELECT 
@@ -96,8 +124,9 @@ export async function GET(req: NextRequest) {
     `;
 
     const countQuery = `
-      SELECT COUNT(*) as total
+      SELECT COUNT(DISTINCT a.cpf) as total
       FROM stg_alterdata_v2 a
+      ${joinClause}
       ${whereClause}
     `;
 
