@@ -904,91 +904,116 @@ export default function AcidentesPage() {
                 />
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-border bg-bg/60">
-                <table className="min-w-full text-[11px]">
-                  <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
-                    <tr>
-                      <th className="px-2 py-2 text-left">Mês</th>
-                      <th className="px-2 py-2 text-right">Nº Acidentes *</th>
-                      <th className="px-2 py-2 text-right">Horas-Homem *</th>
-                      <th className="px-2 py-2 text-right">TF</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                      (m, idx) => {
-                        const nomes = [
-                          'Jan',
-                          'Fev',
-                          'Mar',
-                          'Abr',
-                          'Mai',
-                          'Jun',
-                          'Jul',
-                          'Ago',
-                          'Set',
-                          'Out',
-                          'Nov',
-                          'Dez',
-                        ];
-                        const linha = tfMeses[m];
-                        return (
-                          <tr key={m} className="border-t border-border/40">
-                            <td className="px-2 py-1">{nomes[idx]}</td>
-                            <td className="px-2 py-1 text-right">
-                              <input
-                                type="number"
-                                min={0}
-                                className="w-20 rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
-                                value={linha?.accidentes ?? ''}
-                                onChange={(e) => {
-                                  const accidentes = e.target.value;
-                                  const horas = linha?.horas ?? '';
-                                  let tf = '--';
-                                  const aNum = parseInt(accidentes || '0', 10);
-                                  const hNum = parseFloat((horas || '0').replace(',', '.'));
-                                  if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
-                                    tf = ((aNum * 1_000_000) / hNum).toFixed(2);
-                                  }
-                                  setTfMeses((prev) => ({
-                                    ...prev,
-                                    [m]: { accidentes, horas, tf },
-                                  }));
-                                }}
-                              />
-                            </td>
-                            <td className="px-2 py-1 text-right">
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                className="w-28 rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
-                                value={linha?.horas ?? ''}
-                                onChange={(e) => {
-                                  const horas = e.target.value;
-                                  const accidentes = linha?.accidentes ?? '';
-                                  let tf = '--';
-                                  const aNum = parseInt(accidentes || '0', 10);
-                                  const hNum = parseFloat((horas || '0').replace(',', '.'));
-                                  if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
-                                    tf = ((aNum * 1_000_000) / hNum).toFixed(2);
-                                  }
-                                  setTfMeses((prev) => ({
-                                    ...prev,
-                                    [m]: { accidentes, horas, tf },
-                                  }));
-                                }}
-                              />
-                            </td>
-                            <td className="px-2 py-1 text-right font-semibold">
+              <div className="space-y-2 rounded-lg border border-border bg-bg/60 p-2 overflow-x-auto">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] uppercase tracking-wide text-muted">Mês</span>
+                  <div className="grid grid-cols-12 gap-1 flex-1 ml-4">
+                    {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((nome) => (
+                      <div
+                        key={nome}
+                        className="text-center text-[10px] font-semibold text-muted"
+                      >
+                        {nome}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-40 text-[11px] font-medium text-muted">
+                      Nº de Acidentes *
+                    </span>
+                    <div className="grid grid-cols-12 gap-1 flex-1">
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                        (m) => {
+                          const linha = tfMeses[m];
+                          return (
+                            <input
+                              key={m}
+                              type="number"
+                              min={0}
+                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
+                              value={linha?.accidentes ?? ''}
+                              onChange={(e) => {
+                                const accidentes = e.target.value;
+                                const horas = linha?.horas ?? '';
+                                let tf = '--';
+                                const aNum = parseInt(accidentes || '0', 10);
+                                const hNum = parseFloat((horas || '0').replace(',', '.'));
+                                if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
+                                  tf = ((aNum * 1_000_000) / hNum).toFixed(2);
+                                }
+                                setTfMeses((prev) => ({
+                                  ...prev,
+                                  [m]: { accidentes, horas, tf },
+                                }));
+                              }}
+                            />
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="w-40 text-[11px] font-medium text-muted">
+                      Horas-Homem (h) *
+                    </span>
+                    <div className="grid grid-cols-12 gap-1 flex-1">
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                        (m) => {
+                          const linha = tfMeses[m];
+                          return (
+                            <input
+                              key={m}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
+                              value={linha?.horas ?? ''}
+                              onChange={(e) => {
+                                const horas = e.target.value;
+                                const accidentes = linha?.accidentes ?? '';
+                                let tf = '--';
+                                const aNum = parseInt(accidentes || '0', 10);
+                                const hNum = parseFloat((horas || '0').replace(',', '.'));
+                                if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
+                                  tf = ((aNum * 1_000_000) / hNum).toFixed(2);
+                                }
+                                setTfMeses((prev) => ({
+                                  ...prev,
+                                  [m]: { accidentes, horas, tf },
+                                }));
+                              }}
+                            />
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="w-40 text-[11px] font-medium text-muted">
+                      TF (por milhão de horas)
+                    </span>
+                    <div className="grid grid-cols-12 gap-1 flex-1">
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                        (m) => {
+                          const linha = tfMeses[m];
+                          return (
+                            <div
+                              key={m}
+                              className="w-full rounded border border-border bg-panel/70 px-1 py-1 text-[11px] text-center"
+                            >
                               {linha?.tf ?? '--'}
-                            </td>
-                          </tr>
-                        );
-                      },
-                    )}
-                  </tbody>
-                </table>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
