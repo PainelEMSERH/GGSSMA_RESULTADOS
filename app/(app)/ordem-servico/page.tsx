@@ -411,113 +411,88 @@ export default function OrdemServicoPage() {
         </div>
       </div>
 
-      {/* Card Meta vs Real */}
-      {metaReal && (
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
-            <select
-              value={anoMetaReal}
-              onChange={(e) => setAnoMetaReal(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
-            >
-              {[2024, 2025, 2026, 2027].map((a) => (
-                <option key={a} value={String(a)}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* Card Meta vs Real (layout idêntico ao de Entregas de EPI) */}
+      {metaReal && (() => {
+        const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+        const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-          <div className="space-y-2 text-[11px]">
-            <div className="flex items-center gap-2">
-              <div className="w-24 font-semibold text-muted">Meta mensal</div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                  (mes, idx) => {
-                    const quantidadeMeta = metaReal.meta[mes] || 0;
-                    const mesesNomes = [
-                      'Jan',
-                      'Fev',
-                      'Mar',
-                      'Abr',
-                      'Mai',
-                      'Jun',
-                      'Jul',
-                      'Ago',
-                      'Set',
-                      'Out',
-                      'Nov',
-                      'Dez',
-                    ];
-                    return (
-                      <div
-                        key={mes}
-                        className="text-center text-[11px] font-medium text-text bg-muted/30 py-1 rounded"
-                        title={`${mesesNomes[idx]}: ${quantidadeMeta} colaborador(es) devem ter recebido a OS`}
-                      >
-                        {quantidadeMeta}
-                      </div>
-                    );
-                  },
-                )}
-              </div>
+        const metaTotal = Number(metaReal.totalMeta || 0);
+        const totalReal = Number(metaReal.totalReal || 0);
+        const metasIncrementais = meses.map((_, idx) => ((idx + 1) / 12) * 100);
+        const percentualRealAtual = metaTotal > 0 ? (totalReal / metaTotal) * 100 : 0;
+
+        return (
+          <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
+              <select
+                value={anoMetaReal}
+                onChange={(e) => setAnoMetaReal(e.target.value)}
+                className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
+              >
+                {[2024, 2025, 2026, 2027].map((a) => (
+                  <option key={a} value={String(a)}>
+                    {a}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="w-24 font-semibold text-muted">Real acumulado</div>
-              <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                  (mes, idx) => {
-                    const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
-                    const quantidadeMeta = metaReal.meta[mes] || 0;
-                    const mesesNomes = [
-                      'Jan',
-                      'Fev',
-                      'Mar',
-                      'Abr',
-                      'Mai',
-                      'Jun',
-                      'Jul',
-                      'Ago',
-                      'Set',
-                      'Out',
-                      'Nov',
-                      'Dez',
-                    ];
-                    const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta && quantidadeMeta > 0;
+            <div className="space-y-2 text-[11px]">
+              {/* Linha META */}
+              <div className="flex items-center gap-2">
+                <div className="w-20 font-bold text-sm text-text">META</div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {metasIncrementais.map((metaPct, idx) => (
+                    <div
+                      key={meses[idx]}
+                      className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
+                    >
+                      {metaPct.toFixed(2)}%
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Linha REAL */}
+              <div className="flex items-center gap-2">
+                <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                  REAL
+                </div>
+                <div className="flex-1 grid grid-cols-12 gap-1">
+                  {meses.map((mes, idx) => {
+                    const metaIncremental = metasIncrementais[idx];
+                    const estaAcima = percentualRealAtual >= metaIncremental;
                     return (
                       <div
                         key={mes}
-                        className={`text-center text-[11px] font-semibold py-1 rounded ${
-                          quantidadeMeta === 0
-                            ? 'bg-muted/30 text-text'
-                            : atingiuMeta
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-red-500 text-white'
+                        className={`text-center text-xs font-bold py-1.5 rounded ${
+                          estaAcima ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
                         }`}
-                        title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} OS entregue(s) acumulado de ${quantidadeMeta} planejado(s) acumulado`}
+                        title={`${mesesNomes[idx]}: ${percentualRealAtual.toFixed(
+                          2,
+                        )}% (Meta: ${metaIncremental.toFixed(2)}%)`}
                       >
-                        {quantidadeRealAcumulado}
+                        {percentualRealAtual.toFixed(2)}%
                       </div>
                     );
-                  },
-                )}
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
-              <div>
-                Total: <span className="font-semibold text-text">{metaReal.totalReal}</span> de{' '}
-                <span className="font-semibold text-text">{metaReal.totalMeta}</span> OS entregues
-              </div>
-              <div>
-                {metaReal.totalColaboradores} colaborador(es) que iniciaram em 01/01/2026
+              <div className="flex items-center justify-between pt-2 border-t border-border text-[11px] text-muted">
+                <div>
+                  Total: <span className="font-semibold text-text">{totalReal}</span> de{' '}
+                  <span className="font-semibold text-text">{metaTotal}</span> OS entregues
+                </div>
+                <div>
+                  {metaReal.totalColaboradores} colaborador(es) ativo(s) em {anoMetaReal}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Tabela */}
       <div className="rounded-xl border border-border bg-panel shadow-sm overflow-hidden">
