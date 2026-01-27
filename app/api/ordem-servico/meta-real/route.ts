@@ -41,14 +41,37 @@ export async function GET(req: NextRequest) {
     const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
 
     const anoAtual = parseInt(ano, 10);
-    const DEMISSAO_LIMITE = '2026-01-01';
+    const DEMISSAO_ANO_MINIMO = 2026;
 
     // Monta condições WHERE
     // Colaboradores ativos em 2026: admitidos em qualquer data, mas não demitidos antes de 2026
     let whereConditions: string[] = [];
     
-    // Filtro de demissão: Mantém apenas vazios ou que contenham '2026' (demitidos em 2026 ou ativos)
-    whereConditions.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text LIKE '%2026%')`);
+    // Filtro de demissão:
+    // - inclui: vazio (NULL / '' / espaços)
+    // - inclui: demissão em 2026 OU depois
+    // Observação: `a.demissao` pode vir como "número do Excel" (ex: 46831).
+    whereConditions.push(`(
+      a.demissao IS NULL
+      OR a.demissao = ''
+      OR TRIM(a.demissao) = ''
+      OR (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ) IS NOT NULL
+      AND EXTRACT(YEAR FROM (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ))::int >= ${DEMISSAO_ANO_MINIMO}
+    )`);
 
     if (regional) {
       whereConditions.push(`COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
@@ -92,7 +115,27 @@ export async function GET(req: NextRequest) {
       INNER JOIN stg_alterdata_v2 a ON a.cpf = os.colaborador_cpf
       WHERE os.entregue = true
         AND EXTRACT(YEAR FROM os.data_entrega) = ${anoAtual}
-        AND (a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text LIKE '%2026%')
+        AND (
+          a.demissao IS NULL
+          OR a.demissao = ''
+          OR TRIM(a.demissao) = ''
+          OR (
+            CASE
+              WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+              WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+              WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+              ELSE NULL
+            END
+          ) IS NOT NULL
+          AND EXTRACT(YEAR FROM (
+            CASE
+              WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+              WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+              WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+              ELSE NULL
+            END
+          ))::int >= ${DEMISSAO_ANO_MINIMO}
+        )
         ${regional ? `AND COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
                         WHERE ur.nmdepartamento = a.unidade_hospitalar 
                         LIMIT 1),'') = '${regional.replace(/'/g, "''")}'` : ''}

@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     const sortDir = url.searchParams.get('sortDir') || 'asc';
 
     const offset = (page - 1) * pageSize;
-    const DEMISSAO_LIMITE = '2026-01-01';
+    const DEMISSAO_ANO_MINIMO = 2026;
 
     // Verifica se stg_alterdata_v2 existe
     const hasTable: any[] = await prisma.$queryRawUnsafe(`
@@ -63,8 +63,32 @@ export async function GET(req: NextRequest) {
     // Monta condições WHERE - EXATAMENTE como entregas
     const wh: string[] = [];
 
-    // Filtro de demissão: Mantém apenas vazios ou que contenham '2026' (demitidos em 2026 ou ativos)
-    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text LIKE '%2026%')`);
+    // Filtro de demissão:
+    // - inclui: vazio (NULL / '' / espaços)
+    // - inclui: demissão em 2026 OU depois
+    // Observação: `a.demissao` vem como texto e pode estar no formato "número do Excel" (ex: 46831).
+    //            Excel serial date => DATE '1899-12-30' + N dias.
+    wh.push(`(
+      a.demissao IS NULL
+      OR a.demissao = ''
+      OR TRIM(a.demissao) = ''
+      OR (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ) IS NOT NULL
+      AND EXTRACT(YEAR FROM (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ))::int >= ${DEMISSAO_ANO_MINIMO}
+    )`);
 
     // Filtro de regional
     if (regional && useJoin) {
