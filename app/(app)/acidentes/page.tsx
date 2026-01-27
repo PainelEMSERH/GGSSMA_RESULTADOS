@@ -299,9 +299,6 @@ export default function AcidentesPage() {
   // Visão Geral
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
-  const [metaRealLoading, setMetaRealLoading] = useState(false);
-  const [mesSelecionado, setMesSelecionado] = useState<string | null>(null);
 
   // Taxa de Frequência (TF) - edição anual (12 meses)
   const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear()));
@@ -419,19 +416,6 @@ export default function AcidentesPage() {
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
   }, [tab, regional, ano]);
-
-  // Carrega meta e real
-  useEffect(() => {
-    setMetaRealLoading(true);
-    const params = new URLSearchParams();
-    if (regional) params.set('regional', regional);
-    params.set('ano', ano);
-
-    fetchJSON<MetaRealData>(`/api/acidentes/meta-real?${params.toString()}`)
-      .then((d) => setMetaReal(d))
-      .catch(() => setMetaReal(null))
-      .finally(() => setMetaRealLoading(false));
-  }, [regional, ano]);
 
   const unidadesDaRegional = useMemo(() => {
     if (!regional) return opts.unidades;
@@ -1042,124 +1026,6 @@ export default function AcidentesPage() {
               considerado.
             </p>
           </section>
-        </div>
-      )}
-
-      {/* Meta e Real - card principal (sempre na primeira tela) */}
-      {metaReal && (
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">
-                Meta vs Real - {regional || 'Consolidado EMSERH'}
-              </h2>
-              {regional ? (
-                <p className="text-[11px] text-muted">
-                  Meta: 0 acidentes | Real: quantidade de acidentes por mês na regional selecionada.
-                </p>
-              ) : (
-                <p className="text-[11px] text-muted">
-                  Meta: 0 acidentes | Real: quantidade de acidentes por mês consolidada para todas as
-                  regionais da EMSERH.
-                </p>
-              )}
-            </div>
-            {metaRealLoading && (
-              <span className="text-[11px] text-muted">Carregando...</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-20 font-bold text-sm text-text">META</div>
-            <div className="flex-1 grid grid-cols-12 gap-1">
-              {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                (mes, idx) => (
-                  <div
-                    key={mes}
-                    className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                  >
-                    0
-                  </div>
-                ),
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">
-              REAL
-            </div>
-            <div className="flex-1 grid grid-cols-12 gap-1">
-              {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                (mes, idx) => {
-                  const quantidade = metaReal.real[mes] || 0;
-                  const mesesNomes = [
-                    'Jan',
-                    'Fev',
-                    'Mar',
-                    'Abr',
-                    'Mai',
-                    'Jun',
-                    'Jul',
-                    'Ago',
-                    'Set',
-                    'Out',
-                    'Nov',
-                    'Dez',
-                  ];
-                  return (
-                    <div
-                      key={mes}
-                      className={`text-center text-xs font-bold py-1.5 rounded ${
-                        quantidade === 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-                      }`}
-                      title={`${mesesNomes[idx]}: ${quantidade} acidente(s)`}
-                    >
-                      {quantidade}
-                    </div>
-                  );
-                },
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <div className="w-20"></div>
-            <div className="flex-1 grid grid-cols-12 gap-1">
-              {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                (mes, idx) => {
-                  const mesesNomes = [
-                    'Jan',
-                    'Fev',
-                    'Mar',
-                    'Abr',
-                    'Mai',
-                    'Jun',
-                    'Jul',
-                    'Ago',
-                    'Set',
-                    'Out',
-                    'Nov',
-                    'Dez',
-                  ];
-                  return (
-                    <button
-                      key={mes}
-                      onClick={() => setMesSelecionado(mesSelecionado === mes ? null : mes)}
-                      className={`px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
-                        mesSelecionado === mes
-                          ? 'bg-emerald-600 text-white dark:bg-emerald-500'
-                          : 'bg-panel border border-border text-text hover:bg-muted'
-                      }`}
-                      title={mesesNomes[idx]}
-                    >
-                      {mesesNomes[idx]}
-                    </button>
-                  );
-                },
-              )}
-            </div>
-          </div>
         </div>
       )}
 
