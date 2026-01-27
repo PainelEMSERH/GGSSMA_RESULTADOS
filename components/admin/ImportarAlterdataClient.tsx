@@ -20,7 +20,7 @@ type Stats = {
 
 export default function ImportarAlterdataClient() {
   const [file, setFile] = useState<File | null>(null);
-  const [clearBeforeImport, setClearBeforeImport] = useState(false);
+  const [clearBeforeImport, setClearBeforeImport] = useState(true);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -70,10 +70,10 @@ export default function ImportarAlterdataClient() {
           message: 'Erro ao importar: ' + (j?.error || 'verifique o arquivo e tente novamente.'),
         });
       } else {
-        setStatus({
-          type: 'success',
-          message: `✅ Importação concluída! ${j.total_rows || 0} registro(s) processado(s).${j.batchId ? ` Lote: ${j.batchId}` : ''}`,
-        });
+        const msg = j.message
+          ? `✅ ${j.message} (${j.total_rows ?? 0} registro(s).)`
+          : `✅ Importação concluída! ${j.total_rows || 0} registro(s) processado(s).${j.batchId ? ` Lote: ${j.batchId}` : ''}`;
+        setStatus({ type: 'success', message: msg });
         // Limpa o formulário
         setFile(null);
         const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;

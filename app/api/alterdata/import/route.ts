@@ -95,19 +95,19 @@ async function ensureSetup(){
        )
        SELECT
          CASE 
-           WHEN regexp_replace(COALESCE(data->>'CPF', ''), '[^0-9]', '', 'g') != '' 
-           THEN regexp_replace(data->>'CPF', '[^0-9]', '', 'g')
+           WHEN regexp_replace(COALESCE(data->>'CPF', data->>'Cpf', data->>'cpf', ''), '[^0-9]', '', 'g') != '' 
+           THEN regexp_replace(COALESCE(data->>'CPF', data->>'Cpf', data->>'cpf'), '[^0-9]', '', 'g')
            ELSE 'SEM_CPF_' || lpad(row_no::text, 10, '0')
          END as cpf,
          COALESCE(
-           NULLIF(data->>'Matrícula', ''),
-           md5(COALESCE(data->>'Colaborador', '') || '|' || row_no::text)
+           NULLIF(TRIM(COALESCE(data->>'Matrícula', data->>'Matricula', data->>'matricula', '')), ''),
+           md5(COALESCE(data->>'Colaborador', data->>'Nome', data->>'colaborador', '') || '|' || row_no::text)
          ) as matricula,
-         COALESCE(data->>'Colaborador', 'SEM_NOME_' || row_no::text) as colaborador,
-         COALESCE(data->>'Unidade Hospitalar', '') as unidade_hospitalar,
-         COALESCE(data->>'Função', '') as funcao,
-         data->>'Admissão' as admissao,
-         data->>'Demissão' as demissao,
+         COALESCE(NULLIF(TRIM(COALESCE(data->>'Colaborador', data->>'Nome', data->>'colaborador', '')), ''), 'SEM_NOME_' || row_no::text) as colaborador,
+         COALESCE(NULLIF(TRIM(COALESCE(data->>'Unidade Hospitalar', data->>'Unidade', data->>'unidade_hospitalar', '')), ''), '') as unidade_hospitalar,
+         COALESCE(NULLIF(TRIM(COALESCE(data->>'Função', data->>'Funcao', data->>'Cargo', data->>'funcao', '')), ''), '') as funcao,
+         NULLIF(TRIM(COALESCE(data->>'Admissão', data->>'Admissao', data->>'admissao', '')), '') as admissao,
+         NULLIF(TRIM(COALESCE(data->>'Demissão', data->>'Demissao', data->>'demissao', '')), '') as demissao,
          batch_id,
          now()
        FROM stg_alterdata_v2_raw
@@ -196,8 +196,10 @@ export async function POST(req: Request) {
     // Limpa as tabelas antes de importar se solicitado
     if (clearBeforeImport) {
       console.log('[alterdata/import] Limpando tabelas antes de importar...');
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE stg_alterdata_v2 CASCADE`);
+      // Ordem: imports, raw, v2 — evita "último lote" apontar para dados apagados
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE stg_alterdata_v2_imports CASCADE`);
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE stg_alterdata_v2_raw CASCADE`);
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE stg_alterdata_v2 CASCADE`);
       console.log('[alterdata/import] Tabelas limpas com sucesso');
     }
 
@@ -274,7 +276,12 @@ try {
   console.error('[alterdata/import] failed to write AuditLog', e);
 }
 
-return NextResponse.json({ ok:true, batchId, total_rows: inserted });
+return NextResponse.json({
+  ok: true,
+  batchId,
+  total_rows: inserted,
+  ...(clearBeforeImport && { cleared: true, message: 'Base limpa e dados da planilha importados com sucesso.' }),
+});
 
   }catch(e:any){
     console.error('[alterdata/import] error', e);
