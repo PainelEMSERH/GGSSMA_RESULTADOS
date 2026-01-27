@@ -95,19 +95,65 @@ async function ensureSetup(){
        )
        SELECT
          CASE 
-           WHEN regexp_replace(COALESCE(data->>'CPF', data->>'Cpf', data->>'cpf', ''), '[^0-9]', '', 'g') != '' 
-           THEN regexp_replace(COALESCE(data->>'CPF', data->>'Cpf', data->>'cpf'), '[^0-9]', '', 'g')
+           WHEN regexp_replace(COALESCE(
+             data->>'CPF', data->>'Cpf', data->>'cpf',
+             data->>'Nrcpf', data->>'nrcpf',
+             data->>'Nr CPF', data->>'nr cpf',
+             ''
+           ), '[^0-9]', '', 'g') != '' 
+           THEN regexp_replace(COALESCE(
+             data->>'CPF', data->>'Cpf', data->>'cpf',
+             data->>'Nrcpf', data->>'nrcpf',
+             data->>'Nr CPF', data->>'nr cpf'
+           ), '[^0-9]', '', 'g')
            ELSE 'SEM_CPF_' || lpad(row_no::text, 10, '0')
          END as cpf,
          COALESCE(
-           NULLIF(TRIM(COALESCE(data->>'Matrícula', data->>'Matricula', data->>'matricula', '')), ''),
-           md5(COALESCE(data->>'Colaborador', data->>'Nome', data->>'colaborador', '') || '|' || row_no::text)
+           NULLIF(TRIM(COALESCE(
+             data->>'Matrícula', data->>'Matricula', data->>'matricula',
+             data->>'CdChamada', data->>'Cdchamada', data->>'cdchamada',
+             data->>'Cd Chamada', data->>'cd chamada',
+             data->>'Chamada', data->>'chamada',
+             ''
+           )), ''),
+           md5(COALESCE(
+             data->>'Colaborador', data->>'Nome', data->>'colaborador',
+             data->>'NmFuncionario', data->>'Nmfuncionario', data->>'nmfuncionario',
+             data->>'Nm Funcionario', data->>'nm funcionario',
+             ''
+           ) || '|' || row_no::text)
          ) as matricula,
-         COALESCE(NULLIF(TRIM(COALESCE(data->>'Colaborador', data->>'Nome', data->>'colaborador', '')), ''), 'SEM_NOME_' || row_no::text) as colaborador,
-         COALESCE(NULLIF(TRIM(COALESCE(data->>'Unidade Hospitalar', data->>'Unidade', data->>'unidade_hospitalar', '')), ''), '') as unidade_hospitalar,
-         COALESCE(NULLIF(TRIM(COALESCE(data->>'Função', data->>'Funcao', data->>'Cargo', data->>'funcao', '')), ''), '') as funcao,
-         NULLIF(TRIM(COALESCE(data->>'Admissão', data->>'Admissao', data->>'admissao', '')), '') as admissao,
-         NULLIF(TRIM(COALESCE(data->>'Demissão', data->>'Demissao', data->>'demissao', '')), '') as demissao,
+         COALESCE(NULLIF(TRIM(COALESCE(
+           data->>'Colaborador', data->>'Nome', data->>'colaborador',
+           data->>'NmFuncionario', data->>'Nmfuncionario', data->>'nmfuncionario',
+           data->>'Nm Funcionario', data->>'nm funcionario',
+           ''
+         )), ''), 'SEM_NOME_' || row_no::text) as colaborador,
+         COALESCE(NULLIF(TRIM(COALESCE(
+           data->>'Unidade Hospitalar', data->>'Unidade', data->>'unidade_hospitalar',
+           data->>'nmdepartamento', data->>'Nmdepartamento', data->>'NmDepartamento',
+           data->>'Nm Departamento', data->>'nm departamento',
+           data->>'Departamento', data->>'departamento',
+           ''
+         )), ''), '') as unidade_hospitalar,
+         COALESCE(NULLIF(TRIM(COALESCE(
+           data->>'Função', data->>'Funcao', data->>'Cargo', data->>'funcao',
+           data->>'Nmfuncao', data->>'nmfuncao',
+           data->>'Nm Funcao', data->>'nm funcao',
+           ''
+         )), ''), '') as funcao,
+         NULLIF(TRIM(COALESCE(
+           data->>'Admissão', data->>'Admissao', data->>'admissao',
+           data->>'Dtadmissao', data->>'dtadmissao',
+           data->>'Dt Admissao', data->>'dt admissao',
+           ''
+         )), '') as admissao,
+         NULLIF(TRIM(COALESCE(
+           data->>'Demissão', data->>'Demissao', data->>'demissao',
+           data->>'Dtdemissao', data->>'dtdemissao',
+           data->>'Dt Demissao', data->>'dt demissao',
+           ''
+         )), '') as demissao,
          batch_id,
          now()
        FROM stg_alterdata_v2_raw
