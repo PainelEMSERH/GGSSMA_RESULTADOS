@@ -48,23 +48,14 @@ export async function GET(req: NextRequest) {
 
     const offset = (page - 1) * pageSize;
 
-    // Data de início: 01/01/2026
-    const dataInicio = '2026-01-01';
-
-    // Monta query para buscar colaboradores que iniciaram em 01/01/2026
-    // Usa a mesma lógica da página de entregas - parse da data como TEXT
-    // Aceita tanto '2026-01-01' quanto '01/01/2026'
-    let whereConditions: string[] = [];
-    whereConditions.push(`(
-      CASE 
-        WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::date
-        WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')
-        ELSE NULL
-      END
-    ) = '${dataInicio}'::date`);
-    
-    // Filtro de demissão: apenas demitidos antes de 2026-01-01 são removidos
+    // Filtro: colaboradores ativos em 2026
+    // - Admitidos em qualquer data (não importa o ano)
+    // - NÃO demitidos antes de 2026-01-01
+    // - Se foi demitido em 2026 ou depois, ainda conta (estava ativo no início de 2026)
     const DEMISSAO_LIMITE = '2026-01-01';
+    let whereConditions: string[] = [];
+    
+    // Filtro de demissão: remove apenas os demitidos ANTES de 2026-01-01
     whereConditions.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR 
       CASE 
         WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date

@@ -262,7 +262,7 @@ export default function OrdemServicoPage() {
             Ordem de Serviço
           </h1>
           <p className="text-sm text-muted mt-1">
-            Colaboradores que iniciaram em 01/01/2026 - Controle de entrega de Ordem de Serviço
+            Colaboradores ativos em 2026 - Controle de entrega de Ordem de Serviço
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ export default function OrdemServicoPage() {
                 <span className="font-semibold text-text">{metaReal.totalMeta}</span> OS entregues
               </div>
               <div className="ml-auto text-xs text-muted">
-                {metaReal.totalColaboradores} colaborador(es) que iniciaram em 01/01/2026
+                {metaReal.totalColaboradores} colaborador(es) ativo(s) em 2026
               </div>
             </div>
           </div>
@@ -474,7 +474,7 @@ export default function OrdemServicoPage() {
           <div className="text-center py-8">
             <div className="text-muted mb-2">Nenhum registro encontrado</div>
             <div className="text-xs text-muted mt-1">
-              {total === 0 ? 'Não há colaboradores que iniciaram em 01/01/2026' : 'Tente ajustar os filtros'}
+              {total === 0 ? 'Não há colaboradores ativos em 2026' : 'Tente ajustar os filtros'}
             </div>
           </div>
         ) : (

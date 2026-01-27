@@ -39,23 +39,19 @@ export async function GET(req: NextRequest) {
     const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
 
     const anoAtual = parseInt(ano, 10);
-    const dataInicio = '2026-01-01';
+    const DEMISSAO_LIMITE = '2026-01-01';
 
     // Monta condições WHERE
+    // Colaboradores ativos em 2026: admitidos em qualquer data, mas não demitidos antes de 2026
     let whereConditions: string[] = [];
-    whereConditions.push(`(
-      CASE 
-        WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::date
-        WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')
-        ELSE NULL
-      END
-    ) = '${dataInicio}'::date`);
-    whereConditions.push(`(a.demissao IS NULL OR 
+    
+    // Filtro de demissão: remove apenas os demitidos ANTES de 2026-01-01
+    whereConditions.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR 
       CASE 
         WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
         WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
         ELSE NULL
-      END > NOW()::date OR a.demissao = '' OR TRIM(a.demissao) = '')`);
+      END >= '${DEMISSAO_LIMITE}'::date)`);
 
     if (regional) {
       whereConditions.push(`COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
@@ -65,7 +61,9 @@ export async function GET(req: NextRequest) {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    // Total de colaboradores que iniciaram em 01/01/2026 (META)
+    // Total de colaboradores ativos em 2026 (META)
+    // Meta = todos os colaboradores que estavam ativos no início de 2026
+    // (admitidos em qualquer data, mas não demitidos antes de 2026)
     const totalMetaQuery = `
       SELECT COUNT(*) as total
       FROM stg_alterdata_v2 a
@@ -74,7 +72,7 @@ export async function GET(req: NextRequest) {
     const totalMetaResult: any[] = await prisma.$queryRawUnsafe(totalMetaQuery);
     const totalMeta = parseInt(totalMetaResult[0]?.total || '0', 10);
 
-    // Meta acumulada por mês (todos os meses têm a mesma meta, pois todos iniciaram em 01/01/2026)
+    // Meta acumulada por mês (todos os meses têm a mesma meta, pois são todos os ativos em 2026)
     const metaAcumulada: Record<string, number> = {
       '01': totalMeta, '02': totalMeta, '03': totalMeta, '04': totalMeta,
       '05': totalMeta, '06': totalMeta, '07': totalMeta, '08': totalMeta,
