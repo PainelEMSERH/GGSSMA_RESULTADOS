@@ -208,7 +208,7 @@ export default function AlterdataFullClient() {
 
       {!loading && !err && (
         <div className="rounded-2xl overflow-auto border border-neutral-300">
-          <table className="w-full text-sm">
+          <table className="w-full text-[11px]">
             <thead className="bg-neutral-900 text-white">
               <tr>
                 {columns.map((c,i) => (

@@ -63,7 +63,7 @@ export default function AdminLogsClient() {
           <p className="text-xs text-muted">Nenhuma ação registrada ainda.</p>
         )}
         {!loading && !error && logs.length > 0 && (
-          <table className="min-w-full text-xs">
+          <table className="min-w-full text-[11px]">
             <thead>
               <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted">
                 <th className="px-2 py-1 text-left">Data / Hora</th>

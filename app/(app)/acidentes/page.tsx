@@ -1235,7 +1235,7 @@ export default function AcidentesPage() {
                                     revisar, complementar e registrar as evidências de conclusão de cada etapa.
                                   </p>
                                   <div className="overflow-x-auto">
-                                    <table className="min-w-full text-[10px]">
+                                    <table className="min-w-full text-[11px]">
                                       <thead>
                                         <tr className="text-left text-muted uppercase">
                                           <th className="py-1 pr-2">Ação recomendada</th>

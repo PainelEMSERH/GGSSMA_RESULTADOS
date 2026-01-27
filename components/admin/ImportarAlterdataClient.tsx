@@ -214,65 +214,65 @@ export default function ImportarAlterdataClient() {
         )}
 
         {stats && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-5 min-w-0">
             {stats.raw_total !== undefined && (
-              <div className="rounded-lg border border-border bg-card p-3">
-                <div className="text-xs text-muted mb-1">Total Importado (Raw)</div>
-                <div className="text-xl font-bold text-text">
+              <div className="rounded-lg border border-border bg-card p-2 min-w-0">
+                <div className="text-[10px] text-muted mb-0.5 truncate" title="Total Importado (Raw)">Total Importado (Raw)</div>
+                <div className="text-base font-bold text-text leading-tight">
                   {stats.raw_total.toLocaleString('pt-BR')}
                 </div>
-                <div className="text-[10px] text-muted mt-1">
+                <div className="text-[9px] text-muted mt-0.5 line-clamp-2">
                   Registros importados do arquivo
                 </div>
               </div>
             )}
-            <div className="rounded-lg border border-border bg-card p-3">
-              <div className="text-xs text-muted mb-1">Total Processado</div>
-              <div className="text-xl font-bold text-text">
+            <div className="rounded-lg border border-border bg-card p-2 min-w-0">
+              <div className="text-[10px] text-muted mb-0.5">Total Processado</div>
+              <div className="text-base font-bold text-text leading-tight">
                 {stats.total_alterdata.toLocaleString('pt-BR')}
               </div>
-              <div className="text-[10px] text-muted mt-1">
+              <div className="text-[9px] text-muted mt-0.5 line-clamp-2">
                 Colaboradores na base oficial
               </div>
             </div>
             {stats.difference !== undefined && stats.difference > 0 && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:bg-amber-900/20 p-3">
-                <div className="text-xs text-muted mb-1">Diferença</div>
-                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:bg-amber-900/20 p-2 min-w-0">
+                <div className="text-[10px] text-muted mb-0.5">Diferença</div>
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400 leading-tight">
                   {stats.difference.toLocaleString('pt-BR')}
                 </div>
-                <div className="text-[10px] text-muted mt-1">
+                <div className="text-[9px] text-muted mt-0.5 line-clamp-2">
                   Registros não processados
                 </div>
               </div>
             )}
 
-            <div className="rounded-lg border border-border bg-card p-3">
-              <div className="text-xs text-muted mb-1">Total Manual</div>
-              <div className="text-xl font-bold text-text">
+            <div className="rounded-lg border border-border bg-card p-2 min-w-0">
+              <div className="text-[10px] text-muted mb-0.5">Total Manual</div>
+              <div className="text-base font-bold text-text leading-tight">
                 {stats.total_manual.toLocaleString('pt-BR')}
               </div>
-              <div className="text-[10px] text-muted mt-1">
+              <div className="text-[9px] text-muted mt-0.5 line-clamp-2">
                 Colaboradores cadastrados manualmente
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card p-3">
-              <div className="text-xs text-muted mb-1">Total Único</div>
-              <div className="text-xl font-bold text-text">
+            <div className="rounded-lg border border-border bg-card p-2 min-w-0">
+              <div className="text-[10px] text-muted mb-0.5">Total Único</div>
+              <div className="text-base font-bold text-text leading-tight">
                 {stats.total_unique.toLocaleString('pt-BR')}
               </div>
-              <div className="text-[10px] text-muted mt-1">
+              <div className="text-[9px] text-muted mt-0.5 line-clamp-2">
                 Colaboradores únicos (sem duplicatas)
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card p-3">
-              <div className="text-xs text-muted mb-1">Colaboradores Ativos</div>
-              <div className="text-xl font-bold text-text">
+            <div className="rounded-lg border border-border bg-card p-2 min-w-0">
+              <div className="text-[10px] text-muted mb-0.5">Colaboradores Ativos</div>
+              <div className="text-base font-bold text-text leading-tight">
                 {stats.total_active.toLocaleString('pt-BR')}
               </div>
-              <div className="text-[10px] text-muted mt-1">
+              <div className="text-[9px] text-muted mt-0.5 line-clamp-2">
                 Sem demissão ou demitidos após 2025
               </div>
             </div>

@@ -120,7 +120,7 @@ export default function KitsPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-gray-800/60">
-        <table className="min-w-full divide-y divide-gray-800/60">
+        <table className="min-w-full divide-y divide-gray-800/60 text-[11px]">
           <thead className="bg-[#0c121a]">
             <tr className="text-left text-sm text-gray-300">
               <th className="px-4 py-3">Kit</th>
@@ -200,7 +200,7 @@ export default function KitsPage() {
                 </div>
 
                 <div className="rounded-lg border border-gray-800">
-                  <table className="min-w-full divide-y divide-gray-800 text-sm">
+                  <table className="min-w-full divide-y divide-gray-800 text-[11px]">
                     <thead className="bg-[#0c121a]">
                       <tr>
                         <th className="px-3 py-2 text-left">Item</th>

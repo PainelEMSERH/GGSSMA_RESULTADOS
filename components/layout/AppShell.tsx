@@ -82,12 +82,13 @@ function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    prefetch={false}
+                    prefetch={true}
                     className={clsx(
-                      "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all duration-200 ease-out",
+                      "flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer select-none outline-none",
+                      "transition-[background-color,color,box-shadow] duration-100 ease-out",
                       active
                         ? "bg-panel text-text ring-1 ring-inset ring-border"
-                        : "text-muted hover:bg-panel/80 hover:text-text"
+                        : "text-muted hover:bg-panel hover:text-text hover:shadow-sm active:bg-panel/90 active:opacity-95"
                     )}
                   >
                     {Icon && <Icon className="w-4 h-4 shrink-0" />}

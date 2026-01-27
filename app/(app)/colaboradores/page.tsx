@@ -60,7 +60,7 @@ export default function Page(){
       </div>
       <div className='rounded-xl border border-border bg-panel'>
         <div className='overflow-x-auto'>
-          <table className='min-w-full text-sm'>
+          <table className='min-w-full text-[11px]'>
             <thead className='bg-card/10'><tr>
               <th className='px-3 py-2 text-left'>Nome</th>
               <th className='px-3 py-2 text-left'>Matrícula</th>

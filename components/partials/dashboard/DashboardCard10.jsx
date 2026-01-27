@@ -55,7 +55,7 @@ function DashboardCard10() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="table-auto w-full">
+          <table className="table-auto w-full text-[11px]">
             {/* Table header */}
             <thead className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50">
               <tr>

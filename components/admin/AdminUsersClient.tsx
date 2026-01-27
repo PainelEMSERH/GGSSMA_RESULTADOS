@@ -284,7 +284,7 @@ export default function AdminUsersClient() {
       </p>
       <ToastList toasts={toasts} remove={removeToast} />
       <div className="rounded-xl border border-border bg-panel p-4 overflow-x-auto">
-        <table className="min-w-full text-xs">
+        <table className="min-w-full text-[11px]">
           <thead>
             <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted">
               <th className="px-2 py-1 text-left">Nome</th>

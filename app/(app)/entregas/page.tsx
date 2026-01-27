@@ -1288,12 +1288,11 @@ export default function EntregasPage() {
                                 </button>
                                 <button
                                   onClick={() => openDeliver(r)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium text-text transition-colors"
-                                  aria-label={`Editar entregas de ${r.nome}`}
+                                  className="inline-flex items-center justify-center p-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-text transition-colors"
+                                  aria-label={`Ver histórico de entregas de ${r.nome}`}
                                   title="Ver/editar histórico de entregas"
                                 >
                                   <Clock className="w-3.5 h-3.5" />
-                                  <span className="hidden sm:inline">Histórico</span>
                                 </button>
                               </div>
                             </td>
