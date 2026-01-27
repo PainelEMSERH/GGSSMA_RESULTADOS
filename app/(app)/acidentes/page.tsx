@@ -242,8 +242,6 @@ function StatusPill({ status }: { status: 'pendente' | 'andamento' | 'concluido'
 }
 
 export default function AcidentesPage() {
-  const [tab, setTab] = useState<'registros' | 'visao'>('registros');
-
   // Filtros
   const [regional, setRegional] = useState<string>('');
   const [unidade, setUnidade] = useState<string>('');
@@ -320,7 +318,6 @@ export default function AcidentesPage() {
   });
 
   useEffect(() => {
-    if (tab !== 'visao') return;
     const params = new URLSearchParams();
     params.set('ano', tfAno);
     fetchJSON<{ registros: any[] }>('/api/acidentes/taxa-frequencia?' + params.toString())
@@ -351,7 +348,7 @@ export default function AcidentesPage() {
         });
         setTfMeses(base);
       });
-  }, [tab, tfAno]);
+  }, [tfAno]);
 
   // Carrega regional do localStorage
   useEffect(() => {
@@ -405,7 +402,6 @@ export default function AcidentesPage() {
 
   // Carrega estatísticas
   useEffect(() => {
-    if (tab !== 'visao') return;
     setStatsLoading(true);
     const params = new URLSearchParams();
     if (regional) params.set('regional', regional);
@@ -415,7 +411,7 @@ export default function AcidentesPage() {
       .then((d) => setStats(d))
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
-  }, [tab, regional, ano]);
+  }, [regional, ano]);
 
   const unidadesDaRegional = useMemo(() => {
     if (!regional) return opts.unidades;
@@ -561,34 +557,6 @@ export default function AcidentesPage() {
         </div>
       </div>
 
-      {/* Seleção de Aba */}
-      <div className="border-b border-border">
-        <nav className="-mb-px flex gap-4 text-xs">
-          <button
-            type="button"
-            onClick={() => setTab('registros')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'registros'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Registros de Acidentes
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('visao')}
-            className={`border-b-2 px-3 py-2 ${
-              tab === 'visao'
-                ? 'border-emerald-500 text-emerald-500'
-                : 'border-transparent text-muted hover:text-text'
-            }`}
-          >
-            Visão Geral
-          </button>
-        </nav>
-      </div>
-
       {/* Filtros - card padronizado */}
       <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex flex-wrap items-center gap-3 text-xs">
         <div className="flex flex-col gap-1">
@@ -609,8 +577,7 @@ export default function AcidentesPage() {
             ))}
           </select>
         </div>
-        {tab === 'registros' && (
-          <>
+        <>
             <div className="flex flex-col gap-1">
               <span className="font-medium">Tipo</span>
               <select
@@ -721,25 +688,12 @@ export default function AcidentesPage() {
                 />
               </div>
             </div>
-          </>
-        )}
-        {tab === 'visao' && (
-          <div className="flex flex-col gap-1">
-            <span className="font-medium">Ano</span>
-            <input
-              type="number"
-              className="w-24 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
-              value={ano}
-              onChange={(e) => setAno(e.target.value)}
-            />
-          </div>
-        )}
+        </>
       </div>
 
       {/* VISÃO GERAL – blocos institucionais */}
-      {tab === 'visao' && (
-        <div className="space-y-4">
-          {/* Bloco 1: Taxa de Frequência (TF) */}
+      <div className="space-y-4">
+        {/* Bloco 1: Taxa de Frequência (TF) */}
           <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -935,7 +889,7 @@ export default function AcidentesPage() {
             </div>
           </section>
 
-          {/* Bloco 2: Investigação */}
+        {/* Bloco 2: Investigação */}
           <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -994,7 +948,7 @@ export default function AcidentesPage() {
             </div>
           </section>
 
-          {/* Bloco 3: Plano de Ação */}
+        {/* Bloco 3: Plano de Ação */}
           <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -1026,12 +980,10 @@ export default function AcidentesPage() {
               considerado.
             </p>
           </section>
-        </div>
-      )}
+      </div>
 
-      {/* Aba: Registros */}
-      {tab === 'registros' && (
-        <div className="space-y-4">
+      {/* Registros de Acidentes */}
+      <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="text-xs text-muted">
               Total: <span className="font-semibold text-text">{total}</span> acidentes
@@ -1334,13 +1286,11 @@ export default function AcidentesPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </div>
 
-      {/* Aba: Visão Geral */}
-      {tab === 'visao' && (
-        <div className="space-y-4">
-          {/* Cards de Resumo */}
+      {/* Visão Geral - Estatísticas */}
+      <div className="space-y-4">
+        {/* Cards de Resumo */}
           {statsLoading ? (
             <div className="text-center py-8 text-muted">Carregando estatísticas...</div>
           ) : stats ? (
@@ -1441,8 +1391,7 @@ export default function AcidentesPage() {
           ) : (
             <div className="text-center py-8 text-muted">Nenhuma estatística disponível</div>
           )}
-        </div>
-      )}
+      </div>
 
       {/* Modal de Edição/Criação */}
       {modalOpen && (
