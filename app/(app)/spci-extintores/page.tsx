@@ -419,14 +419,16 @@ export default function SPCIExtintoresPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="rounded-xl border border-border bg-panel p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-2">
-          <Flame className="w-6 h-6 text-orange-500" />
-          <h1 className="text-2xl font-semibold">SPCI / Extintores</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
+            SST • SPCI
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">SPCI / Extintores</h1>
+          <p className="mt-1 text-xs text-muted">
+            Controle de equipamentos de combate a incêndio, inspeções e vencimentos.
+          </p>
         </div>
-        <p className="text-sm text-muted">
-          Controle de equipamentos de combate a incêndio, inspeções e vencimentos.
-        </p>
       </div>
 
       {/* Cards de Estatísticas */}
@@ -511,46 +513,76 @@ export default function SPCIExtintoresPage() {
         {metaReal && stats && (
           <>
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">META</div>
+              <div className="w-20 font-bold text-sm text-text">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidade = metaReal.meta[mes] || 0;
-                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  return (
-                    <div 
-                      key={mes} 
-                      className="text-center text-xs font-bold py-1.5 rounded bg-emerald-500 text-white"
-                      title={`${mesesNomes[idx]}: ${quantidade} extintor(es) planejado(s) para recarga (acumulado)`}
-                    >
-                      {quantidade}
-                    </div>
-                  );
-                })}
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                  (mes, idx) => {
+                    const quantidade = metaReal.meta[mes] || 0;
+                    const mesesNomes = [
+                      'Jan',
+                      'Fev',
+                      'Mar',
+                      'Abr',
+                      'Mai',
+                      'Jun',
+                      'Jul',
+                      'Ago',
+                      'Set',
+                      'Out',
+                      'Nov',
+                      'Dez',
+                    ];
+                    return (
+                      <div
+                        key={mes}
+                        className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
+                        title={`${mesesNomes[idx]}: ${quantidade} extintor(es) planejado(s) para recarga (acumulado)`}
+                      >
+                        {quantidade}
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-red-600 dark:text-red-400">REAL</div>
+              <div className="w-20 font-bold text-sm text-emerald-600 dark[text-emerald-400]">
+                REAL
+              </div>
               <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
-                  const quantidadeMeta = metaReal.meta[mes] || 0;
-                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta;
-                  return (
-                    <div
-                      key={mes}
-                      className={`text-center text-xs font-bold py-1.5 rounded ${
-                        atingiuMeta
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-red-500 text-white'
-                      }`}
-                      title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} recarregado(s) acumulado de ${quantidadeMeta} planejado(s) acumulado`}
-                    >
-                      {quantidadeRealAcumulado}
-                    </div>
-                  );
-                })}
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                  (mes, idx) => {
+                    const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
+                    const quantidadeMeta = metaReal.meta[mes] || 0;
+                    const mesesNomes = [
+                      'Jan',
+                      'Fev',
+                      'Mar',
+                      'Abr',
+                      'Mai',
+                      'Jun',
+                      'Jul',
+                      'Ago',
+                      'Set',
+                      'Out',
+                      'Nov',
+                      'Dez',
+                    ];
+                    const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta;
+                    return (
+                      <div
+                        key={mes}
+                        className={`text-center text-xs font-bold py-1.5 rounded ${
+                          atingiuMeta ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+                        }`}
+                        title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} recarregado(s) acumulado de ${quantidadeMeta} planejado(s) acumulado`}
+                      >
+                        {quantidadeRealAcumulado}
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </div>
 

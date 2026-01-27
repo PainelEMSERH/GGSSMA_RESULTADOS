@@ -282,13 +282,13 @@ export default function OrdemServicoPage() {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <FileText className="w-6 h-6" />
-            Ordem de Serviço
-          </h1>
-          <p className="text-sm text-muted mt-1">
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
+            SST • Ordem de Serviço
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">Ordem de Serviço</h1>
+          <p className="mt-1 text-xs text-muted">
             Colaboradores que iniciaram em 01/01/2026 - Controle de entrega de Ordem de Serviço
           </p>
         </div>
@@ -302,11 +302,16 @@ export default function OrdemServicoPage() {
             <Download className="w-4 h-4" />
           </button>
           <button
-            onClick={() => { loadData(); loadMetaReal(); }}
+            onClick={() => {
+              loadData();
+              loadMetaReal();
+            }}
             disabled={loading || metaRealLoading}
             className="px-4 py-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${loading || metaRealLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 ${loading || metaRealLoading ? 'animate-spin' : ''}`}
+            />
             Atualizar
           </button>
         </div>
@@ -316,12 +321,12 @@ export default function OrdemServicoPage() {
       {metaReal && (
         <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Meta vs Real - Ordem de Serviço</h2>
+            <h2 className="text-sm font-semibold">Meta vs Real - Ordem de Serviço</h2>
             <div className="flex items-center gap-2">
               <select
                 value={anoMetaReal}
                 onChange={(e) => setAnoMetaReal(e.target.value)}
-                className="px-3 py-1.5 rounded-lg border border-border bg-bg text-sm"
+                className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
               >
                 {[2024, 2025, 2026, 2027].map((a) => (
                   <option key={a} value={String(a)}>
@@ -334,46 +339,76 @@ export default function OrdemServicoPage() {
 
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">META</div>
+              <div className="w-20 font-bold text-sm text-text">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidadeMeta = metaReal.meta[mes] || 0;
-                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  return (
-                    <div
-                      key={mes}
-                      className="text-center text-xs font-bold py-1.5 rounded bg-emerald-500 text-white"
-                      title={`${mesesNomes[idx]}: ${quantidadeMeta} colaborador(es) devem ter recebido a OS`}
-                    >
-                      {quantidadeMeta}
-                    </div>
-                  );
-                })}
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                  (mes, idx) => {
+                    const quantidadeMeta = metaReal.meta[mes] || 0;
+                    const mesesNomes = [
+                      'Jan',
+                      'Fev',
+                      'Mar',
+                      'Abr',
+                      'Mai',
+                      'Jun',
+                      'Jul',
+                      'Ago',
+                      'Set',
+                      'Out',
+                      'Nov',
+                      'Dez',
+                    ];
+                    return (
+                      <div
+                        key={mes}
+                        className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
+                        title={`${mesesNomes[idx]}: ${quantidadeMeta} colaborador(es) devem ter recebido a OS`}
+                      >
+                        {quantidadeMeta}
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-20 font-bold text-sm text-red-600 dark:text-red-400">REAL</div>
+              <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                REAL
+              </div>
               <div className="flex-1 grid grid-cols-12 gap-1">
-                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
-                  const quantidadeMeta = metaReal.meta[mes] || 0;
-                  const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                  const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta;
-                  return (
-                    <div
-                      key={mes}
-                      className={`text-center text-xs font-bold py-1.5 rounded ${
-                        atingiuMeta
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-red-500 text-white'
-                      }`}
-                      title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} OS entregue(s) acumulado de ${quantidadeMeta} planejado(s) acumulado`}
-                    >
-                      {quantidadeRealAcumulado}
-                    </div>
-                  );
-                })}
+                {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                  (mes, idx) => {
+                    const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
+                    const quantidadeMeta = metaReal.meta[mes] || 0;
+                    const mesesNomes = [
+                      'Jan',
+                      'Fev',
+                      'Mar',
+                      'Abr',
+                      'Mai',
+                      'Jun',
+                      'Jul',
+                      'Ago',
+                      'Set',
+                      'Out',
+                      'Nov',
+                      'Dez',
+                    ];
+                    const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta;
+                    return (
+                      <div
+                        key={mes}
+                        className={`text-center text-xs font-bold py-1.5 rounded ${
+                          atingiuMeta ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+                        }`}
+                        title={`${mesesNomes[idx]}: ${quantidadeRealAcumulado} OS entregue(s) acumulado de ${quantidadeMeta} planejado(s) acumulado`}
+                      >
+                        {quantidadeRealAcumulado}
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </div>
 
