@@ -63,23 +63,9 @@ export async function GET(req: NextRequest) {
     // Monta condições WHERE - EXATAMENTE como entregas
     const wh: string[] = [];
 
-    // Filtro de demissão: EXCLUI todos os demitidos ANTES de 2026-01-01
-    // Inclui apenas: NULL/vazio (não demitido) OU demissão >= 2026-01-01 OU data inválida (tratada como não demitido)
-    wh.push(`(
-      a.demissao IS NULL 
-      OR a.demissao = '' 
-      OR TRIM(a.demissao) = ''
-      OR CASE 
-        WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-        WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-        ELSE NULL
-      END IS NULL
-      OR CASE 
-        WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-        WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-        ELSE NULL
-      END >= '${DEMISSAO_LIMITE}'::date
-    )`);
+    // Filtro de demissão: EXATAMENTE como entregas
+    // Remove apenas demitidos antes de 2026-01-01
+    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
 
     // Filtro de regional
     if (regional && useJoin) {
@@ -121,8 +107,11 @@ export async function GET(req: NextRequest) {
         COALESCE(NULLIF(TRIM(u.regional_responsavel), ''), '') AS regional,
         COALESCE(a.funcao, '') AS funcao,
         CASE 
-          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
-          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+          WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
+          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
+          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
+          WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+          WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
           ELSE NULL
         END AS "dataAdmissao",
         COALESCE(os.entregue, false) AS "osEntregue",
@@ -132,6 +121,8 @@ export async function GET(req: NextRequest) {
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
       ${whereSql}
+      AND COALESCE(a.cpf, '') != ''
+      AND COALESCE(a.funcao, '') != ''
       ORDER BY 
         ${sortBy === 'nome' ? 'a.colaborador' : 
           sortBy === 'unidade' ? 'unidade' : 
@@ -148,8 +139,11 @@ export async function GET(req: NextRequest) {
         '' AS regional,
         COALESCE(a.funcao, '') AS funcao,
         CASE 
-          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
-          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+          WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
+          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
+          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
+          WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+          WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
           ELSE NULL
         END AS "dataAdmissao",
         COALESCE(os.entregue, false) AS "osEntregue",
@@ -172,10 +166,14 @@ export async function GET(req: NextRequest) {
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
+      AND COALESCE(a.cpf, '') != ''
+      AND COALESCE(a.funcao, '') != ''
     ` : `
       SELECT COUNT(*)::int AS total
       FROM stg_alterdata_v2 a
       ${whereSql}
+      AND COALESCE(a.cpf, '') != ''
+      AND COALESCE(a.funcao, '') != ''
     `;
 
     const [rowsResult, totalResult] = await Promise.all([

@@ -47,25 +47,9 @@ export async function GET(req: NextRequest) {
     // Colaboradores ativos em 2026: admitidos em qualquer data, mas não demitidos antes de 2026
     let whereConditions: string[] = [];
     
-    // Filtro de demissão: EXCLUI todos os demitidos ANTES de 2026-01-01
-    // Inclui apenas: NULL/vazio (não demitido) OU demissão >= 2026-01-01
-    whereConditions.push(`(
-      a.demissao IS NULL 
-      OR a.demissao = '' 
-      OR TRIM(a.demissao) = ''
-      OR (
-        CASE 
-          WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-          WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-          ELSE NULL
-        END IS NULL
-        OR CASE 
-          WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-          WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-          ELSE NULL
-        END >= '${DEMISSAO_LIMITE}'::date
-      )
-    )`);
+    // Filtro de demissão: EXATAMENTE como entregas
+    // Remove apenas demitidos antes de 2026-01-01
+    whereConditions.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
 
     if (regional) {
       whereConditions.push(`COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
@@ -78,10 +62,13 @@ export async function GET(req: NextRequest) {
     // Total de colaboradores ativos em 2026 (META)
     // Meta = todos os colaboradores que estavam ativos no início de 2026
     // (admitidos em qualquer data, mas não demitidos antes de 2026)
+    // EXATAMENTE como entregas: filtra CPF e função não vazios
     const totalMetaQuery = `
       SELECT COUNT(*) as total
       FROM stg_alterdata_v2 a
       ${whereClause}
+      AND COALESCE(a.cpf, '') != ''
+      AND COALESCE(a.funcao, '') != ''
     `;
     const totalMetaResult: any[] = await prisma.$queryRawUnsafe(totalMetaQuery);
     const totalMeta = parseInt(totalMetaResult[0]?.total || '0', 10);
@@ -108,21 +95,7 @@ export async function GET(req: NextRequest) {
       INNER JOIN stg_alterdata_v2 a ON a.cpf = os.colaborador_cpf
       WHERE os.entregue = true
         AND EXTRACT(YEAR FROM os.data_entrega) = ${anoAtual}
-        AND (
-          a.demissao IS NULL 
-          OR a.demissao = '' 
-          OR TRIM(a.demissao) = ''
-          OR CASE 
-            WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-            WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-            ELSE NULL
-          END IS NULL
-          OR CASE 
-            WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
-            WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
-            ELSE NULL
-          END >= '${DEMISSAO_LIMITE}'::date
-        )
+        AND (a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')
         ${regional ? `AND COALESCE((SELECT ur.regional_responsavel FROM stg_unid_reg ur 
                         WHERE ur.nmdepartamento = a.unidade_hospitalar 
                         LIMIT 1),'') = '${regional.replace(/'/g, "''")}'` : ''}
