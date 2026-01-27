@@ -78,18 +78,32 @@ async function ensureAdmin() {
 export default async function Page() {
   const admin = await ensureAdmin();
 
-  const [totalUsuarios, totalRegionais, totalUnidades] = await Promise.all([
-    prisma.usuario.count().catch(() => 0),
-    prisma.regional.count().catch(() => 0),
-    prisma.unidade.count().catch(() => 0),
-  ]);
+  const [totalUsuarios, totalRegionais, totalUnidades, ultimaImportacao] =
+    await Promise.all([
+      prisma.usuario.count().catch(() => 0),
+      prisma.regional.count().catch(() => 0),
+      prisma.unidade.count().catch(() => 0),
+      prisma.$queryRawUnsafe<
+        { batch_id: string; imported_at: Date; total_rows: number }[]
+      >(
+        `SELECT batch_id, imported_at, total_rows
+         FROM stg_alterdata_v2_imports
+         ORDER BY imported_at DESC
+         LIMIT 1`,
+      ).catch(() => [] as any),
+    ]);
+
+  const lastImport = Array.isArray(ultimaImportacao)
+    ? ultimaImportacao[0]
+    : null;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">Administração do sistema</h1>
         <p className="text-sm text-muted">
-          Área reservada para administração, configuração de acesso e operações sensíveis.
+          Área central para administração, configuração de acesso, integrações e
+          operações sensíveis.
         </p>
         <p className="text-xs text-muted">
           Logado como <span className="font-medium">{admin.email}</span>
@@ -115,6 +129,39 @@ export default async function Page() {
             Unidades:{' '}
             <span className="font-semibold">{totalUnidades}</span>
           </p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
+          <h2 className="text-sm font-semibold mb-1">Base de colaboradores</h2>
+          <p className="text-xs text-muted mb-3">
+            Acompanhamento rápido da última importação da base Alterdata.
+          </p>
+          {lastImport ? (
+            <div className="space-y-1 text-xs text-muted">
+              <p>
+                Último lote:{' '}
+                <span className="font-semibold">
+                  {lastImport.batch_id.slice(0, 8)}...
+                </span>
+              </p>
+              <p>
+                Linhas importadas:{' '}
+                <span className="font-semibold">
+                  {lastImport.total_rows ?? 0}
+                </span>
+              </p>
+              <p>
+                Data:{' '}
+                <span className="font-semibold">
+                  {new Date(lastImport.imported_at).toLocaleString('pt-BR')}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted">
+              Nenhuma importação registrada ainda.
+            </p>
+          )}
         </div>
 
         <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">

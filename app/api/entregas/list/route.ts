@@ -215,6 +215,7 @@ const ENTREGUE_EXISTS = `EXISTS (
 async function tryFastList(
   regional: string,
   unidade: string,
+  q: string,
   page: number,
   pageSize: number,
   entregueFilter: '' | 'pendente' | 'entregue' = ''
@@ -248,6 +249,7 @@ async function tryFastList(
     const wh: string[] = [];
     const regTrim = (regional || '').trim();
     const uniTrim = (unidade || '').trim();
+    const qTrim = (q || '').trim();
 
     // Filtros de regional e unidade
     if (regTrim && useJoin) {
@@ -316,6 +318,24 @@ async function tryFastList(
         
         wh.push(`(${conditions.join(' OR ')})`);
       }
+    }
+
+    // Filtro de busca (nome/CPF/matrícula) - via SQL para pesquisar na base inteira
+    if (qTrim) {
+      const escQ = esc(qTrim);
+      const digits = onlyDigits(qTrim);
+      const escDigits = esc(digits);
+      const conds: string[] = [];
+      // Nome e matrícula (texto)
+      conds.push(`COALESCE(a.colaborador, '') ILIKE '%${escQ}%'`);
+      conds.push(`COALESCE(a.matricula, '') ILIKE '%${escQ}%'`);
+      // CPF (numérico)
+      if (digits) {
+        conds.push(`regexp_replace(COALESCE(TRIM(a.cpf), ''), '[^0-9]', '', 'g') LIKE '%${escDigits}%'`);
+      } else {
+        conds.push(`COALESCE(a.cpf, '') ILIKE '%${escQ}%'`);
+      }
+      wh.push(`(${conds.join(' OR ')})`);
     }
 
     // Aplica regra de demissão:
@@ -430,10 +450,9 @@ async function tryFastList(
       return null; // Retorna null para usar fallback
     }
     
-    // Se não retornou dados, retorna null para usar fallback
+    // Se não retornou dados, retorna vazio (não cai pro fallback, senão "quebra" a busca)
     if (!Array.isArray(rowsRaw) || rowsRaw.length === 0) {
-      console.log('[tryFastList] Nenhum resultado, usando fallback');
-      return null;
+      return { rows: [], total: 0 };
     }
 
     const unidDBMap = await loadUnidMapFromDB();
@@ -500,19 +519,16 @@ export async function GET(req: Request) {
   const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '25', 10)));
 
   try {
-    const hasQ = !!q.trim();
-    if (!hasQ) {
-      const fast = await tryFastList(regional, unidade, page, pageSize, entregueFilter);
-      if (fast && Array.isArray(fast.rows) && fast.rows.length > 0) {
-        return NextResponse.json({
-          rows: fast.rows,
-          total: fast.total,
-          page,
-          pageSize,
-          source: 'stg_alterdata_v2+join',
-        });
-      }
-      // Se fast retornou null ou vazio, continua com fallback
+    // Preferir sempre a lista rápida via SQL (inclusive com busca), para pesquisar na base inteira.
+    const fast = await tryFastList(regional, unidade, q, page, pageSize, entregueFilter);
+    if (fast && Array.isArray(fast.rows)) {
+      return NextResponse.json({
+        rows: fast.rows,
+        total: fast.total,
+        page,
+        pageSize,
+        source: 'stg_alterdata_v2+join',
+      });
     }
 
     // 1) Carrega todas as páginas do raw-rows (com cache em memória)

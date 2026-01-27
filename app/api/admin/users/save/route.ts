@@ -108,6 +108,26 @@ export async function POST(req: Request) {
       },
     });
 
+    // Registra no audit log a mudança de permissões
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: check.email,
+          action: 'admin_user_update',
+          entity: 'Usuario',
+          entityId: id,
+          diff: {
+            role,
+            ativo: !!ativo,
+            regionalId: newRegionalId,
+            unidadeId: newUnidadeId,
+          } as any,
+        },
+      });
+    } catch (e) {
+      console.error('[admin/users/save] failed to write AuditLog', e);
+    }
+
     const userOut = {
       id: updated.id,
       clerkUserId: updated.clerkUserId,

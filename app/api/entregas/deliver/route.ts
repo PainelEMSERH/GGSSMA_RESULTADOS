@@ -70,15 +70,32 @@ export async function POST(req: Request) {
         const required = Number(itemData?.qty_required ?? 1) || 1;
 
         if (!item || qty <= 0) continue;
+        // Bloqueia datas fora do período (evita 31/12/2024 etc)
+        if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          const year = parseInt(date.slice(0, 4), 10);
+          if (year < 2026) {
+            console.warn(`[deliver] Ignorando lançamento com data antiga (${date}) para item ${item}`);
+            continue;
+          }
+        }
 
         try {
           const up = await prisma.$queryRawUnsafe<any[]>(`
             INSERT INTO epi_entregas (cpf, item, qty_required, qty_delivered, deliveries)
-            VALUES ($1, $2, $3, $4, jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)))
+            VALUES (
+              $1, $2, $3,
+              LEAST($3, $4),
+              jsonb_build_array(jsonb_build_object('date', $5, 'qty', LEAST($3, $6)))
+            )
             ON CONFLICT (cpf, item) DO UPDATE SET
               qty_required = EXCLUDED.qty_required,
-              qty_delivered = epi_entregas.qty_delivered + $6,
-              deliveries = epi_entregas.deliveries || jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)),
+              qty_delivered = LEAST(EXCLUDED.qty_required, epi_entregas.qty_delivered + $6),
+              deliveries = CASE
+                WHEN epi_entregas.qty_delivered >= EXCLUDED.qty_required THEN epi_entregas.deliveries
+                ELSE epi_entregas.deliveries || jsonb_build_array(
+                  jsonb_build_object('date', $5, 'qty', LEAST(EXCLUDED.qty_required - epi_entregas.qty_delivered, $6))
+                )
+              END,
               updated_at = now()
             RETURNING
               id::text as id,
@@ -115,14 +132,29 @@ export async function POST(req: Request) {
     const required = Number(body?.qty_required ?? 1) || 1;
 
     if (!item) return NextResponse.json({ ok: false, error: "item é obrigatório" }, { status: 200 });
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const year = parseInt(date.slice(0, 4), 10);
+      if (year < 2026) {
+        return NextResponse.json({ ok: false, error: `Data inválida para entrega: ${date}` }, { status: 200 });
+      }
+    }
 
     const up = await prisma.$queryRawUnsafe<any[]>(`
       INSERT INTO epi_entregas (cpf, item, qty_required, qty_delivered, deliveries)
-      VALUES ($1, $2, $3, $4, jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)))
+      VALUES (
+        $1, $2, $3,
+        LEAST($3, $4),
+        jsonb_build_array(jsonb_build_object('date', $5, 'qty', LEAST($3, $6)))
+      )
       ON CONFLICT (cpf, item) DO UPDATE SET
         qty_required = EXCLUDED.qty_required,
-        qty_delivered = epi_entregas.qty_delivered + $6,
-        deliveries = epi_entregas.deliveries || jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)),
+        qty_delivered = LEAST(EXCLUDED.qty_required, epi_entregas.qty_delivered + $6),
+        deliveries = CASE
+          WHEN epi_entregas.qty_delivered >= EXCLUDED.qty_required THEN epi_entregas.deliveries
+          ELSE epi_entregas.deliveries || jsonb_build_array(
+            jsonb_build_object('date', $5, 'qty', LEAST(EXCLUDED.qty_required - epi_entregas.qty_delivered, $6))
+          )
+        END,
         updated_at = now()
       RETURNING
         id::text as id,
@@ -137,5 +169,56 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, row: up?.[0] ?? null });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message||e) }, { status: 200 });
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    await ensureTables();
+    const body = await req.json().catch(() => ({}));
+
+    const cpf = String(body?.cpf || '').replace(/\D/g, '');
+    const item = String(body?.item || '').trim();
+    const required = Math.max(1, Number(body?.qty_required ?? 1) || 1);
+    const deliveriesIn = Array.isArray(body?.deliveries) ? body.deliveries : [];
+
+    if (!cpf) return NextResponse.json({ ok: false, error: 'cpf é obrigatório' }, { status: 200 });
+    if (!item) return NextResponse.json({ ok: false, error: 'item é obrigatório' }, { status: 200 });
+
+    // Normaliza/valida lançamentos (somente 2026+)
+    const deliveries = deliveriesIn
+      .map((d: any) => ({
+        date: String(d?.date || '').substring(0, 10),
+        qty: Number(d?.qty ?? 0),
+      }))
+      .filter((d: any) => /^\d{4}-\d{2}-\d{2}$/.test(d.date))
+      .filter((d: any) => Number.isFinite(d.qty) && d.qty > 0)
+      .filter((d: any) => parseInt(d.date.slice(0, 4), 10) >= 2026);
+
+    const sum = deliveries.reduce((acc: number, d: any) => acc + Number(d.qty || 0), 0);
+    const qtyDelivered = Math.min(required, sum);
+
+    const up = await prisma.$queryRawUnsafe<any[]>(`
+      INSERT INTO epi_entregas (cpf, item, qty_required, qty_delivered, deliveries)
+      VALUES ($1, $2, $3, $4, $5::jsonb)
+      ON CONFLICT (cpf, item) DO UPDATE SET
+        qty_required = EXCLUDED.qty_required,
+        qty_delivered = EXCLUDED.qty_delivered,
+        deliveries = EXCLUDED.deliveries,
+        updated_at = now()
+      RETURNING
+        id::text as id,
+        cpf,
+        item,
+        qty_required,
+        qty_delivered,
+        deliveries,
+        created_at,
+        updated_at;
+    `, cpf, item, required, qtyDelivered, JSON.stringify(deliveries));
+
+    return NextResponse.json({ ok: true, row: up?.[0] ?? null });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 200 });
   }
 }

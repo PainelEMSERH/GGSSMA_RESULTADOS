@@ -31,28 +31,61 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const raw = url.searchParams.get('cpf') || '';
     const cpf = onlyDigits(raw);
-    if (!cpf) {
-      return NextResponse.json({ ok: true, exists: false });
-    }
-
-    await ensureManualColabTable();
-
-    const sql = `
-      select source from (
-        select 'alterdata'::text as source from mv_alterdata_flat where cpf = $1 limit 1
-        union all
-        select 'manual'::text   as source from epi_manual_colab   where cpf = $1 limit 1
-      ) s
-      limit 1
-    `;
-
-    // @ts-ignore
-    const rows: any[] = await prisma.$queryRawUnsafe(sql, cpf);
-    if (!rows.length) {
-      return NextResponse.json({ ok: true, exists: false });
-    }
-    return NextResponse.json({ ok: true, exists: true, source: rows[0].source || null });
+    return await handleLookup(cpf);
   } catch (e:any) {
     return NextResponse.json({ ok: false, exists: false, error: e?.message || String(e) }, { status: 200 });
   }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const cpf = onlyDigits(String(body?.cpf || ''));
+    return await handleLookup(cpf);
+  } catch (e:any) {
+    return NextResponse.json({ ok: false, exists: false, error: e?.message || String(e) }, { status: 200 });
+  }
+}
+
+async function handleLookup(cpf: string) {
+  if (!cpf) {
+    return NextResponse.json({ ok: true, exists: false });
+  }
+
+  await ensureManualColabTable();
+
+  // Preferir Alterdata (nome oficial), depois manual
+  const sql = `
+    select * from (
+      select
+        'alterdata'::text as source,
+        coalesce(nullif(trim(nome), ''), null) as nome
+      from mv_alterdata_flat
+      where cpf = $1
+      limit 1
+
+      union all
+
+      select
+        'manual'::text as source,
+        coalesce(nullif(trim(nome), ''), null) as nome
+      from epi_manual_colab
+      where cpf = $1
+      limit 1
+    ) s
+    limit 1
+  `;
+
+  // @ts-ignore
+  const rows: any[] = await prisma.$queryRawUnsafe(sql, cpf);
+  if (!rows.length) {
+    return NextResponse.json({ ok: true, exists: false });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    exists: true,
+    source: rows[0]?.source || null,
+    nome: rows[0]?.nome || null,
+  });
 }

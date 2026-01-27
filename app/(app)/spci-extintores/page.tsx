@@ -463,12 +463,15 @@ export default function SPCIExtintoresPage() {
             <p className="mt-1 text-2xl font-semibold text-orange-300">{stats.totalSemContrato}</p>
           </div>
           <div className="rounded-xl border border-border bg-panel p-4">
-            <p className="text-[11px] text-muted">Por Regional</p>
-            <div className="mt-1 text-xs space-y-1 max-h-16 overflow-y-auto">
+            <p className="text-[11px] text-muted mb-1">Por Regional</p>
+            <div className="mt-1 grid grid-cols-2 gap-1.5 text-[11px]">
               {Object.entries(stats.porRegional).map(([reg, count]) => (
-                <div key={reg} className="flex justify-between">
-                  <span className="text-muted">{reg}:</span>
-                  <span className="font-semibold">{count}</span>
+                <div
+                  key={reg}
+                  className="flex items-center justify-between px-2 py-1 rounded-lg bg-bg/60 border border-border/60"
+                >
+                  <span className="text-muted font-medium">{reg}:</span>
+                  <span className="font-semibold text-text">{count}</span>
                 </div>
               ))}
             </div>

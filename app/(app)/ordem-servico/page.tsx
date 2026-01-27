@@ -6,7 +6,7 @@ import { FileText, CheckCircle2, XCircle, Search, Filter, RefreshCw, Download, S
 type OrdemServicoRow = {
   id: string;
   nome: string;
-  cpf: string;
+  cpf: string; // mantido para ações (confirmar/desfazer), mas oculto na tabela
   matricula: string;
   unidade: string;
   regional: string;
@@ -39,14 +39,32 @@ const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> =
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '-';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '-';
+  const s = String(iso).trim();
+  if (!s) return '-';
+
+  // Se já está no formato dd/mm/aaaa, só retorna
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+
+  // Se estiver como yyyy-mm-dd, formata manualmente
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [yyyy, mm, dd] = s.split('-');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleDateString('pt-BR');
 }
 
 function maskCPF(cpf?: string) {
   const d = String(cpf || '').replace(/\D/g, '').padStart(11, '0').slice(-11);
   return d ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : '';
+}
+
+function formatMatricula(mat?: string) {
+  const digits = String(mat || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.padStart(6, '0').slice(-6);
 }
 
 export default function OrdemServicoPage() {
@@ -225,11 +243,10 @@ export default function OrdemServicoPage() {
   };
 
   const exportarCSV = () => {
-    const headers = ['Nome', 'CPF', 'Matrícula', 'Unidade', 'Regional', 'Função', 'Data Admissão', 'OS Entregue', 'Data Entrega OS'];
+    const headers = ['Nome', 'Matrícula', 'Unidade', 'Regional', 'Função', 'Data Admissão', 'OS Entregue', 'Data Entrega OS'];
     const rowsCSV = rows.map((r) => [
       r.nome,
-      maskCPF(r.cpf),
-      r.matricula,
+      formatMatricula(r.matricula),
       r.unidade,
       r.regional,
       r.funcao,
@@ -475,7 +492,6 @@ export default function OrdemServicoPage() {
                     >
                       Nome {sortBy === 'nome' && (sortDir === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">CPF</th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Matrícula</th>
                     <th
                       className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase cursor-pointer hover:bg-bg/70"
@@ -499,8 +515,7 @@ export default function OrdemServicoPage() {
                   {rows.map((row) => (
                     <tr key={row.id} className="hover:bg-bg/30">
                       <td className="px-4 py-3 text-left text-[11px] font-medium">{row.nome}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{maskCPF(row.cpf)}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{row.matricula}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{formatMatricula(row.matricula)}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.unidade}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.regional}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.funcao}</td>
@@ -603,7 +618,7 @@ export default function OrdemServicoPage() {
                 <div className="text-sm font-medium text-muted mb-1">Colaborador</div>
                 <div className="text-base font-semibold text-text">{modalConfirmacao.row.nome}</div>
                 <div className="text-xs text-muted mt-0.5">
-                  CPF: {maskCPF(modalConfirmacao.row.cpf)} | Matrícula: {modalConfirmacao.row.matricula}
+                  Matrícula: {modalConfirmacao.row.matricula}
                 </div>
               </div>
 

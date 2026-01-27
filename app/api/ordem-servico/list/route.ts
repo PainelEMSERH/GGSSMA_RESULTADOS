@@ -133,11 +133,7 @@ export async function GET(req: NextRequest) {
           COALESCE(a.funcao, '') AS funcao,
           CASE 
             WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
-            WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
-            WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
-            WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
-            WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
-            ELSE NULL
+            ELSE a.admissao::text
           END AS "dataAdmissao",
           COALESCE(os.entregue, false) AS "osEntregue",
           os.data_entrega::text AS "dataEntregaOS",
@@ -163,11 +159,7 @@ export async function GET(req: NextRequest) {
           COALESCE(a.funcao, '') AS funcao,
           CASE 
             WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
-            WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
-            WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
-            WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
-            WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
-            ELSE NULL
+            ELSE a.admissao::text
           END AS "dataAdmissao",
           COALESCE(os.entregue, false) AS "osEntregue",
           os.data_entrega::text AS "dataEntregaOS",

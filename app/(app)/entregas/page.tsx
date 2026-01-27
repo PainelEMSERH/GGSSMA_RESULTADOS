@@ -235,6 +235,13 @@ export default function EntregasPage() {
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
   const [deliv, setDeliv] = useState<Deliver[]>([]);
+  const [editLaunch, setEditLaunch] = useState<{
+    open: boolean;
+    cpf?: string;
+    item?: string;
+    qty_required?: number;
+    deliveries?: Array<{ date: string; qty: number }>;
+  }>({ open: false });
   const [selectedEpis, setSelectedEpis] = useState<Record<string, { qtd: number; data: string }>>({});
   
   // Sistema de Toast
@@ -377,6 +384,15 @@ export default function EntregasPage() {
           exists: !!json.exists,
           source: (json.source as string | null) || null,
         });
+
+        // Se já existe na base Alterdata, puxa o nome automaticamente (diferencial)
+        // Só preenche se o campo ainda estiver vazio (pra não sobrescrever edição manual).
+        if (json.exists && String(json.source || '') === 'alterdata') {
+          const nome = String(json.nome || '').trim();
+          if (nome && !String(newColab.nome || '').trim()) {
+            setNewColab(prev => ({ ...prev, nome }));
+          }
+        }
       } else {
         setCpfCheck({ loading: false, exists: null, source: null });
       }
@@ -567,6 +583,7 @@ export default function EntregasPage() {
         params.set('regional', state.regional);
         if (state.unidade) params.set('unidade', state.unidade);
         if (state.q) params.set('q', state.q);
+        if (state.entregue) params.set('entregue', state.entregue);
         params.set('page', String(state.page));
         params.set('pageSize', String(state.pageSize));
         // Sem cache para garantir dados sempre atualizados
@@ -764,6 +781,39 @@ export default function EntregasPage() {
       console.error('Erro inesperado ao registrar entregas em massa', e);
       alert('Erro inesperado ao registrar entregas em massa.');
     }
+  }
+
+  async function reloadDeliveries(cpf: string) {
+    const { json: dJ } = await fetchJSON('/api/entregas/deliver?cpf=' + encodeURIComponent(cpf), { cache: 'no-store' });
+    setDeliv((dJ?.rows || []).map((r: any) => ({
+      item: String(r.item || ''),
+      qty_delivered: Number(r.qty_delivered || 0),
+      qty_required: Number(r.qty_required || 0),
+      deliveries: Array.isArray(r.deliveries) ? r.deliveries : [],
+    })));
+  }
+
+  async function saveEditLaunch() {
+    if (!editLaunch.cpf || !editLaunch.item) return;
+    const deliveries = Array.isArray(editLaunch.deliveries) ? editLaunch.deliveries : [];
+    const body = {
+      cpf: editLaunch.cpf,
+      item: editLaunch.item,
+      qty_required: Number(editLaunch.qty_required || 1) || 1,
+      deliveries,
+    };
+    const { json } = await fetchJSON('/api/entregas/deliver', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!json?.ok) {
+      showToast(`Erro ao editar entregas: ${json?.error || 'Erro'}`, 'error');
+      return;
+    }
+    await reloadDeliveries(editLaunch.cpf);
+    showToast('Entregas atualizadas com sucesso.', 'success');
+    setEditLaunch({ open: false });
   }
 
   const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
@@ -1225,6 +1275,15 @@ export default function EntregasPage() {
                                 >
                                   <Package className="w-3.5 h-3.5" />
                                   Entregar
+                                </button>
+                                <button
+                                  onClick={() => openDeliver(r)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-panel hover:bg-muted text-xs font-medium text-text transition-colors"
+                                  aria-label={`Editar entregas de ${r.nome}`}
+                                  title="Ver/editar histórico de entregas"
+                                >
+                                  <Clock className="w-3.5 h-3.5" />
+                                  Histórico
                                 </button>
                               </div>
                             </td>
@@ -1829,7 +1888,30 @@ export default function EntregasPage() {
                               
                               {Array.isArray(d.deliveries) && d.deliveries.length > 0 && (
                                 <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
-                                  <div className="font-medium mb-1">Lançamentos:</div>
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <div className="font-medium">Lançamentos:</div>
+                                    <button
+                                      onClick={() => {
+                                        if (!modal.row) return;
+                                        const safe = (Array.isArray(d.deliveries) ? d.deliveries : []).map((x: any) => ({
+                                          date: String(x?.date || '').substring(0, 10),
+                                          qty: Number(x?.qty ?? 0) || 0,
+                                        }));
+                                        setEditLaunch({
+                                          open: true,
+                                          cpf: modal.row.id,
+                                          item: d.item,
+                                          qty_required: d.qty_required || 1,
+                                          deliveries: safe,
+                                        });
+                                      }}
+                                      className="rounded-md border border-border bg-panel px-2 py-1 text-[10px] font-medium hover:bg-muted text-text"
+                                      aria-label={`Editar lançamentos de ${d.item}`}
+                                      title="Editar lançamentos"
+                                    >
+                                      Editar
+                                    </button>
+                                  </div>
                                   <div className="space-y-0.5">
                                     {d.deliveries.map((x: any, idx: number) => (
                                       <div key={idx} className="flex items-center justify-between">
@@ -2006,6 +2088,90 @@ export default function EntregasPage() {
                     className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold shadow-sm transition-colors" 
                     onClick={saveNewManual}
                     aria-label="Salvar novo colaborador"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {editLaunch.open && (
+            <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center p-4 z-[60]" onClick={() => setEditLaunch({ open: false })}>
+              <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-xl shadow-xl" onClick={(e)=>e.stopPropagation()}>
+                <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+                  <div className="text-lg font-semibold">Editar lançamentos</div>
+                  <div className="text-xs opacity-70">{editLaunch.item}</div>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium text-text">Lançamentos (somente 2026+)</div>
+                    <button
+                      onClick={() => {
+                        const next = Array.isArray(editLaunch.deliveries) ? [...editLaunch.deliveries] : [];
+                        next.push({ date: new Date().toISOString().substring(0, 10), qty: 1 });
+                        setEditLaunch((p) => ({ ...p, deliveries: next }));
+                      }}
+                      className="rounded-md border border-border bg-panel px-2 py-1 text-xs font-medium hover:bg-muted text-text"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(editLaunch.deliveries || []).map((x, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={x.date}
+                          onChange={(e) => {
+                            const next = [...(editLaunch.deliveries || [])];
+                            next[idx] = { ...next[idx], date: e.target.value };
+                            setEditLaunch((p) => ({ ...p, deliveries: next }));
+                          }}
+                          className="flex-1 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          value={x.qty}
+                          onChange={(e) => {
+                            const q = Math.max(1, Number(e.target.value) || 1);
+                            const next = [...(editLaunch.deliveries || [])];
+                            next[idx] = { ...next[idx], qty: q };
+                            setEditLaunch((p) => ({ ...p, deliveries: next }));
+                          }}
+                          className="w-20 px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+                        />
+                        <button
+                          onClick={() => {
+                            const next = [...(editLaunch.deliveries || [])];
+                            next.splice(idx, 1);
+                            setEditLaunch((p) => ({ ...p, deliveries: next }));
+                          }}
+                          className="rounded-md border border-red-900 bg-red-900/10 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-900/20"
+                          aria-label="Remover lançamento"
+                          title="Remover"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    ))}
+                    {(!editLaunch.deliveries || editLaunch.deliveries.length === 0) && (
+                      <div className="text-xs text-muted-foreground">Nenhum lançamento.</div>
+                    )}
+                  </div>
+                </div>
+                <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
+                  <button
+                    className="px-4 py-2 rounded-xl border border-border bg-panel hover:bg-muted text-sm font-medium transition-colors"
+                    onClick={() => setEditLaunch({ open: false })}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-semibold transition-colors"
+                    onClick={saveEditLaunch}
                   >
                     Salvar
                   </button>

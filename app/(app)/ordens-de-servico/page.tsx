@@ -37,14 +37,29 @@ async function fetchJSON(url: string, init?: RequestInit) {
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '-';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '-';
+  const s = String(iso).trim();
+  if (!s) return '-';
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [yyyy, mm, dd] = s.split('-');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleDateString('pt-BR');
 }
 
 function maskCPF(cpf?: string) {
   const d = String(cpf || '').replace(/\D/g, '').padStart(11, '0').slice(-11);
   return d ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : '';
+}
+
+function formatMatricula(mat?: string) {
+  const digits = String(mat || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.padStart(6, '0').slice(-6);
 }
 
 export default function OrdemServicoPage() {
@@ -239,7 +254,7 @@ export default function OrdemServicoPage() {
     const rowsCSV = rows.map((r) => [
       r.nome,
       maskCPF(r.cpf),
-      r.matricula,
+      formatMatricula(r.matricula),
       r.unidade,
       r.regional,
       r.funcao,
@@ -518,7 +533,7 @@ export default function OrdemServicoPage() {
                     <tr key={row.id} className="hover:bg-bg/30">
                       <td className="px-4 py-3 text-left text-[11px] font-medium">{row.nome}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{maskCPF(row.cpf)}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{row.matricula}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{formatMatricula(row.matricula)}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.unidade}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.regional}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.funcao}</td>
