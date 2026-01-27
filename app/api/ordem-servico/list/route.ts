@@ -190,19 +190,28 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      rows: filteredRows.map((r) => ({
-        id: String(r.id || ''),
-        nome: String(r.nome || ''),
-        cpf: String(r.cpf || ''),
-        matricula: String(r.matricula || ''),
-        unidade: String(r.unidade || ''),
-        regional: String(r.regional || ''),
-        funcao: String(r.funcao || ''),
-        dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
-        osEntregue: r.osEntregue || false,
-        dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
-        responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
-      })),
+      rows: filteredRows.map((r) => {
+        // Função helper para garantir que seja sempre string
+        const toStr = (val: any): string => {
+          if (val === null || val === undefined) return '';
+          if (typeof val === 'object') return JSON.stringify(val);
+          return String(val);
+        };
+
+        return {
+          id: toStr(r.id),
+          nome: toStr(r.nome),
+          cpf: toStr(r.cpf),
+          matricula: toStr(r.matricula),
+          unidade: toStr(r.unidade),
+          regional: toStr(r.regional),
+          funcao: toStr(r.funcao),
+          dataAdmissao: r.dataAdmissao ? toStr(r.dataAdmissao) : null,
+          osEntregue: Boolean(r.osEntregue),
+          dataEntregaOS: r.dataEntregaOS ? toStr(r.dataEntregaOS) : null,
+          responsavelEntrega: r.responsavelEntrega ? toStr(r.responsavelEntrega) : null,
+        };
+      }),
       total: entregue ? filteredRows.length : total,
     });
   } catch (e: any) {
