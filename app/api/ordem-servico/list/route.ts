@@ -76,14 +76,14 @@ export async function GET(req: NextRequest) {
     const useJoin = hasUnidRegCheck?.[0]?.exists;
 
     if (regional && useJoin) {
-      whereConditions.push(`(UPPER(TRIM(COALESCE(ur.regional_responsavel, ''))) = UPPER(TRIM('${regional.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+      whereConditions.push(`(UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${regional.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
         SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regional.replace(/'/g, "''")}'))
       ))`);
     }
 
     if (unidade) {
       if (useJoin) {
-        whereConditions.push(`(UPPER(TRIM(COALESCE(ur.nmdepartamento, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(ur.nmdepartamento, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
+        whereConditions.push(`(UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(u.nmdepartamento, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
       } else {
         whereConditions.push(`(UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidade.replace(/'/g, "''")}')) OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER(TRIM('%${unidade.replace(/'/g, "''")}%')))`);
       }
@@ -98,84 +98,75 @@ export async function GET(req: NextRequest) {
       )`);
     }
 
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const whereSql = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    const joinClause = useJoin 
-      ? `LEFT JOIN stg_unid_reg ur ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(ur.nmdepartamento, '')))`
-      : '';
-
+    // Usa exatamente o mesmo padrão da página de entregas
     const query = useJoin ? `
-      WITH colaboradores_base AS (
-        SELECT 
-          a.cpf as id,
-          a.colaborador as nome,
-          a.cpf,
-          COALESCE(a.matricula, '') as matricula,
-          COALESCE(NULLIF(TRIM(ur.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') as unidade,
-          COALESCE(NULLIF(TRIM(ur.regional_responsavel), ''), '') as regional,
-          COALESCE(a.funcao,'') as funcao,
-          CASE 
-            WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
-            WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
-            ELSE NULL
-          END as "dataAdmissao"
-        FROM stg_alterdata_v2 a
-        ${joinClause}
-        ${whereClause}
-      )
-      SELECT 
-        cb.*,
-        COALESCE(os.entregue, false) as "osEntregue",
-        os.data_entrega::text as "dataEntregaOS",
-        os.responsavel as "responsavelEntrega"
-      FROM colaboradores_base cb
-      LEFT JOIN ordem_servico os ON os.colaborador_cpf = cb.id
+      SELECT
+        COALESCE(a.cpf, '') AS id,
+        COALESCE(a.cpf, '') AS cpf,
+        COALESCE(a.colaborador, '') AS nome,
+        COALESCE(a.matricula, '') AS matricula,
+        COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade,
+        COALESCE(NULLIF(TRIM(u.regional_responsavel), ''), '') AS regional,
+        COALESCE(a.funcao, '') AS funcao,
+        CASE 
+          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
+          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+          ELSE NULL
+        END AS "dataAdmissao",
+        COALESCE(os.entregue, false) AS "osEntregue",
+        os.data_entrega::text AS "dataEntregaOS",
+        os.responsavel AS "responsavelEntrega"
+      FROM stg_alterdata_v2 a
+      LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+      ${whereSql}
       ORDER BY 
-        ${sortBy === 'nome' ? 'cb.nome' : 
-          sortBy === 'unidade' ? 'cb.unidade' : 
-          sortBy === 'regional' ? 'cb.regional' :
-          sortBy === 'dataAdmissao' ? 'cb."dataAdmissao"' :
-          'cb.nome'} ${sortDir.toUpperCase()}
+        ${sortBy === 'nome' ? 'a.colaborador' : 
+          sortBy === 'unidade' ? 'unidade' : 
+          sortBy === 'regional' ? 'regional' :
+          sortBy === 'dataAdmissao' ? '"dataAdmissao"' :
+          'a.colaborador'} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}
     ` : `
-      WITH colaboradores_base AS (
-        SELECT 
-          a.cpf as id,
-          a.colaborador as nome,
-          a.cpf,
-          COALESCE(a.matricula, '') as matricula,
-          COALESCE(NULLIF(TRIM(a.unidade_hospitalar), ''), '') as unidade,
-          '' as regional,
-          COALESCE(a.funcao,'') as funcao,
-          CASE 
-            WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
-            WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
-            ELSE NULL
-          END as "dataAdmissao"
-        FROM stg_alterdata_v2 a
-        ${whereClause}
-      )
-      SELECT 
-        cb.*,
-        COALESCE(os.entregue, false) as "osEntregue",
-        os.data_entrega::text as "dataEntregaOS",
-        os.responsavel as "responsavelEntrega"
-      FROM colaboradores_base cb
-      LEFT JOIN ordem_servico os ON os.colaborador_cpf = cb.id
+      SELECT
+        COALESCE(a.cpf, '') AS id,
+        COALESCE(a.cpf, '') AS cpf,
+        COALESCE(a.colaborador, '') AS nome,
+        COALESCE(a.matricula, '') AS matricula,
+        COALESCE(a.unidade_hospitalar, '') AS unidade,
+        '' AS regional,
+        COALESCE(a.funcao, '') AS funcao,
+        CASE 
+          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.admissao::text
+          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+          ELSE NULL
+        END AS "dataAdmissao",
+        COALESCE(os.entregue, false) AS "osEntregue",
+        os.data_entrega::text AS "dataEntregaOS",
+        os.responsavel AS "responsavelEntrega"
+      FROM stg_alterdata_v2 a
+      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+      ${whereSql}
       ORDER BY 
-        ${sortBy === 'nome' ? 'cb.nome' : 
-          sortBy === 'unidade' ? 'cb.unidade' : 
-          sortBy === 'regional' ? 'cb.regional' :
-          sortBy === 'dataAdmissao' ? 'cb."dataAdmissao"' :
-          'cb.nome'} ${sortDir.toUpperCase()}
+        ${sortBy === 'nome' ? 'a.colaborador' : 
+          sortBy === 'unidade' ? 'unidade' : 
+          sortBy === 'regional' ? 'regional' :
+          sortBy === 'dataAdmissao' ? '"dataAdmissao"' :
+          'a.colaborador'} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
-    const countQuery = `
-      SELECT COUNT(DISTINCT a.cpf) as total
+    const countQuery = useJoin ? `
+      SELECT COUNT(*)::int AS total
       FROM stg_alterdata_v2 a
-      ${joinClause}
-      ${whereClause}
+      LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+      ${whereSql}
+    ` : `
+      SELECT COUNT(*)::int AS total
+      FROM stg_alterdata_v2 a
+      ${whereSql}
     `;
 
     // Executa queries
