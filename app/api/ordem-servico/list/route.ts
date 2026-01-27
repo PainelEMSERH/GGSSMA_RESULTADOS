@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
 
     // Monta query para buscar colaboradores que iniciaram em 01/01/2026
     // Usa a mesma lógica da página de entregas - parse da data como TEXT
+    // Aceita tanto '2026-01-01' quanto '01/01/2026'
     let whereConditions: string[] = [];
     whereConditions.push(`(
       CASE 
@@ -42,12 +43,15 @@ export async function GET(req: NextRequest) {
         ELSE NULL
       END
     ) = '${dataInicio}'::date`);
-    whereConditions.push(`(a.demissao IS NULL OR 
+    
+    // Filtro de demissão: apenas demitidos antes de 2026-01-01 são removidos
+    const DEMISSAO_LIMITE = '2026-01-01';
+    whereConditions.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR 
       CASE 
         WHEN a.demissao ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN a.demissao::date
         WHEN a.demissao ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN to_date(a.demissao, 'DD/MM/YYYY')
         ELSE NULL
-      END > NOW()::date OR a.demissao = '' OR TRIM(a.demissao) = '')`);
+      END >= '${DEMISSAO_LIMITE}'::date)`);
 
     // Verifica se stg_unid_reg existe
     const hasUnidRegCheck: any[] = await prisma.$queryRawUnsafe(`
@@ -131,9 +135,15 @@ export async function GET(req: NextRequest) {
     `;
 
     // Executa queries
+    console.log('[ordem-servico/list] Query:', query);
+    console.log('[ordem-servico/list] Count query:', countQuery);
+    
     const rows: any[] = await prisma.$queryRawUnsafe(query);
     const countResult: any[] = await prisma.$queryRawUnsafe(countQuery);
     const total = parseInt(countResult[0]?.total || '0', 10);
+    
+    console.log('[ordem-servico/list] Total encontrado:', total);
+    console.log('[ordem-servico/list] Rows retornados:', rows.length);
 
     // Filtra por status de entrega se necessário
     let filteredRows = rows;
