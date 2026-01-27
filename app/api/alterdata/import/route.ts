@@ -91,19 +91,22 @@ async function ensureSetup(){
      RETURNS VOID AS $$
      BEGIN
        INSERT INTO stg_alterdata_v2 (
-         cpf, matricula, colaborador, unidade_hospitalar, funcao, admissao, demissao, last_batch_id, updated_at
+         cpf, matricula, colaborador, unidade_hospitalar, cidade, funcao, estado_civil, sexo,
+         telefone, data_nascimento, admissao, demissao, data_atestado, proximo_aso,
+         mes_ultimo_aso, tipo_aso, periodicidade, status_aso, nome_medico,
+         inicio_afastamento, fim_afastamento, celular, last_batch_id, updated_at
        )
        SELECT
          CASE 
            WHEN regexp_replace(COALESCE(
              data->>'CPF', data->>'Cpf', data->>'cpf',
-             data->>'Nrcpf', data->>'nrcpf',
+             data->>'NrCPF', data->>'Nrcpf', data->>'nrcpf',
              data->>'Nr CPF', data->>'nr cpf',
              ''
            ), '[^0-9]', '', 'g') != '' 
            THEN regexp_replace(COALESCE(
              data->>'CPF', data->>'Cpf', data->>'cpf',
-             data->>'Nrcpf', data->>'nrcpf',
+             data->>'NrCPF', data->>'Nrcpf', data->>'nrcpf',
              data->>'Nr CPF', data->>'nr cpf'
            ), '[^0-9]', '', 'g')
            ELSE 'SEM_CPF_' || lpad(row_no::text, 10, '0')
@@ -136,24 +139,114 @@ async function ensureSetup(){
            data->>'Departamento', data->>'departamento',
            ''
          )), ''), '') as unidade_hospitalar,
+         NULLIF(TRIM(COALESCE(
+           data->>'Cidade', data->>'cidade',
+           data->>'nmcidade', data->>'Nmcidade', data->>'NmCidade',
+           data->>'Nm Cidade', data->>'nm cidade',
+           ''
+         )), '') as cidade,
          COALESCE(NULLIF(TRIM(COALESCE(
            data->>'Função', data->>'Funcao', data->>'Cargo', data->>'funcao',
-           data->>'Nmfuncao', data->>'nmfuncao',
+           data->>'nmfuncao', data->>'Nmfuncao', data->>'NmFuncao',
            data->>'Nm Funcao', data->>'nm funcao',
            ''
          )), ''), '') as funcao,
          NULLIF(TRIM(COALESCE(
+           data->>'Estado Civil', data->>'estado_civil',
+           data->>'TpEstadoCivil', data->>'Tpestadocivil', data->>'tpestadocivil',
+           data->>'Tp Estado Civil', data->>'tp estado civil',
+           ''
+         )), '') as estado_civil,
+         NULLIF(TRIM(COALESCE(
+           data->>'Sexo', data->>'sexo',
+           data->>'TpSexo', data->>'Tpsexo', data->>'tpsexo',
+           data->>'Tp Sexo', data->>'tp sexo',
+           ''
+         )), '') as sexo,
+         NULLIF(TRIM(COALESCE(
+           data->>'Telefone', data->>'telefone',
+           data->>'NrTelefone', data->>'Nrtelefone', data->>'nrtelefone',
+           data->>'Nr Telefone', data->>'nr telefone',
+           ''
+         )), '') as telefone,
+         NULLIF(TRIM(COALESCE(
+           data->>'Data Nascimento', data->>'data_nascimento',
+           data->>'DtNascimento', data->>'Dtnascimento', data->>'dtnascimento',
+           data->>'Dt Nascimento', data->>'dt nascimento',
+           data->>'Nascimento', data->>'nascimento',
+           ''
+         )), '') as data_nascimento,
+         NULLIF(TRIM(COALESCE(
            data->>'Admissão', data->>'Admissao', data->>'admissao',
-           data->>'Dtadmissao', data->>'dtadmissao',
+           data->>'DtAdmissao', data->>'Dtadmissao', data->>'dtadmissao',
            data->>'Dt Admissao', data->>'dt admissao',
            ''
          )), '') as admissao,
          NULLIF(TRIM(COALESCE(
            data->>'Demissão', data->>'Demissao', data->>'demissao',
-           data->>'Dtdemissao', data->>'dtdemissao',
+           data->>'DtDemissao', data->>'Dtdemissao', data->>'dtdemissao',
            data->>'Dt Demissao', data->>'dt demissao',
            ''
          )), '') as demissao,
+         NULLIF(TRIM(COALESCE(
+           data->>'Data Atestado', data->>'data_atestado',
+           data->>'Data_Atestado', data->>'Data_atestado', data->>'data_Atestado',
+           data->>'Data Atestado', data->>'data atestado',
+           ''
+         )), '') as data_atestado,
+         NULLIF(TRIM(COALESCE(
+           data->>'Próximo ASO', data->>'proximo_aso',
+           data->>'Proximo_aso', data->>'Proximo_ASO', data->>'proximo_ASO',
+           data->>'Próximo ASO', data->>'proximo aso',
+           ''
+         )), '') as proximo_aso,
+         NULLIF(TRIM(COALESCE(
+           data->>'Mês Último ASO', data->>'mes_ultimo_aso',
+           data->>'N_MES_ULTIMO_ASO', data->>'N_Mes_Ultimo_ASO', data->>'n_mes_ultimo_aso',
+           data->>'N MES ULTIMO ASO', data->>'n mes ultimo aso',
+           ''
+         )), '') as mes_ultimo_aso,
+         NULLIF(TRIM(COALESCE(
+           data->>'Tipo ASO', data->>'tipo_aso',
+           data->>'Tipo_ASO', data->>'Tipo_Aso', data->>'tipo_Aso',
+           data->>'Tipo ASO', data->>'tipo aso',
+           ''
+         )), '') as tipo_aso,
+         NULLIF(TRIM(COALESCE(
+           data->>'Periodicidade', data->>'periodicidade',
+           data->>'periodicidade', data->>'Periodicidade',
+           ''
+         )), '') as periodicidade,
+         NULLIF(TRIM(COALESCE(
+           data->>'Status ASO', data->>'status_aso',
+           data->>'Status_ASO', data->>'Status_Aso', data->>'status_Aso',
+           data->>'Status ASO', data->>'status aso',
+           ''
+         )), '') as status_aso,
+         NULLIF(TRIM(COALESCE(
+           data->>'Nome Médico', data->>'nome_medico',
+           data->>'Nome_Medico', data->>'Nome_medico', data->>'nome_Medico',
+           data->>'Nome Médico', data->>'nome medico',
+           ''
+         )), '') as nome_medico,
+         NULLIF(TRIM(COALESCE(
+           data->>'Início Afastamento', data->>'inicio_afastamento',
+           data->>'Início Afastamento', data->>'Inicio_Afastamento', data->>'inicio_Afastamento',
+           data->>'Início Afastamento', data->>'inicio afastamento',
+           ''
+         )), '') as inicio_afastamento,
+         NULLIF(TRIM(COALESCE(
+           data->>'Fim Afastamento', data->>'fim_afastamento',
+           data->>'Fim_Afastamento', data->>'Fim_afastamento', data->>'fim_Afastamento',
+           data->>'Fim Afastamento', data->>'fim afastamento',
+           ''
+         )), '') as fim_afastamento,
+         NULLIF(TRIM(COALESCE(
+           data->>'Celular', data->>'celular',
+           data->>'NrCelular', data->>'Nrcelular', data->>'nrcelular',
+           data->>'Nr Celular', data->>'nr celular',
+           ''
+         )), '') as celular,
          batch_id,
          now()
        FROM stg_alterdata_v2_raw
@@ -161,9 +254,24 @@ async function ensureSetup(){
        ON CONFLICT (cpf, matricula) DO UPDATE SET
          colaborador = EXCLUDED.colaborador,
          unidade_hospitalar = EXCLUDED.unidade_hospitalar,
+         cidade = EXCLUDED.cidade,
          funcao = EXCLUDED.funcao,
+         estado_civil = EXCLUDED.estado_civil,
+         sexo = EXCLUDED.sexo,
+         telefone = EXCLUDED.telefone,
+         data_nascimento = EXCLUDED.data_nascimento,
          admissao = EXCLUDED.admissao,
          demissao = EXCLUDED.demissao,
+         data_atestado = EXCLUDED.data_atestado,
+         proximo_aso = EXCLUDED.proximo_aso,
+         mes_ultimo_aso = EXCLUDED.mes_ultimo_aso,
+         tipo_aso = EXCLUDED.tipo_aso,
+         periodicidade = EXCLUDED.periodicidade,
+         status_aso = EXCLUDED.status_aso,
+         nome_medico = EXCLUDED.nome_medico,
+         inicio_afastamento = EXCLUDED.inicio_afastamento,
+         fim_afastamento = EXCLUDED.fim_afastamento,
+         celular = EXCLUDED.celular,
          last_batch_id = EXCLUDED.last_batch_id,
          updated_at = now();
      END;
