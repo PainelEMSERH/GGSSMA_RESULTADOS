@@ -613,7 +613,7 @@ export async function GET(req: Request) {
       const raw = (r._demissao || '').trim();
       if (!raw) return true;
       // Excel serial date (número)
-      if (/^\\d+$/.test(raw)) {
+      if (/^\d+$/.test(raw)) {
         const excelSerial = parseInt(raw, 10);
         // 1899-12-30 + N dias
         const dt = new Date(Date.UTC(1899, 11, 30));
@@ -622,13 +622,13 @@ export async function GET(req: Request) {
       }
 
       // YYYY-MM-DD
-      if (/^\\d{4}-\\d{2}-\\d{2}/.test(raw)) {
+      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
         const year = parseInt(raw.slice(0, 4), 10);
         return year >= 2026;
       }
 
       // DD/MM/YYYY
-      if (/^\\d{2}\\/\\d{2}\\/\\d{4}/.test(raw)) {
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
         const year = parseInt(raw.slice(6, 10), 10);
         return year >= 2026;
       }
