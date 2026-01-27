@@ -34,22 +34,34 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Gestão de EPI",
+    label: "Visão Geral",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Entregas", href: "/entregas", icon: PackageCheck },
-      { label: "Estoque", href: "/estoque", icon: Boxes },
       { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
     ],
   },
   {
-    label: "Segurança do Trabalho",
+    label: "Gestão de EPI",
     items: [
-      { label: "Acidentes", href: "/acidentes", icon: AlertTriangle },
-      { label: "SPCI / Extintores", href: "/spci-extintores", icon: Flame },
-      { label: "CIPA", href: "/cipa", icon: Users },
-      { label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText },
+      { label: "Entregas", href: "/entregas", icon: PackageCheck },
+      { label: "Estoque", href: "/estoque", icon: Boxes },
     ],
+  },
+  {
+    label: "Gestão de Acidentes",
+    items: [{ label: "Acidentes", href: "/acidentes", icon: AlertTriangle }],
+  },
+  {
+    label: "Gestão de SPCI",
+    items: [{ label: "SPCI / Extintores", href: "/spci-extintores", icon: Flame }],
+  },
+  {
+    label: "Gestão de CIPA",
+    items: [{ label: "CIPA", href: "/cipa", icon: Users }],
+  },
+  {
+    label: "Gestão de Ordem de Serviço",
+    items: [{ label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText }],
   },
   {
     label: "Administração",
@@ -84,8 +96,9 @@ function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={false}
                     className={clsx(
-                      "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors",
+                      "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors duration-150",
                       active
                         ? "bg-panel text-text ring-1 ring-inset ring-border"
                         : "text-muted hover:bg-panel hover:text-text"
