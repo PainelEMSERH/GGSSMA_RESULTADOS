@@ -943,19 +943,9 @@ export default function AcidentesPage() {
 
       {/* Registros de Acidentes */}
       <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-muted">
-              Total: <span className="font-semibold text-text">{total}</span> acidentes
-            </div>
-            <button
-              type="button"
-              onClick={() => handleOpenModal()}
-              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
-            >
-              <Plus className="w-4 h-4" />
-              Novo Acidente
-            </button>
-          </div>
+        <div className="text-xs text-muted">
+          Total: <span className="font-semibold text-text">{total}</span> acidentes
+        </div>
 
           <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <table className="min-w-full text-[11px]">
