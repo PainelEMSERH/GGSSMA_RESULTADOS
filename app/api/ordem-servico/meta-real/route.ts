@@ -15,6 +15,25 @@ import { prisma } from '@/lib/db';
  */
 export async function GET(req: NextRequest) {
   try {
+    // Garante que a tabela ordem_servico existe
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS ordem_servico (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        colaborador_cpf TEXT NOT NULL,
+        entregue BOOLEAN NOT NULL DEFAULT false,
+        data_entrega DATE,
+        responsavel TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(colaborador_cpf)
+      );
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS idx_ordem_servico_colaborador_cpf ON ordem_servico(colaborador_cpf);
+      CREATE INDEX IF NOT EXISTS idx_ordem_servico_data_entrega ON ordem_servico(data_entrega);
+    `);
+
     const url = new URL(req.url);
     const regional = url.searchParams.get('regional') || '';
     const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
