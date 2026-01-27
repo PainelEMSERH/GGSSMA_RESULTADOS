@@ -788,9 +788,11 @@ export default function AcidentesPage() {
               </div>
 
               <div className="space-y-2 rounded-lg border border-border bg-bg/60 p-2 overflow-x-auto">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] uppercase tracking-wide text-muted">Mês</span>
-                  <div className="grid grid-cols-12 gap-1 flex-1 ml-4">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="w-32 text-[10px] uppercase tracking-wide text-muted">
+                    Mês
+                  </span>
+                  <div className="grid grid-cols-12 gap-1 flex-1">
                     {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((nome) => (
                       <div
                         key={nome}
@@ -804,35 +806,23 @@ export default function AcidentesPage() {
 
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="w-40 text-[11px] font-medium text-muted">
+                    <span className="w-32 text-[11px] font-medium text-muted">
                       Nº de Acidentes *
                     </span>
                     <div className="grid grid-cols-12 gap-1 flex-1">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
                         (m) => {
-                          const linha = tfMeses[m];
+                          const quantidade =
+                            stats?.porMes?.[String(parseInt(m, 10))] ??
+                            stats?.porMes?.[m] ??
+                            0;
                           return (
-                            <input
+                            <div
                               key={m}
-                              type="number"
-                              min={0}
-                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
-                              value={linha?.accidentes ?? ''}
-                              onChange={(e) => {
-                                const accidentes = e.target.value;
-                                const horas = linha?.horas ?? '';
-                                let tf = '--';
-                                const aNum = parseInt(accidentes || '0', 10);
-                                const hNum = parseFloat((horas || '0').replace(',', '.'));
-                                if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
-                                  tf = ((aNum * 1_000_000) / hNum).toFixed(2);
-                                }
-                                setTfMeses((prev) => ({
-                                  ...prev,
-                                  [m]: { accidentes, horas, tf },
-                                }));
-                              }}
-                            />
+                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-center text-text"
+                            >
+                              {quantidade}
+                            </div>
                           );
                         },
                       )}
@@ -840,7 +830,7 @@ export default function AcidentesPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="w-40 text-[11px] font-medium text-muted">
+                    <span className="w-32 text-[11px] font-medium text-muted">
                       Horas-Homem (h) *
                     </span>
                     <div className="grid grid-cols-12 gap-1 flex-1">
@@ -853,20 +843,23 @@ export default function AcidentesPage() {
                               type="number"
                               min={0}
                               step="0.01"
-                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-right outline-none focus:ring-1 focus:ring-emerald-500"
+                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-center outline-none focus:ring-1 focus:ring-emerald-500"
                               value={linha?.horas ?? ''}
                               onChange={(e) => {
                                 const horas = e.target.value;
-                                const accidentes = linha?.accidentes ?? '';
+                                const quantidade =
+                                  stats?.porMes?.[String(parseInt(m, 10))] ??
+                                  stats?.porMes?.[m] ??
+                                  0;
                                 let tf = '--';
-                                const aNum = parseInt(accidentes || '0', 10);
+                                const aNum = quantidade;
                                 const hNum = parseFloat((horas || '0').replace(',', '.'));
                                 if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
                                   tf = ((aNum * 1_000_000) / hNum).toFixed(2);
                                 }
                                 setTfMeses((prev) => ({
                                   ...prev,
-                                  [m]: { accidentes, horas, tf },
+                                  [m]: { ...(prev[m] || { accidentes: '', horas: '', tf: '--' }), horas, tf },
                                 }));
                               }}
                             />
@@ -877,7 +870,7 @@ export default function AcidentesPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="w-40 text-[11px] font-medium text-muted">
+                    <span className="w-32 text-[11px] font-medium text-muted">
                       TF (por milhão de horas)
                     </span>
                     <div className="grid grid-cols-12 gap-1 flex-1">
@@ -889,7 +882,12 @@ export default function AcidentesPage() {
                               key={m}
                               className="w-full rounded border border-border bg-panel/70 px-1 py-1 text-[11px] text-center"
                             >
-                              {linha?.tf ?? '--'}
+                              {linha?.tf && linha.tf !== '--'
+                                ? Number(linha.tf).toLocaleString('pt-BR', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })
+                                : '--'}
                             </div>
                           );
                         },
@@ -930,9 +928,12 @@ export default function AcidentesPage() {
                     for (const m of meses) {
                       const linha = tfMeses[m];
                       if (!linha) continue;
-                      const acidentes = parseInt(linha.accidentes || '0', 10);
+                      const quantidade =
+                        stats?.porMes?.[String(parseInt(m, 10))] ??
+                        stats?.porMes?.[m] ??
+                        0;
                       const horas = parseFloat((linha.horas || '0').replace(',', '.'));
-                      if (Number.isNaN(acidentes) || Number.isNaN(horas) || horas <= 0) {
+                      if (Number.isNaN(quantidade) || Number.isNaN(horas) || horas <= 0) {
                         continue;
                       }
                       await fetchJSON('/api/acidentes/taxa-frequencia', {
@@ -941,7 +942,7 @@ export default function AcidentesPage() {
                         body: JSON.stringify({
                           ano: anoNum,
                           mes: parseInt(m, 10),
-                          numeroAcidentes: acidentes,
+                          numeroAcidentes: quantidade,
                           horasHomemTrabalhadas: horas,
                         }),
                       });
