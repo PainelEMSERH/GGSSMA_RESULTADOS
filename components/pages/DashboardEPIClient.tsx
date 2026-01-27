@@ -506,14 +506,14 @@ export default function DashboardEPI(){
         <div className="rounded-xl border border-border bg-panel p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-            <h3 className="text-sm font-semibold text-text">Alertas de Estoque (EPI)</h3>
+              <h3 className="text-sm font-semibold text-text">Alertas de Estoque (EPI)</h3>
               <p className="text-xs text-muted mt-1">
                 Itens abaixo do estoque mínimo
               </p>
             </div>
             {epi.alertas.estoqueAbaixoMinimo?.length > 0 && (
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                {data.alertas.estoqueAbaixoMinimo.length}
+                {epi.alertas.estoqueAbaixoMinimo.length}
               </span>
             )}
           </div>
