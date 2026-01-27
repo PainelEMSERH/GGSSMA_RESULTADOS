@@ -110,7 +110,7 @@ export default function ImportarAlterdataClient() {
                 setFile(e.target.files?.[0] || null);
                 setStatus(null);
               }}
-              className="block w-full text-sm rounded-xl border border-border bg-card px-4 py-3 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+              className="block w-full text-xs rounded-lg border border-border bg-card px-3 py-2 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-card file:text-text hover:file:bg-bg"
             />
             <p className="text-xs text-muted mt-2">
               Formatos aceitos: Excel (.xlsx) ou CSV. O sistema processa automaticamente a primeira aba/planilha.
@@ -131,7 +131,8 @@ export default function ImportarAlterdataClient() {
           <button
             type="submit"
             disabled={busy || !file}
-            className="w-full rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-500/20"
+            className="w-full rounded-lg bg-accent px-4 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Importar arquivo Alterdata"
           >
             {busy ? (
               <span className="flex items-center justify-center gap-2">
@@ -150,23 +151,25 @@ export default function ImportarAlterdataClient() {
         {/* Status */}
         {status && (
           <div
-            className={`mt-4 rounded-xl border p-4 ${
+            className={`mt-3 rounded-lg border p-3 ${
               status.type === 'success'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200'
+                ? 'border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200'
                 : status.type === 'error'
                 ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200'
                 : 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200'
             }`}
+            role="status"
+            aria-live="polite"
           >
-            <div className="text-sm font-medium">{status.message}</div>
+            <div className="text-xs font-medium">{status.message}</div>
           </div>
         )}
       </div>
 
       {/* Estatísticas */}
-      <div className="rounded-xl border border-border bg-panel p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold">📊 Estatísticas da Base</h3>
+      <div className="rounded-xl border border-border bg-panel p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold">📊 Estatísticas da Base</h3>
           <div className="flex gap-2">
             <button
               type="button"
@@ -213,9 +216,9 @@ export default function ImportarAlterdataClient() {
         {stats && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {stats.raw_total !== undefined && (
-              <div className="rounded-lg border border-blue-300 bg-blue-50/50 dark:bg-blue-900/20 p-3">
+              <div className="rounded-lg border border-border bg-card p-3">
                 <div className="text-xs text-muted mb-1">Total Importado (Raw)</div>
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                <div className="text-xl font-bold text-text">
                   {stats.raw_total.toLocaleString('pt-BR')}
                 </div>
                 <div className="text-[10px] text-muted mt-1">
@@ -225,7 +228,7 @@ export default function ImportarAlterdataClient() {
             )}
             <div className="rounded-lg border border-border bg-card p-3">
               <div className="text-xs text-muted mb-1">Total Processado</div>
-              <div className="text-2xl font-bold text-text">
+              <div className="text-xl font-bold text-text">
                 {stats.total_alterdata.toLocaleString('pt-BR')}
               </div>
               <div className="text-[10px] text-muted mt-1">
@@ -235,7 +238,7 @@ export default function ImportarAlterdataClient() {
             {stats.difference !== undefined && stats.difference > 0 && (
               <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:bg-amber-900/20 p-3">
                 <div className="text-xs text-muted mb-1">Diferença</div>
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
                   {stats.difference.toLocaleString('pt-BR')}
                 </div>
                 <div className="text-[10px] text-muted mt-1">
@@ -246,7 +249,7 @@ export default function ImportarAlterdataClient() {
 
             <div className="rounded-lg border border-border bg-card p-3">
               <div className="text-xs text-muted mb-1">Total Manual</div>
-              <div className="text-2xl font-bold text-text">
+              <div className="text-xl font-bold text-text">
                 {stats.total_manual.toLocaleString('pt-BR')}
               </div>
               <div className="text-[10px] text-muted mt-1">
@@ -254,9 +257,9 @@ export default function ImportarAlterdataClient() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-emerald-300 bg-emerald-50/50 dark:bg-emerald-900/20 p-3">
+            <div className="rounded-lg border border-border bg-card p-3">
               <div className="text-xs text-muted mb-1">Total Único</div>
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="text-xl font-bold text-text">
                 {stats.total_unique.toLocaleString('pt-BR')}
               </div>
               <div className="text-[10px] text-muted mt-1">
@@ -264,9 +267,9 @@ export default function ImportarAlterdataClient() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-blue-300 bg-blue-50/50 dark:bg-blue-900/20 p-3">
+            <div className="rounded-lg border border-border bg-card p-3">
               <div className="text-xs text-muted mb-1">Colaboradores Ativos</div>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              <div className="text-xl font-bold text-text">
                 {stats.total_active.toLocaleString('pt-BR')}
               </div>
               <div className="text-[10px] text-muted mt-1">

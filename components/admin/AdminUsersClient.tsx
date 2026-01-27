@@ -1,6 +1,33 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, XCircle, Info } from 'lucide-react';
+
+type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
+function ToastList({ toasts, remove }: { toasts: Toast[]; remove: (id: string) => void }) {
+  return (
+    <div className="fixed top-20 right-4 z-50 flex flex-col gap-2" role="region" aria-label="Notificações">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg min-w-[300px] max-w-md ${
+            t.type === 'success' ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-200' :
+            t.type === 'error' ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200' :
+            'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200'
+          }`}
+        >
+          {t.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          {t.type === 'error' && <XCircle className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          {t.type === 'info' && <Info className="w-5 h-5 flex-shrink-0" aria-hidden />}
+          <span className="text-sm font-medium flex-1">{t.message}</span>
+          <button type="button" onClick={() => remove(t.id)} className="text-current opacity-70 hover:opacity-100" aria-label="Fechar notificação">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type Role = 'admin' | 'regional' | 'unidade' | 'operador';
 
@@ -49,7 +76,7 @@ const roleLabels: Record<Role, string> = {
 };
 
 const fieldClass =
-  'w-full px-3 py-2 rounded-xl border border-border bg-panel text-xs text-text placeholder:text-muted shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500';
+  'w-full px-3 py-2 rounded-lg border border-border bg-card text-xs text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent';
 
 export default function AdminUsersClient() {
   const [users, setUsers] = useState<UsuarioRow[]>([]);
@@ -60,6 +87,13 @@ export default function AdminUsersClient() {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
   const [verifyResults, setVerifyResults] = useState<Record<string, { verified: boolean; message: string; issues: string[] }>>({});
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2);
+    setToasts((p) => [...p, { id, message: msg, type }]);
+    setTimeout(() => setToasts((p) => p.filter((x) => x.id !== id)), 5000);
+  };
+  const removeToast = (id: string) => setToasts((p) => p.filter((x) => x.id !== id));
 
   useEffect(() => {
     let cancelled = false;
@@ -135,16 +169,17 @@ export default function AdminUsersClient() {
       });
       const json = await r.json();
       if (!r.ok || !json?.ok) {
-        alert(
+        showToast(
           json?.error ||
             'Não foi possível salvar as permissões desse usuário.',
+          'error'
         );
       } else if (json.user) {
-        // Atualiza com dados normalizados do servidor
         updateUser(row.id, json.user);
+        showToast('Permissões salvas com sucesso.', 'success');
       }
     } catch (e) {
-      alert('Erro inesperado ao salvar. Tente novamente.');
+      showToast('Erro inesperado ao salvar. Tente novamente.', 'error');
     } finally {
       const s2 = new Set(newSet);
       s2.delete(row.id);
@@ -178,18 +213,17 @@ export default function AdminUsersClient() {
           },
         }));
         
-        // Mostra alerta com os resultados
         if (json.verified) {
-          alert(json.message || 'Usuário verificado com sucesso!');
+          showToast(json.message || 'Usuário verificado com sucesso!', 'success');
         } else {
           const issuesText = json.issues?.length
-            ? '\n\nProblemas encontrados:\n' + json.issues.map((i: string, idx: number) => `${idx + 1}. ${i}`).join('\n')
+            ? ' Problemas: ' + json.issues.map((i: string) => i).join('; ')
             : '';
-          alert((json.message || 'Verificação concluída com problemas.') + issuesText);
+          showToast((json.message || 'Verificação concluída com problemas.') + issuesText, 'error');
         }
       }
     } catch (e) {
-      alert('Erro inesperado ao verificar. Tente novamente.');
+      showToast('Erro inesperado ao verificar. Tente novamente.', 'error');
     } finally {
       const s2 = new Set(newSet);
       s2.delete(row.id);
@@ -199,12 +233,12 @@ export default function AdminUsersClient() {
 
   if (loading) {
     return (
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-2">Usuários &amp; permissões</h2>
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
         <p className="text-xs text-muted mb-3">
           Carregando lista de usuários cadastrados...
         </p>
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm text-sm text-muted">
+        <div className="rounded-xl border border-border bg-panel p-4 text-xs text-muted">
           Carregando...
         </div>
       </div>
@@ -213,12 +247,12 @@ export default function AdminUsersClient() {
 
   if (error) {
     return (
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-2">Usuários &amp; permissões</h2>
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
         <p className="text-xs text-muted mb-3">
           Configuração detalhada do que cada usuário pode ver no sistema.
         </p>
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm text-sm text-red-500">
+        <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 p-4 text-xs text-red-600 dark:text-red-400">
           {error}
         </div>
       </div>
@@ -227,13 +261,13 @@ export default function AdminUsersClient() {
 
   if (!users.length) {
     return (
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-2">Usuários &amp; permissões</h2>
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
         <p className="text-xs text-muted mb-3">
           Assim que novos usuários fizerem login com o Clerk, eles aparecerão aqui para que você
           consiga definir o papel (admin, regional, unidade, operador) e o escopo de acesso.
         </p>
-        <div className="rounded-xl border border-border bg-panel p-4 shadow-sm text-sm text-muted">
+        <div className="rounded-xl border border-border bg-panel p-4 text-xs text-muted">
           Nenhum usuário encontrado ainda. Peça para os gestores acessarem o sistema pelo menos
           uma vez para aparecerem aqui.
         </div>
@@ -242,13 +276,14 @@ export default function AdminUsersClient() {
   }
 
   return (
-    <div className="mt-8">
-      <h2 className="text-lg font-semibold mb-2">Usuários &amp; permissões</h2>
+    <div className="mt-6">
+      <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
       <p className="text-xs text-muted mb-3">
         Defina o papel de cada pessoa e qual Regional/Unidade ela pode visualizar. As permissões
         passam a valer em todas as telas após o salvamento.
       </p>
-      <div className="rounded-xl border border-border bg-panel p-4 shadow-sm overflow-x-auto">
+      <ToastList toasts={toasts} remove={removeToast} />
+      <div className="rounded-xl border border-border bg-panel p-4 overflow-x-auto">
         <table className="min-w-full text-xs">
           <thead>
             <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted">
@@ -365,18 +400,20 @@ export default function AdminUsersClient() {
                     />
                   </td>
                   <td className="px-2 py-1 text-center">
-                    <div className="flex items-center gap-2 justify-center">
+                    <div className="flex items-center gap-1.5 justify-center">
                       <button
                         onClick={() => verifyUser(u)}
                         disabled={verifyingIds.has(u.id)}
-                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] font-medium hover:bg-bg disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                        aria-label={`Verificar usuário ${u.nome}`}
                       >
                         {verifyingIds.has(u.id) ? 'Verificando...' : 'Verificar'}
                       </button>
                       <button
                         onClick={() => saveUser(u)}
                         disabled={isSaving}
-                        className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center rounded-lg bg-accent px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                        aria-label={`Salvar alterações do usuário ${u.nome}`}
                       >
                         {isSaving ? 'Salvando...' : 'Salvar'}
                       </button>

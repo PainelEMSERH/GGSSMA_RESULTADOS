@@ -49,18 +49,18 @@ export default function AdminLogsClient() {
   }, []);
 
   return (
-    <div className="mt-10">
-      <h2 className="text-lg font-semibold mb-2">Últimas ações</h2>
+    <div className="mt-6">
+      <h2 className="text-sm font-semibold mb-1">Últimas ações</h2>
       <p className="text-xs text-muted mb-3">
         Registro das operações administrativas mais recentes (importações, alterações críticas, etc.).
       </p>
-      <div className="rounded-xl border border-border bg-panel p-4 shadow-sm overflow-x-auto">
-        {loading && <p className="text-sm text-muted">Carregando log...</p>}
+      <div className="rounded-xl border border-border bg-panel p-4 overflow-x-auto">
+        {loading && <p className="text-xs text-muted">Carregando log...</p>}
         {!loading && error && (
-          <p className="text-sm text-red-500">{error}</p>
+          <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
         )}
         {!loading && !error && logs.length === 0 && (
-          <p className="text-sm text-muted">Nenhuma ação registrada ainda.</p>
+          <p className="text-xs text-muted">Nenhuma ação registrada ainda.</p>
         )}
         {!loading && !error && logs.length > 0 && (
           <table className="min-w-full text-xs">

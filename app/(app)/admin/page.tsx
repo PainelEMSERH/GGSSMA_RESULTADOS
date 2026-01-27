@@ -81,29 +81,32 @@ export default async function Page() {
   const totalUsuarios = await prisma.usuario.count().catch(() => 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Administração do sistema</h1>
-        <p className="text-xs text-muted">
-          Logado como <span className="font-medium">{admin.email}</span>
-          {admin.isRoot && ' (root admin)'}.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-border bg-panel p-4 shadow-sm flex items-center justify-between">
-        <div className="text-sm text-muted">
-          Usuários cadastrados:{' '}
-          <span className="font-semibold text-text">{totalUsuarios}</span>
+    <div className="space-y-4">
+      {/* Header — padrão do site */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
+            Sistema • Administração
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">Administração do sistema</h1>
+          <p className="mt-1 text-xs text-muted">
+            Logado como <span className="font-medium">{admin.email}</span>
+            {admin.isRoot && ' (root admin)'}
+          </p>
+        </div>
+        <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs text-muted">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+          <span>{totalUsuarios} usuário(s) cadastrado(s)</span>
         </div>
       </div>
 
       {admin.isRoot && (
         <div className="space-y-4">
           <ImportarAlterdataClient />
-          <div className="mt-6">
+          <div className="rounded-xl border border-border bg-panel p-4">
             <a
               href="/admin/importar-bases"
-              className="inline-flex items-center gap-2 rounded-xl border border-emerald-500 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs font-medium hover:bg-bg transition-colors"
             >
               📥 Importar Outras Bases (SPCI, CIPA, Acidentes, OS)
             </a>
