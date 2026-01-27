@@ -318,9 +318,32 @@ async function tryFastList(
       }
     }
 
-    // Aplica regra de demissão: mantém sem demissão ou demitidos a partir de 2026-01-01
-    // Remove apenas demitidos antes de 2026-01-01
-    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
+    // Aplica regra de demissão:
+    // - inclui: vazio (NULL / '' / espaços)
+    // - inclui: demissão em 2026 OU depois
+    // Observação: `a.demissao` pode vir como "número do Excel" (ex: 46831).
+    const DEMISSAO_ANO_MINIMO = 2026;
+    wh.push(`(
+      a.demissao IS NULL
+      OR a.demissao = ''
+      OR TRIM(a.demissao) = ''
+      OR (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ) IS NOT NULL
+      AND EXTRACT(YEAR FROM (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ))::int >= ${DEMISSAO_ANO_MINIMO}
+    )`);
 
     // Filtro Pendente/Entregue (epi_entregas)
     if (entregueFilter === 'pendente') {
@@ -584,22 +607,34 @@ export async function GET(req: Request) {
 
     // 5) Aplica regra de demissão:
     // - demissão vazia -> fica
-    // - data < 2025-01-01 -> sai
-    // - data >= 2025-01-01 -> fica
+    // - demissão em 2026 ou depois -> fica
+    // - demissão antes de 2026 -> sai
     function keepByDemissao(r: InternalRow): boolean {
       const raw = (r._demissao || '').trim();
       if (!raw) return true;
-      let d = raw;
-      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-        d = raw.slice(0, 10);
-      } else if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
-        const [dd, mm, yyyy] = raw.slice(0, 10).split('/');
-        d = `${yyyy}-${mm}-${dd}`;
-      } else {
-        // formato desconhecido: não exclui por segurança
-        return true;
+      // Excel serial date (número)
+      if (/^\\d+$/.test(raw)) {
+        const excelSerial = parseInt(raw, 10);
+        // 1899-12-30 + N dias
+        const dt = new Date(Date.UTC(1899, 11, 30));
+        dt.setUTCDate(dt.getUTCDate() + excelSerial);
+        return dt.getUTCFullYear() >= 2026;
       }
-      return d >= DEMISSAO_LIMITE;
+
+      // YYYY-MM-DD
+      if (/^\\d{4}-\\d{2}-\\d{2}/.test(raw)) {
+        const year = parseInt(raw.slice(0, 4), 10);
+        return year >= 2026;
+      }
+
+      // DD/MM/YYYY
+      if (/^\\d{2}\\/\\d{2}\\/\\d{4}/.test(raw)) {
+        const year = parseInt(raw.slice(6, 10), 10);
+        return year >= 2026;
+      }
+
+      // formato desconhecido: não exclui por segurança
+      return true;
     }
 
     let rows: Row[] = rowsAll.filter(keepByDemissao).map(({ _demissao, ...rest }) => rest);

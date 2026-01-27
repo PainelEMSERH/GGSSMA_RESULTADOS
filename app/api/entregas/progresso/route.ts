@@ -58,8 +58,28 @@ export async function GET(req: Request) {
       }
     }
 
-    const DEMISSAO_LIMITE = '2026-01-01';
-    wh.push(`(a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')`);
+    const DEMISSAO_ANO_MINIMO = 2026;
+    wh.push(`(
+      a.demissao IS NULL
+      OR a.demissao = ''
+      OR TRIM(a.demissao) = ''
+      OR (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ) IS NOT NULL
+      AND EXTRACT(YEAR FROM (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ))::int >= ${DEMISSAO_ANO_MINIMO}
+    )`);
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 

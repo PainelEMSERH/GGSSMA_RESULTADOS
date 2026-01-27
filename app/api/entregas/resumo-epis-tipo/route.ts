@@ -43,7 +43,28 @@ export async function GET(req: Request) {
     }
 
     const regTrim = regional.trim();
-    const DEMISSAO_LIMITE = '2026-01-01';
+    const DEMISSAO_ANO_MINIMO = 2026;
+    const DEMISSAO_WHERE = `(
+      a.demissao IS NULL
+      OR a.demissao = ''
+      OR TRIM(a.demissao) = ''
+      OR (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ) IS NOT NULL
+      AND EXTRACT(YEAR FROM (
+        CASE
+          WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+          WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+          WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+          ELSE NULL
+        END
+      ))::int >= ${DEMISSAO_ANO_MINIMO}
+    )`;
 
     // Busca colaboradores da regional
     const colaboradoresSql = `
@@ -57,7 +78,7 @@ export async function GET(req: Request) {
              OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
                SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regTrim.replace(/'/g, "''")}'))
              ))
-        AND (a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = '' OR a.demissao::text >= '${DEMISSAO_LIMITE}')
+        AND ${DEMISSAO_WHERE}
         AND COALESCE(a.cpf, '') != ''
         AND COALESCE(a.funcao, '') != ''
     `;
