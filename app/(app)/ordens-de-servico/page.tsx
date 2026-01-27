@@ -120,7 +120,18 @@ export default function OrdemServicoPage() {
       params.set('sortDir', sortDir);
 
       const data = await fetchJSON<{ rows: OrdemServicoRow[]; total: number }>(`/api/ordem-servico/list?${params.toString()}`);
-      setRows(data.rows || []);
+      // Garante que todos os campos sejam strings válidas
+      const safeRows = (data.rows || []).map((r) => ({
+        ...r,
+        id: String(r.id || ''),
+        nome: String(r.nome || ''),
+        cpf: String(r.cpf || ''),
+        matricula: String(r.matricula || ''),
+        unidade: String(r.unidade || ''),
+        regional: String(r.regional || ''),
+        funcao: String(r.funcao || ''),
+      }));
+      setRows(safeRows);
       setTotal(data.total || 0);
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
@@ -515,8 +526,8 @@ export default function OrdemServicoPage() {
                       <td className="px-4 py-3 text-left text-[11px] font-medium">{row.nome}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{maskCPF(row.cpf)}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.matricula}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{row.unidade}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{row.regional}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{String(row.unidade || '')}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{String(row.regional || '')}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.funcao}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.dataAdmissao)}</td>
                       <td className="px-4 py-3 text-center">
@@ -623,8 +634,8 @@ export default function OrdemServicoPage() {
 
               <div>
                 <div className="text-sm font-medium text-muted mb-1">Unidade</div>
-                <div className="text-sm text-text">{modalConfirmacao.row.unidade}</div>
-                <div className="text-xs text-muted mt-0.5">Regional: {modalConfirmacao.row.regional}</div>
+                <div className="text-sm text-text">{String(modalConfirmacao.row.unidade || '')}</div>
+                <div className="text-xs text-muted mt-0.5">Regional: {String(modalConfirmacao.row.regional || '')}</div>
               </div>
 
               <div>
