@@ -693,6 +693,74 @@ export default function AcidentesPage() {
 
       {/* VISÃO GERAL – blocos institucionais */}
       <div className="space-y-4">
+        {/* Bloco 0: Estatísticas Resumidas */}
+        <section className="rounded-xl border border-border bg-panel p-3 shadow-sm space-y-2">
+          {statsLoading ? (
+            <p className="text-[11px] text-muted">Carregando estatísticas...</p>
+          ) : stats ? (
+            <>
+              <div className="grid gap-2 md:grid-cols-4">
+                <div className="rounded-lg border border-border bg-bg px-3 py-2">
+                  <p className="text-[10px] text-muted">Total no Ano</p>
+                  <p className="mt-1 text-xl font-semibold">{stats.totalAno}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-bg px-3 py-2">
+                  <p className="text-[10px] text-muted">Total no Mês</p>
+                  <p className="mt-1 text-xl font-semibold">{stats.totalMes}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-bg px-3 py-2">
+                  <p className="text-[10px] text-muted">Com Afastamento</p>
+                  <p className="mt-1 text-xl font-semibold text-red-400">{stats.comAfastamento}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-bg px-3 py-2">
+                  <p className="text-[10px] text-muted">Sem Afastamento</p>
+                  <p className="mt1 text-xl font-semibold text-emerald-400">{stats.semAfastamento}</p>
+                </div>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="rounded-lg border border-border bg-bg px-3 py-2 text-[11px]">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-semibold">Por Regional</span>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto">
+                    {stats.porRegional.length === 0 ? (
+                      <p className="text-[11px] text-muted">Sem registros.</p>
+                    ) : (
+                      stats.porRegional.map((r) => (
+                        <div key={r.regional} className="flex items-center justify-between py-0.5">
+                          <span>{r.regional}</span>
+                          <span className="font-semibold">{r.quantidade}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-bg px-3 py-2 text-[11px]">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-semibold">Por Tipo</span>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto">
+                    {stats.porTipo.length === 0 ? (
+                      <p className="text-[11px] text-muted">Sem registros.</p>
+                    ) : (
+                      stats.porTipo.map((t) => (
+                        <div key={t.tipo} className="flex items-center justify-between py-0.5">
+                          <span>
+                            {TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}
+                          </span>
+                          <span className="font-semibold">{t.quantidade}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-[11px] text-muted">Nenhuma estatística disponível.</p>
+          )}
+        </section>
+
         {/* Bloco 1: Taxa de Frequência (TF) */}
           <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
             <div className="flex items-start justify-between gap-3">
@@ -1235,111 +1303,6 @@ export default function AcidentesPage() {
               </button>
             </div>
           </div>
-      </div>
-
-      {/* Visão Geral - Estatísticas */}
-      <div className="space-y-4">
-        {/* Cards de Resumo */}
-          {statsLoading ? (
-            <div className="text-center py-8 text-muted">Carregando estatísticas...</div>
-          ) : stats ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">Total no Ano</p>
-                  <p className="mt-1 text-2xl font-semibold">{stats.totalAno}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">Total no Mês</p>
-                  <p className="mt-1 text-2xl font-semibold">{stats.totalMes}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">Com Afastamento</p>
-                  <p className="mt-1 text-2xl font-semibold text-red-200">{stats.comAfastamento}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <p className="text-[11px] text-muted">Sem Afastamento</p>
-                  <p className="mt-1 text-2xl font-semibold text-emerald-300">{stats.semAfastamento}</p>
-                </div>
-              </div>
-
-              {/* Tabelas de Estatísticas */}
-              <div className="grid gap-4 lg:grid-cols-2">
-                {/* Por Regional */}
-                <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-                  <h3 className="text-sm font-semibold mb-3">Por Regional</h3>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-[11px]">
-                      <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Regional</th>
-                          <th className="px-3 py-2 text-right">Quantidade</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.porRegional.map((r) => (
-                          <tr key={r.regional} className="border-t border-border/60">
-                            <td className="px-3 py-2">{r.regional}</td>
-                            <td className="px-3 py-2 text-right">{r.quantidade}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Por Tipo */}
-                <div className="rounded-xl border border-border bg-panel p-4 text-xs">
-                  <h3 className="text-sm font-semibold mb-3">Por Tipo</h3>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-[11px]">
-                      <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Tipo</th>
-                          <th className="px-3 py-2 text-right">Quantidade</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.porTipo.map((t) => (
-                          <tr key={t.tipo} className="border-t border-border/60">
-                            <td className="px-3 py-2">
-                              {TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}
-                            </td>
-                            <td className="px-3 py-2 text-right">{t.quantidade}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Por Unidade */}
-                <div className="lg:col-span-2 rounded-xl border border-border bg-panel p-4 text-xs">
-                  <h3 className="text-sm font-semibold mb-3">Por Unidade (Top 20)</h3>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-[11px]">
-                      <thead className="bg-white/5 text-[10px] uppercase tracking-wide text-muted">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Unidade</th>
-                          <th className="px-3 py-2 text-right">Quantidade</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stats.porUnidade.map((u) => (
-                          <tr key={u.unidade} className="border-t border-border/60">
-                            <td className="px-3 py-2">{u.unidade}</td>
-                            <td className="px-3 py-2 text-right">{u.quantidade}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-8 text-muted">Nenhuma estatística disponível</div>
-          )}
       </div>
 
       {/* Modal de Edição/Criação */}
