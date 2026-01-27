@@ -404,7 +404,6 @@ export default function AcidentesPage() {
 
   // Carrega meta e real
   useEffect(() => {
-    if (tab !== 'visao') return;
     setMetaRealLoading(true);
     const params = new URLSearchParams();
     if (regional) params.set('regional', regional);
@@ -414,7 +413,7 @@ export default function AcidentesPage() {
       .then((d) => setMetaReal(d))
       .catch(() => setMetaReal(null))
       .finally(() => setMetaRealLoading(false));
-  }, [tab, regional, ano]);
+  }, [regional, ano]);
 
   const unidadesDaRegional = useMemo(() => {
     if (!regional) return opts.unidades;
