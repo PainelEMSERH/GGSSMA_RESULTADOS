@@ -393,52 +393,53 @@ export default function DashboardEPI(){
               Últimos 6 meses - EPIs obrigatórios
             </p>
           </div>
-          <Line 
-            data={lineChartData} 
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { 
-                legend: { 
-                  display: true,
-                  position: 'top',
-                  labels: {
-                    usePointStyle: true,
-                    padding: 15,
-                    font: { size: 12 }
-                  }
-                }, 
-                tooltip: { 
-                  callbacks: { 
-                    label(ctx: any){ 
-                      return `${ctx.dataset.label}: ${formatThousands(Number(ctx.parsed.y||0))}` 
+          <div className="h-72">
+            <Line 
+              data={lineChartData} 
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                  legend: { 
+                    display: true,
+                    position: 'top',
+                    labels: {
+                      usePointStyle: true,
+                      padding: 15,
+                      font: { size: 12 }
+                    }
+                  }, 
+                  tooltip: { 
+                    callbacks: { 
+                      label(ctx: any){ 
+                        return `${ctx.dataset.label}: ${formatThousands(Number(ctx.parsed.y||0))}` 
+                      } 
                     } 
                   } 
-                } 
-              },
-              scales: { 
-                y: { 
-                  beginAtZero: true,
-                  ticks: { 
-                    callback: (v: any) => formatThousands(Number(v)),
-                    font: { size: 11 }
-                  },
-                  grid: {
-                    color: 'rgba(0, 0, 0, 0.05)'
-                  }
                 },
-                x: {
-                  grid: {
-                    display: false
+                scales: { 
+                  y: { 
+                    beginAtZero: true,
+                    ticks: { 
+                      callback: (v: any) => formatThousands(Number(v)),
+                      font: { size: 11 }
+                    },
+                    grid: {
+                      color: 'rgba(0, 0, 0, 0.05)'
+                    }
                   },
-                  ticks: {
-                    font: { size: 11 }
+                  x: {
+                    grid: {
+                      display: false
+                    },
+                    ticks: {
+                      font: { size: 11 }
+                    }
                   }
                 }
-              }
-            }} 
-            height={280}
-          />
+              }} 
+            />
+          </div>
         </div>
 
         {/* Curva de acidentes por mês */}
@@ -449,54 +450,55 @@ export default function DashboardEPI(){
               Ano {new Date().getFullYear()} • Consolidado ou por regional
             </p>
           </div>
-          <Line
-            data={acidentesLineData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  display: true,
-                  position: 'top',
-                  labels: {
-                    usePointStyle: true,
-                    padding: 15,
-                    font: { size: 12 },
+          <div className="h-72">
+            <Line
+              data={acidentesLineData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                      usePointStyle: true,
+                      padding: 15,
+                      font: { size: 12 },
+                    },
                   },
-                },
-                tooltip: {
-                  callbacks: {
-                    label(ctx: any) {
-                      return `${ctx.dataset.label}: ${formatThousands(
-                        Number(ctx.parsed.y || 0),
-                      )}`
+                  tooltip: {
+                    callbacks: {
+                      label(ctx: any) {
+                        return `${ctx.dataset.label}: ${formatThousands(
+                          Number(ctx.parsed.y || 0),
+                        )}`
+                      },
                     },
                   },
                 },
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    callback: (v: any) => formatThousands(Number(v)),
-                    font: { size: 11 },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      callback: (v: any) => formatThousands(Number(v)),
+                      font: { size: 11 },
+                    },
+                    grid: {
+                      color: 'rgba(0, 0, 0, 0.05)',
+                    },
                   },
-                  grid: {
-                    color: 'rgba(0, 0, 0, 0.05)',
+                  x: {
+                    grid: {
+                      display: false,
+                    },
+                    ticks: {
+                      font: { size: 11 },
+                    },
                   },
                 },
-                x: {
-                  grid: {
-                    display: false,
-                  },
-                  ticks: {
-                    font: { size: 11 },
-                  },
-                },
-              },
-            }}
-            height={280}
-          />
+              }}
+            />
+          </div>
         </div>
       </div>
 
