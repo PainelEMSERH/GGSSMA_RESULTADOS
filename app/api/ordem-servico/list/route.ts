@@ -96,75 +96,73 @@ export async function GET(req: NextRequest) {
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 
-    // Query EXATAMENTE como entregas - linhas 339-368
+    // Uma linha por CPF (DISTINCT ON). stg_alterdata_v2 pode ter várias linhas por pessoa.
+    const orderExpr = sortBy === 'nome' ? 'sub.nome' : sortBy === 'unidade' ? 'sub.unidade' : sortBy === 'regional' ? 'sub.regional' : sortBy === 'dataAdmissao' ? 'sub."dataAdmissao"' : 'sub.nome';
     const rowsSql = useJoin ? `
-      SELECT
-        COALESCE(a.cpf, '') AS cpf,
-        COALESCE(a.colaborador, '') AS nome,
-        COALESCE(a.matricula, '') AS matricula,
-        COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade,
-        COALESCE(NULLIF(TRIM(u.regional_responsavel), ''), '') AS regional,
-        COALESCE(a.funcao, '') AS funcao,
-        CASE 
-          WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
-          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
-          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
-          WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
-          WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
-          ELSE NULL
-        END AS "dataAdmissao",
-        COALESCE(os.entregue, false) AS "osEntregue",
-        os.data_entrega::text AS "dataEntregaOS",
-        os.responsavel AS "responsavelEntrega"
-      FROM stg_alterdata_v2 a
-      LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
-      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
-      ${whereSql}
-      ORDER BY 
-        ${sortBy === 'nome' ? 'a.colaborador' : 
-          sortBy === 'unidade' ? 'unidade' : 
-          sortBy === 'regional' ? 'regional' :
-          sortBy === 'dataAdmissao' ? '"dataAdmissao"' :
-          'a.colaborador'} ${sortDir.toUpperCase()}
+      SELECT sub.* FROM (
+        SELECT DISTINCT ON (a.cpf)
+          COALESCE(a.cpf, '') AS cpf,
+          COALESCE(a.colaborador, '') AS nome,
+          COALESCE(a.matricula, '') AS matricula,
+          COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade,
+          COALESCE(NULLIF(TRIM(u.regional_responsavel), ''), '') AS regional,
+          COALESCE(a.funcao, '') AS funcao,
+          CASE 
+            WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
+            WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
+            WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
+            WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+            WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
+            ELSE NULL
+          END AS "dataAdmissao",
+          COALESCE(os.entregue, false) AS "osEntregue",
+          os.data_entrega::text AS "dataEntregaOS",
+          os.responsavel AS "responsavelEntrega"
+        FROM stg_alterdata_v2 a
+        LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+        LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+        ${whereSql}
+        ORDER BY a.cpf, a.colaborador
+      ) sub
+      ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}
     ` : `
-      SELECT
-        COALESCE(a.cpf, '') AS cpf,
-        COALESCE(a.colaborador, '') AS nome,
-        COALESCE(a.matricula, '') AS matricula,
-        COALESCE(a.unidade_hospitalar, '') AS unidade,
-        '' AS regional,
-        COALESCE(a.funcao, '') AS funcao,
-        CASE 
-          WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
-          WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
-          WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
-          WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
-          WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
-          ELSE NULL
-        END AS "dataAdmissao",
-        COALESCE(os.entregue, false) AS "osEntregue",
-        os.data_entrega::text AS "dataEntregaOS",
-        os.responsavel AS "responsavelEntrega"
-      FROM stg_alterdata_v2 a
-      LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
-      ${whereSql}
-      ORDER BY 
-        ${sortBy === 'nome' ? 'a.colaborador' : 
-          sortBy === 'unidade' ? 'unidade' : 
-          sortBy === 'regional' ? 'regional' :
-          sortBy === 'dataAdmissao' ? '"dataAdmissao"' :
-          'a.colaborador'} ${sortDir.toUpperCase()}
+      SELECT sub.* FROM (
+        SELECT DISTINCT ON (a.cpf)
+          COALESCE(a.cpf, '') AS cpf,
+          COALESCE(a.colaborador, '') AS nome,
+          COALESCE(a.matricula, '') AS matricula,
+          COALESCE(a.unidade_hospitalar, '') AS unidade,
+          '' AS regional,
+          COALESCE(a.funcao, '') AS funcao,
+          CASE 
+            WHEN a.admissao IS NULL OR a.admissao = '' OR TRIM(a.admissao) = '' THEN NULL
+            WHEN a.admissao ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(a.admissao, 1, 10)
+            WHEN a.admissao ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(a.admissao, 1, 10), 'DD/MM/YYYY')::text
+            WHEN a.admissao ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(a.admissao, 'DD/MM/YYYY')::text
+            WHEN a.admissao ~ '^\\d{8}' THEN to_date(a.admissao, 'DDMMYYYY')::text
+            ELSE NULL
+          END AS "dataAdmissao",
+          COALESCE(os.entregue, false) AS "osEntregue",
+          os.data_entrega::text AS "dataEntregaOS",
+          os.responsavel AS "responsavelEntrega"
+        FROM stg_alterdata_v2 a
+        LEFT JOIN ordem_servico os ON os.colaborador_cpf = a.cpf
+        ${whereSql}
+        ORDER BY a.cpf, a.colaborador
+      ) sub
+      ORDER BY ${orderExpr} ${sortDir.toUpperCase()}
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
+    // Um colaborador por CPF (stg_alterdata_v2 pode ter várias linhas por pessoa)
     const countSql = useJoin ? `
-      SELECT COUNT(*)::int AS total
+      SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
       LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
       ${whereSql}
     ` : `
-      SELECT COUNT(*)::int AS total
+      SELECT COUNT(DISTINCT a.cpf)::int AS total
       FROM stg_alterdata_v2 a
       ${whereSql}
     `;

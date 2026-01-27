@@ -58,12 +58,10 @@ export async function GET(req: NextRequest) {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    // Total de colaboradores ativos em 2026 (META)
-    // Meta = todos os colaboradores que estavam ativos no início de 2026
-    // (admitidos em qualquer data, mas não demitidos antes de 2026)
-    // EXATAMENTE como entregas: filtra CPF e função não vazios
+    // Total de colaboradores ativos em 2026 (META) = 5944
+    // Um colaborador por CPF (stg_alterdata_v2 pode ter várias linhas por pessoa)
     const totalMetaQuery = `
-      SELECT COUNT(*) as total
+      SELECT COUNT(DISTINCT a.cpf) as total
       FROM stg_alterdata_v2 a
       ${whereClause}
     `;
