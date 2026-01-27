@@ -184,22 +184,31 @@ export async function GET(req: NextRequest) {
       filteredRows = rowsRaw.filter((r: any) => !r.osEntregue);
     }
 
-    // Retorna EXATAMENTE como a query retorna - sem transformações complexas
+    // Retorna garantindo que todos os valores sejam primitivos
     return NextResponse.json({
       ok: true,
-      rows: filteredRows.map((r: any) => ({
-        id: String(r.cpf || ''),
-        nome: String(r.nome || ''),
-        cpf: String(r.cpf || ''),
-        matricula: String(r.matricula || ''),
-        unidade: String(r.unidade || ''),
-        regional: String(r.regional || ''),
-        funcao: String(r.funcao || ''),
-        dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
-        osEntregue: Boolean(r.osEntregue),
-        dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
-        responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
-      })),
+      rows: filteredRows.map((r: any) => {
+        // Garante que todos sejam strings válidas ou null
+        const safeStr = (v: any): string => {
+          if (v === null || v === undefined) return '';
+          if (typeof v === 'object') return '';
+          return String(v);
+        };
+
+        return {
+          id: safeStr(r.cpf),
+          nome: safeStr(r.nome),
+          cpf: safeStr(r.cpf),
+          matricula: safeStr(r.matricula),
+          unidade: safeStr(r.unidade),
+          regional: safeStr(r.regional),
+          funcao: safeStr(r.funcao),
+          dataAdmissao: r.dataAdmissao ? safeStr(r.dataAdmissao) : null,
+          osEntregue: Boolean(r.osEntregue),
+          dataEntregaOS: r.dataEntregaOS ? safeStr(r.dataEntregaOS) : null,
+          responsavelEntrega: r.responsavelEntrega ? safeStr(r.responsavelEntrega) : null,
+        };
+      }),
       total: entregue ? filteredRows.length : total,
     });
   } catch (e: any) {

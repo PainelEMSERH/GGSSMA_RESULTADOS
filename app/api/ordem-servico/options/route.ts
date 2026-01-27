@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
 
       const unidadesQuery = `
         SELECT DISTINCT
-          COALESCE(ur.nmddepartamento, ur.nmd_departamento, '') as unidade,
+          COALESCE(ur.nmdepartamento, '') as unidade,
           COALESCE(ur.regional_responsavel, '') as regional
         FROM stg_unid_reg ur
-        WHERE COALESCE(ur.nmddepartamento, ur.nmd_departamento, '') != ''
+        WHERE COALESCE(ur.nmdepartamento, '') != ''
         ORDER BY regional, unidade
       `;
 

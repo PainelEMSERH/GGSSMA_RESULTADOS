@@ -119,17 +119,23 @@ export default function OrdemServicoPage() {
       params.set('sortBy', sortBy);
       params.set('sortDir', sortDir);
 
-      const data = await fetchJSON<{ rows: OrdemServicoRow[]; total: number }>(`/api/ordem-servico/list?${params.toString()}`);
+      const data = await fetchJSON<{ ok: boolean; rows: OrdemServicoRow[]; total: number }>(`/api/ordem-servico/list?${params.toString()}`);
+      if (!data.ok) {
+        throw new Error('Erro ao carregar dados');
+      }
       // Garante que todos os campos sejam strings válidas
-      const safeRows = (data.rows || []).map((r) => ({
-        ...r,
-        id: String(r.id || ''),
+      const safeRows = (data.rows || []).map((r: any) => ({
+        id: String(r.id || r.cpf || ''),
         nome: String(r.nome || ''),
         cpf: String(r.cpf || ''),
         matricula: String(r.matricula || ''),
         unidade: String(r.unidade || ''),
         regional: String(r.regional || ''),
         funcao: String(r.funcao || ''),
+        dataAdmissao: r.dataAdmissao ? String(r.dataAdmissao) : null,
+        osEntregue: Boolean(r.osEntregue),
+        dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
+        responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
       }));
       setRows(safeRows);
       setTotal(data.total || 0);
