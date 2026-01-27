@@ -93,6 +93,148 @@ const STATUS_ACIDENTE = [
 
 const LS_REGIONAL_KEY = 'acidentes:regional';
 
+type PlanoAcaoItem = {
+  descricao: string;
+  responsavel: string;
+  prazoSugestao: string;
+};
+
+function gerarPlanoAcao(tipo: string): PlanoAcaoItem[] {
+  const t = (tipo || '').toLowerCase();
+
+  if (t.includes('queda')) {
+    return [
+      {
+        descricao: 'Realizar inspeção detalhada do local do acidente (piso, desníveis, corrimãos, escadas e rotas de fuga).',
+        responsavel: 'Engenharia / Manutenção predial',
+        prazoSugestao: '30 dias',
+      },
+      {
+        descricao: 'Avaliar necessidade de correção de piso, nivelamento, instalação de sinalização e antiderrapantes.',
+        responsavel: 'Engenharia / SESMT',
+        prazoSugestao: '45 dias',
+      },
+      {
+        descricao: 'Revisar a iluminação do ambiente e pontos críticos de circulação.',
+        responsavel: 'Engenharia / Manutenção elétrica',
+        prazoSugestao: '30 dias',
+      },
+      {
+        descricao: 'Realizar treinamento de prevenção de quedas e adoção de condutas seguras no deslocamento interno.',
+        responsavel: 'SESMT / Educação Corporativa',
+        prazoSugestao: '60 dias',
+      },
+      {
+        descricao: 'Revisar EPCs disponíveis (corrimãos, guarda-corpos, fitas de isolamento, sinalização de degraus).',
+        responsavel: 'SESMT / Engenharia',
+        prazoSugestao: '45 dias',
+      },
+    ];
+  }
+
+  if (t.includes('trajeto') || t.includes('transito')) {
+    return [
+      {
+        descricao: 'Analisar o deslocamento a serviço (trajeto, tempo de percurso, meios de transporte utilizados).',
+        responsavel: 'SESMT / Gestão de Pessoas',
+        prazoSugestao: '30 dias',
+      },
+      {
+        descricao: 'Verificar jornada de trabalho, intervalos e possível fadiga relacionada ao acidente.',
+        responsavel: 'Gestão de Pessoas / Chefia imediata',
+        prazoSugestao: '30 dias',
+      },
+      {
+        descricao: 'Planejar e executar treinamento de direção defensiva para trabalhadores que utilizam veículo a serviço.',
+        responsavel: 'SESMT / Coordenação de Frota',
+        prazoSugestao: '90 dias',
+      },
+      {
+        descricao: 'Avaliar necessidade de atualização de política interna de transporte e deslocamento a serviço.',
+        responsavel: 'Diretoria / Gestão de Pessoas',
+        prazoSugestao: '120 dias',
+      },
+    ];
+  }
+
+  if (t.includes('biologico') || t.includes('perfuro') || t.includes('cortante')) {
+    return [
+      {
+        descricao: 'Reforçar treinamento em boas práticas de biossegurança e NR-32 para a equipe envolvida.',
+        responsavel: 'SESMT / Educação Permanente',
+        prazoSugestao: '60 dias',
+      },
+      {
+        descricao: 'Revisar fluxos de descarte de materiais perfurocortantes e recipientes coletores.',
+        responsavel: 'SESMT / Controle de Infecção',
+        prazoSugestao: '45 dias',
+      },
+      {
+        descricao: 'Avaliar dispositivos de segurança disponíveis (agulhas com sistema de proteção, coletores adequados).',
+        responsavel: 'Engenharia Clínica / Compras',
+        prazoSugestao: '60 dias',
+      },
+      {
+        descricao: 'Monitorar situação vacinal e imunização dos trabalhadores expostos.',
+        responsavel: 'Saúde Ocupacional',
+        prazoSugestao: '30 dias',
+      },
+      {
+        descricao: 'Garantir notificação em sistema oficial (ex.: SINAN) quando aplicável.',
+        responsavel: 'Vigilância em Saúde / SESMT',
+        prazoSugestao: 'Imediato',
+      },
+    ];
+  }
+
+  // Plano genérico para outros tipos
+  return [
+    {
+      descricao: 'Realizar análise detalhada do evento com participação do SESMT, gestor local e trabalhador envolvido.',
+      responsavel: 'SESMT / Chefia imediata',
+      prazoSugestao: '30 dias',
+    },
+    {
+      descricao: 'Identificar causas imediatas, causas raiz e fatores contribuintes (ambiente, processo e comportamento).',
+      responsavel: 'SESMT',
+      prazoSugestao: '30 dias',
+    },
+    {
+      descricao: 'Definir e registrar ações corretivas e preventivas específicas para eliminar ou mitigar o risco.',
+      responsavel: 'SESMT / Gestão / Engenharia',
+      prazoSugestao: '60 dias',
+    },
+    {
+      descricao: 'Monitorar a implementação das ações definidas, com registro de evidências e datas de conclusão.',
+      responsavel: 'SESMT',
+      prazoSugestao: '90 dias',
+    },
+  ];
+}
+
+function StatusPill({ status }: { status: 'pendente' | 'andamento' | 'concluido' }) {
+  const map = {
+    pendente: {
+      label: 'Pendente',
+      className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800',
+    },
+    andamento: {
+      label: 'Em andamento',
+      className: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/20 dark:text-sky-200 dark:border-sky-800',
+    },
+    concluido: {
+      label: 'Concluído',
+      className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-200 dark:border-emerald-800',
+    },
+  }[status];
+
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${map.className}`}>
+      {map.label}
+    </span>
+  );
+}
+
 export default function AcidentesPage() {
   const [tab, setTab] = useState<'registros' | 'visao'>('registros');
 
@@ -148,6 +290,10 @@ export default function AcidentesPage() {
   const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
   const [metaRealLoading, setMetaRealLoading] = useState(false);
   const [mesSelecionado, setMesSelecionado] = useState<string | null>(null);
+
+  // Taxa de acidentes - modo manual
+  const [taxaTrabalhadores, setTaxaTrabalhadores] = useState<string>('');
+  const [taxaPeriodo, setTaxaPeriodo] = useState<'ano' | 'mes'>('ano');
 
   // Carrega regional do localStorage
   useEffect(() => {
@@ -345,12 +491,24 @@ export default function AcidentesPage() {
     return total > 0 ? Math.ceil(total / pageSize) : 1;
   }, [total]);
 
+  const taxaManual = useMemo(() => {
+    const trabalhadores = parseFloat(taxaTrabalhadores.replace(',', '.'));
+    if (!stats || !trabalhadores || trabalhadores <= 0) return null;
+    const acidentesBase =
+      taxaPeriodo === 'mes' ? stats.totalMes || 0 : stats.totalAno || 0;
+    const taxa = (acidentesBase / trabalhadores) * 1000;
+    return { acidentesBase, trabalhadores, valor: taxa };
+  }, [stats, taxaTrabalhadores, taxaPeriodo]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold">Acidentes de Trabalho</h1>
-          <p className="text-xs text-muted">
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
+            SST • Acidentes
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">Acidentes de Trabalho</h1>
+          <p className="mt-1 text-xs text-muted">
             Registro, análise e acompanhamento de acidentes de trabalho nas unidades da EMSERH.
           </p>
         </div>
@@ -530,6 +688,213 @@ export default function AcidentesPage() {
           </div>
         )}
       </div>
+
+      {/* VISÃO GERAL – blocos institucionais */}
+      {tab === 'visao' && (
+        <div className="space-y-4">
+          {/* Bloco 1: Taxa de Acidentes */}
+          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Taxa de Acidentes de Trabalho</h2>
+                <p className="mt-1 text-[11px] text-muted">
+                  Indicador institucional que relaciona o número de acidentes de trabalho ao efetivo
+                  de trabalhadores expostos no período analisado.
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-right">
+                <StatusPill status={taxaManual ? 'andamento' : 'pendente'} />
+                <span className="text-[10px] text-muted">
+                  Responsável técnico: SESMT Corporativo
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Modo 1 – Manual */}
+              <div className="rounded-lg border border-border bg-bg p-3 space-y-2">
+                <div className="text-xs font-semibold text-text">
+                  Modo 1 — Taxa Institucional Manual
+                </div>
+                <p className="text-[11px] text-muted">
+                  Utilizado enquanto a integração automática com as bases corporativas não estiver
+                  disponível. Os dados são informados manualmente pelo serviço de Saúde e Segurança
+                  do Trabalho.
+                </p>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-muted">
+                      Número de trabalhadores
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                      value={taxaTrabalhadores}
+                      onChange={(e) => setTaxaTrabalhadores(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-muted">
+                      Período de referência
+                    </span>
+                    <select
+                      className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                      value={taxaPeriodo}
+                      onChange={(e) =>
+                        setTaxaPeriodo(e.target.value === 'mes' ? 'mes' : 'ano')
+                      }
+                    >
+                      <option value="ano">Ano atual</option>
+                      <option value="mes">Mês atual</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-2 rounded-lg border border-dashed border-border bg-panel/70 p-3 space-y-1">
+                  <p className="text-[11px] text-muted">
+                    Fórmula institucional:
+                    <br />
+                    <span className="font-mono text-[11px] text-text">
+                      Taxa de Acidentes = (Número de Acidentes / Número de Trabalhadores) × 1.000
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-muted">
+                    Taxa calculada com base em dados informados manualmente, enquanto a integração
+                    automática não estiver disponível.
+                  </p>
+                </div>
+
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-[11px] text-muted">
+                    Taxa institucional calculada
+                  </span>
+                  <div className="text-right">
+                    <div className="text-xl font-semibold text-text">
+                      {taxaManual ? taxaManual.valor.toFixed(2) : '--'}‰
+                    </div>
+                    {taxaManual && (
+                      <div className="text-[10px] text-muted">
+                        {taxaManual.acidentesBase} acidente(s) / {taxaManual.trabalhadores}{' '}
+                        trabalhador(es)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modo 2 – Integrado (futuro) */}
+              <div className="rounded-lg border border-dashed border-border bg-bg/60 p-3 space-y-2">
+                <div className="text-xs font-semibold text-text">
+                  Modo 2 — Taxa Oficial Integrada (futuro)
+                </div>
+                <p className="text-[11px] text-muted">
+                  Área reservada para integração automática com as bases oficiais da EMSERH e do
+                  IADVH, contemplando número de trabalhadores, horas trabalhadas e indicadores
+                  normatizados.
+                </p>
+                <p className="text-[11px] text-muted">
+                  Este indicador será automaticamente alimentado após a conclusão das integrações
+                  corporativas, garantindo rastreabilidade e confiabilidade dos dados utilizados
+                  para tomada de decisão.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Bloco 2: Investigação */}
+          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Investigação de Acidente de Trabalho</h2>
+                <p className="mt-1 text-[11px] text-muted">
+                  Estrutura padronizada para registro, análise e tratamento de acidentes de
+                  trabalho, garantindo conformidade legal e rastreabilidade das informações.
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-right">
+                <StatusPill status={total > 0 ? 'andamento' : 'pendente'} />
+                <span className="text-[10px] text-muted">
+                  Responsável técnico: SESMT / Núcleo de Saúde e Segurança
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3 text-[11px] text-muted">
+              <div className="space-y-1">
+                <div className="font-semibold text-text">Identificação do Acidente</div>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>Data e hora do evento</li>
+                  <li>Unidade, regional e setor de ocorrência</li>
+                  <li>Função e tipo de vínculo do trabalhador</li>
+                </ul>
+              </div>
+              <div className="space-y-1">
+                <div className="font-semibold text-text">Classificação do Acidente</div>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>Queda, acidente de trânsito, perfurocortante, biológico, ergonomia, etc.</li>
+                  <li>Indicação de afastamento e gravidade</li>
+                </ul>
+              </div>
+              <div className="space-y-1">
+                <div className="font-semibold text-text">Descrição e Análise Técnica</div>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>O que, como, onde e por que aconteceu</li>
+                  <li>Verificação de EPI, treinamento e condições inseguras</li>
+                  <li>Causa imediata, causa raiz e fatores contribuintes</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
+              <div className="text-[11px] text-muted">
+                Os documentos RIAT, CAT, SINAN e demais evidências devem ser anexados e vinculados
+                diretamente ao registro do acidente.
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenModal()}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-[11px] font-semibold text-white hover:bg-emerald-500"
+              >
+                Registrar novo acidente
+              </button>
+            </div>
+          </section>
+
+          {/* Bloco 3: Plano de Ação */}
+          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Plano de Ação Automático</h2>
+                <p className="mt-1 text-[11px] text-muted">
+                  A partir da classificação do acidente, o sistema sugere automaticamente um plano
+                  de ação técnico e padronizado, que pode ser ajustado pelo SESMT antes da
+                  conclusão.
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-right">
+                <StatusPill status={total > 0 ? 'andamento' : 'pendente'} />
+                <span className="text-[10px] text-muted">
+                  Responsável técnico: SESMT / Gestão de Riscos
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted">
+              Ao expandir um registro de acidente na aba <strong>Registros de Acidentes</strong>, o
+              sistema exibe automaticamente um conjunto de ações sugeridas de acordo com o tipo de
+              evento (queda, trajeto, perfurocortante, biológico, entre outros), incluindo
+              responsáveis, prazos sugeridos e campos para registro de evidências de conclusão.
+            </p>
+
+            <p className="text-[11px] text-muted">
+              Esse plano automático não substitui a avaliação técnica do SESMT, mas garante que
+              nenhum aspecto essencial da investigação e das medidas preventivas deixe de ser
+              considerado.
+            </p>
+          </section>
+        </div>
+      )}
 
       {/* Meta e Real - card principal (sempre na primeira tela) */}
       {regional && metaReal && (
@@ -774,12 +1139,63 @@ export default function AcidentesPage() {
                             </button>
                           </td>
                         </tr>
-                        {isExpanded && row.descricao && (
+                        {isExpanded && (
                           <tr>
                             <td colSpan={14} className="px-3 py-3 bg-panel/50">
-                              <div className="text-[11px]">
-                                <div className="font-semibold mb-1">Descrição Detalhada:</div>
-                                <div className="text-muted whitespace-pre-wrap">{row.descricao}</div>
+                              <div className="space-y-3 text-[11px]">
+                                <div>
+                                  <div className="font-semibold mb-1">Descrição detalhada do acidente</div>
+                                  <p className="mb-2 text-muted">
+                                    Descreva de forma objetiva: o que aconteceu, como aconteceu, onde ocorreu,
+                                    por que ocorreu, quais atividades eram executadas, se havia EPI, se o trabalhador
+                                    recebeu treinamento e se foram identificados atos ou condições inseguras.
+                                  </p>
+                                  <div className="whitespace-pre-wrap text-[11px] bg-bg/60 rounded-lg p-3 border border-dashed border-border">
+                                    {row.descricao || 'Sem descrição detalhada informada.'}
+                                  </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-border">
+                                  <div className="font-semibold mb-1">Plano de Ação Automático</div>
+                                  <p className="mb-2 text-muted">
+                                    Ações sugeridas automaticamente com base na classificação do acidente. O SESMT pode
+                                    revisar, complementar e registrar as evidências de conclusão de cada etapa.
+                                  </p>
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full text-[10px]">
+                                      <thead>
+                                        <tr className="text-left text-muted uppercase">
+                                          <th className="py-1 pr-2">Ação recomendada</th>
+                                          <th className="py-1 pr-2">Responsável</th>
+                                          <th className="py-1 pr-2">Prazo sugerido</th>
+                                          <th className="py-1 pr-2 text-center">Status</th>
+                                          <th className="py-1 pr-2">Evidência</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {gerarPlanoAcao(row.tipo).map((acao, idxAcao) => (
+                                          <tr key={idxAcao} className="border-t border-border/40">
+                                            <td className="py-1 pr-2 align-top">
+                                              <span className="text-xs text-text">{acao.descricao}</span>
+                                            </td>
+                                            <td className="py-1 pr-2 align-top">
+                                              <span className="text-xs text-muted">{acao.responsavel}</span>
+                                            </td>
+                                            <td className="py-1 pr-2 align-top">
+                                              <span className="text-xs text-muted">{acao.prazoSugestao}</span>
+                                            </td>
+                                            <td className="py-1 pr-2 text-center align-top">
+                                              <StatusPill status="pendente" />
+                                            </td>
+                                            <td className="py-1 pr-2 align-top text-muted">
+                                              Campo para registro das evidências de conclusão da ação.
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
                               </div>
                             </td>
                           </tr>
