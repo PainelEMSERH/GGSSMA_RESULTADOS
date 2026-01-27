@@ -31,7 +31,20 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const cpf = String(searchParams.get("cpf") || "");
     if (!cpf) return NextResponse.json({ ok: false, error: "cpf obrigatório" }, { status: 200 });
-    const rows = await prisma.$queryRawUnsafe<any[]>(`select * from epi_entregas where cpf = $1`, cpf);
+    // Evita BigInt no JSON (id é BIGINT no Postgres)
+    const rows = await prisma.$queryRawUnsafe<any[]>(`
+      select
+        id::text as id,
+        cpf,
+        item,
+        qty_required,
+        qty_delivered,
+        deliveries,
+        created_at,
+        updated_at
+      from epi_entregas
+      where cpf = $1
+    `, cpf);
     return NextResponse.json({ ok: true, rows });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message||e) }, { status: 200 });
@@ -67,7 +80,15 @@ export async function POST(req: Request) {
               qty_delivered = epi_entregas.qty_delivered + $6,
               deliveries = epi_entregas.deliveries || jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)),
               updated_at = now()
-            RETURNING *;
+            RETURNING
+              id::text as id,
+              cpf,
+              item,
+              qty_required,
+              qty_delivered,
+              deliveries,
+              created_at,
+              updated_at;
           `, cpf, item, required, qty, date, qty);
           
           if (up && up[0]) {
@@ -103,7 +124,15 @@ export async function POST(req: Request) {
         qty_delivered = epi_entregas.qty_delivered + $6,
         deliveries = epi_entregas.deliveries || jsonb_build_array(jsonb_build_object('date', $5, 'qty', $6)),
         updated_at = now()
-      RETURNING *;
+      RETURNING
+        id::text as id,
+        cpf,
+        item,
+        qty_required,
+        qty_delivered,
+        deliveries,
+        created_at,
+        updated_at;
     `, cpf, item, required, qty, date, qty);
     return NextResponse.json({ ok: true, row: up?.[0] ?? null });
   } catch (e: any) {
