@@ -938,38 +938,7 @@ export default function AcidentesPage() {
             </div>
           </section>
 
-        {/* Bloco 3: Plano de Ação */}
-          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold">Plano de Ação Automático</h2>
-                <p className="mt-1 text-[11px] text-muted">
-                  A partir da classificação do acidente, o sistema sugere automaticamente um plano
-                  de ação técnico e padronizado, que pode ser ajustado pelo SESMT antes da
-                  conclusão.
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1 text-right">
-                <StatusPill status={total > 0 ? 'andamento' : 'pendente'} />
-                <span className="text-[10px] text-muted">
-                  Responsável técnico: SESMT / Gestão de Riscos
-                </span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-muted">
-              Ao expandir um registro de acidente na aba <strong>Registros de Acidentes</strong>, o
-              sistema exibe automaticamente um conjunto de ações sugeridas de acordo com o tipo de
-              evento (queda, trajeto, perfurocortante, biológico, entre outros), incluindo
-              responsáveis, prazos sugeridos e campos para registro de evidências de conclusão.
-            </p>
-
-            <p className="text-[11px] text-muted">
-              Esse plano automático não substitui a avaliação técnica do SESMT, mas garante que
-              nenhum aspecto essencial da investigação e das medidas preventivas deixe de ser
-              considerado.
-            </p>
-          </section>
+        {/* Bloco 3 removido: explicação textual do Plano de Ação Automático */}
       </div>
 
       {/* Registros de Acidentes */}
