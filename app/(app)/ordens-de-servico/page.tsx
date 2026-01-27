@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileText, CheckCircle2, XCircle, Search, Filter, RefreshCw, Download, Settings } from 'lucide-react';
+import { FileText, CheckCircle2, XCircle, Search, Filter, RefreshCw, Download } from 'lucide-react';
 
-type OrdemServicoRow = {
+type Row = {
   id: string;
   nome: string;
   cpf: string;
@@ -19,8 +19,6 @@ type OrdemServicoRow = {
 
 type MetaRealData = {
   meta: Record<string, number>;
-  metaMensal?: Record<string, number>;
-  real: Record<string, number>;
   realAcumulado: Record<string, number>;
   totalColaboradores: number;
   totalMeta: number;
@@ -28,14 +26,14 @@ type MetaRealData = {
   ano: number;
 };
 
-const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
-  const r = await fetch(url, { cache: 'no-store', ...init });
-  const data = await r.json();
-  if (!r.ok) {
-    throw new Error((data && (data.error || data.message)) || 'Erro ao carregar dados');
+async function fetchJSON(url: string, init?: RequestInit) {
+  const res = await fetch(url, { cache: 'no-store', ...init });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((json && (json.error || json.message)) || 'Erro ao carregar dados');
   }
-  return data as T;
-};
+  return json;
+}
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '-';
@@ -50,44 +48,36 @@ function maskCPF(cpf?: string) {
 }
 
 export default function OrdemServicoPage() {
-  // Filtros
   const [regional, setRegional] = useState<string>('');
   const [unidade, setUnidade] = useState<string>('');
   const [entregue, setEntregue] = useState<string>('');
   const [search, setSearch] = useState<string>('');
-
-  // Dados
-  const [rows, setRows] = useState<OrdemServicoRow[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState<string>('nome');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  // Meta vs Real
+  const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+
   const [metaReal, setMetaReal] = useState<MetaRealData | null>(null);
   const [metaRealLoading, setMetaRealLoading] = useState(false);
-  const [anoMetaReal, setAnoMetaReal] = useState<string>(String(new Date().getFullYear()));
+  const [anoMetaReal, setAnoMetaReal] = useState<string>('2026');
 
-  // Opções para filtros
   const [regionais, setRegionais] = useState<string[]>([]);
   const [unidades, setUnidades] = useState<Array<{ unidade: string; regional: string }>>([]);
 
-  // Modal de confirmação
-  const [modalConfirmacao, setModalConfirmacao] = useState<{
-    open: boolean;
-    row: OrdemServicoRow | null;
-  }>({ open: false, row: null });
+  const [modalConfirmacao, setModalConfirmacao] = useState<{ open: boolean; row: Row | null }>({ open: false, row: null });
   const [saving, setSaving] = useState(false);
   const [dataEntrega, setDataEntrega] = useState<string>('');
 
   // Carrega opções
   useEffect(() => {
-    fetchJSON<{ regionais: string[]; unidades: Array<{ unidade: string; regional: string }> }>('/api/ordem-servico/options')
-      .then((d) => {
-        setRegionais(d.regionais || []);
-        setUnidades(d.unidades || []);
+    fetchJSON('/api/ordem-servico/options')
+      .then((d: any) => {
+        setRegionais(Array.isArray(d.regionais) ? d.regionais : []);
+        setUnidades(Array.isArray(d.unidades) ? d.unidades : []);
       })
       .catch((err) => {
         console.error('Erro ao carregar opções:', err);
@@ -119,12 +109,10 @@ export default function OrdemServicoPage() {
       params.set('sortBy', sortBy);
       params.set('sortDir', sortDir);
 
-      const data = await fetchJSON<{ ok: boolean; rows: OrdemServicoRow[]; total: number }>(`/api/ordem-servico/list?${params.toString()}`);
-      if (!data.ok) {
-        throw new Error('Erro ao carregar dados');
-      }
+      const data: any = await fetchJSON(`/api/ordem-servico/list?${params.toString()}`);
+      
       // Garante que todos os campos sejam strings válidas
-      const safeRows = (data.rows || []).map((r: any) => ({
+      const safeRows: Row[] = (Array.isArray(data.rows) ? data.rows : []).map((r: any) => ({
         id: String(r.id || r.cpf || ''),
         nome: String(r.nome || ''),
         cpf: String(r.cpf || ''),
@@ -137,8 +125,9 @@ export default function OrdemServicoPage() {
         dataEntregaOS: r.dataEntregaOS ? String(r.dataEntregaOS) : null,
         responsavelEntrega: r.responsavelEntrega ? String(r.responsavelEntrega) : null,
       }));
+
       setRows(safeRows);
-      setTotal(data.total || 0);
+      setTotal(Number(data.total || 0));
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
       setRows([]);
@@ -155,7 +144,7 @@ export default function OrdemServicoPage() {
       if (regional) params.set('regional', regional);
       params.set('ano', anoMetaReal);
 
-      const data = await fetchJSON<MetaRealData>(`/api/ordem-servico/meta-real?${params.toString()}`);
+      const data: any = await fetchJSON(`/api/ordem-servico/meta-real?${params.toString()}`);
       setMetaReal(data);
     } catch (error: any) {
       console.error('Erro ao carregar meta/real:', error);
@@ -166,7 +155,7 @@ export default function OrdemServicoPage() {
   };
 
   const unidadesFiltradas = useMemo(() => {
-    if (!regional) return unidades;
+    if (!regional) return unidades.map(u => u.unidade).filter((u, i, arr) => arr.indexOf(u) === i).sort();
     return unidades
       .filter((u) => u.regional === regional)
       .map((u) => u.unidade)
@@ -184,7 +173,7 @@ export default function OrdemServicoPage() {
     setPage(1);
   };
 
-  const abrirModalConfirmacao = (row: OrdemServicoRow) => {
+  const abrirModalConfirmacao = (row: Row) => {
     setModalConfirmacao({ open: true, row });
     setDataEntrega(row.dataEntregaOS || new Date().toISOString().split('T')[0]);
   };
@@ -206,7 +195,7 @@ export default function OrdemServicoPage() {
           colaboradorCpf: modalConfirmacao.row.cpf,
           entregue: true,
           dataEntrega: dataEntrega,
-          responsavel: 'Sistema', // TODO: pegar do usuário logado
+          responsavel: 'Sistema',
         }),
       });
 
@@ -220,7 +209,7 @@ export default function OrdemServicoPage() {
     }
   };
 
-  const marcarNaoEntregue = async (row: OrdemServicoRow) => {
+  const marcarNaoEntregue = async (row: Row) => {
     if (!confirm('Deseja marcar como NÃO entregue?')) return;
 
     setSaving(true);
@@ -309,23 +298,21 @@ export default function OrdemServicoPage() {
             <div>Carregando Meta vs Real...</div>
           </div>
         </div>
-      ) : metaReal && (
+      ) : metaReal ? (
         <div className="rounded-xl border border-border bg-panel p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Meta vs Real - Ordem de Serviço</h2>
-            <div className="flex items-center gap-2">
-              <select
-                value={anoMetaReal}
-                onChange={(e) => setAnoMetaReal(e.target.value)}
-                className="px-3 py-1.5 rounded-lg border border-border bg-bg text-sm"
-              >
-                {[2024, 2025, 2026, 2027].map((a) => (
-                  <option key={a} value={String(a)}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={anoMetaReal}
+              onChange={(e) => setAnoMetaReal(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-bg text-sm"
+            >
+              {[2024, 2025, 2026, 2027].map((a) => (
+                <option key={a} value={String(a)}>
+                  {a}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-3">
@@ -333,7 +320,7 @@ export default function OrdemServicoPage() {
               <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidadeMeta = metaReal.meta[mes] || 0;
+                  const quantidadeMeta = Number(metaReal.meta[mes] || 0);
                   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
                   return (
                     <div
@@ -352,8 +339,8 @@ export default function OrdemServicoPage() {
               <div className="w-20 font-bold text-sm text-red-600 dark:text-red-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((mes, idx) => {
-                  const quantidadeRealAcumulado = metaReal.realAcumulado?.[mes] || 0;
-                  const quantidadeMeta = metaReal.meta[mes] || 0;
+                  const quantidadeRealAcumulado = Number(metaReal.realAcumulado?.[mes] || 0);
+                  const quantidadeMeta = Number(metaReal.meta[mes] || 0);
                   const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
                   const atingiuMeta = quantidadeRealAcumulado >= quantidadeMeta;
                   return (
@@ -375,16 +362,16 @@ export default function OrdemServicoPage() {
 
             <div className="flex items-center gap-2 pt-2 border-t border-border">
               <div className="text-xs text-muted">
-                Total: <span className="font-semibold text-text">{metaReal.totalReal}</span> de{' '}
-                <span className="font-semibold text-text">{metaReal.totalMeta}</span> OS entregues
+                Total: <span className="font-semibold text-text">{Number(metaReal.totalReal || 0)}</span> de{' '}
+                <span className="font-semibold text-text">{Number(metaReal.totalMeta || 0)}</span> OS entregues
               </div>
               <div className="ml-auto text-xs text-muted">
-                {metaReal.totalColaboradores} colaborador(es) ativo(s) em 2026
+                {Number(metaReal.totalColaboradores || 0)} colaborador(es) ativo(s) em 2026
               </div>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Filtros */}
       <div className="rounded-xl border border-border bg-panel p-4 shadow-sm">
@@ -532,8 +519,8 @@ export default function OrdemServicoPage() {
                       <td className="px-4 py-3 text-left text-[11px] font-medium">{row.nome}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{maskCPF(row.cpf)}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.matricula}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{String(row.unidade || '')}</td>
-                      <td className="px-4 py-3 text-center text-[11px]">{String(row.regional || '')}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{row.unidade}</td>
+                      <td className="px-4 py-3 text-center text-[11px]">{row.regional}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{row.funcao}</td>
                       <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.dataAdmissao)}</td>
                       <td className="px-4 py-3 text-center">
@@ -640,8 +627,8 @@ export default function OrdemServicoPage() {
 
               <div>
                 <div className="text-sm font-medium text-muted mb-1">Unidade</div>
-                <div className="text-sm text-text">{String(modalConfirmacao.row.unidade || '')}</div>
-                <div className="text-xs text-muted mt-0.5">Regional: {String(modalConfirmacao.row.regional || '')}</div>
+                <div className="text-sm text-text">{modalConfirmacao.row.unidade}</div>
+                <div className="text-xs text-muted mt-0.5">Regional: {modalConfirmacao.row.regional}</div>
               </div>
 
               <div>
