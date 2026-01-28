@@ -14,7 +14,6 @@ const sqlServerConfig: sql.config = {
   password: '#De$Ma2024!',
   options: {
     encrypt: false,
-    enableArithAbort: true,
   },
   pool: {
     max: 10,
