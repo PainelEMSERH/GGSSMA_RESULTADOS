@@ -165,33 +165,38 @@ export default function ChatWidget() {
     <>
       {/* Botão flutuante com imagem da assistente */}
       {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-[84px] h-[84px] rounded-2xl bg-white dark:bg-neutral-800 shadow-lg hover:shadow-2xl transition-all flex items-center justify-center group overflow-hidden border border-emerald-500/40 hover:border-emerald-500 dark:border-emerald-400/40 dark:hover:border-emerald-300 hover:scale-[1.03]"
-          aria-label="Abrir chat com assistente virtual"
-          title="Falar com a assistente virtual EMSERH"
-        >
-          {/* Sticker (sem “bolinha”) para não cortar a personagem */}
-          <div className="relative w-full h-full">
-            <Image
-              src="/images/assistente-emserh.png.png"
-              alt="Assistente Virtual EMSERH"
-              fill
-              className="object-cover"
-              style={{ objectPosition: '50% 18%' }}
-              unoptimized
-              onError={() => {
-                // fallback para nome alternativo
-                // (o Next/Image vai re-renderizar pelo estado do AssistenteAvatar; aqui usamos fallback simples visual)
-              }}
-            />
-            {/* brilho + borda */}
-            <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/10 dark:from-black/20 dark:to-white/5" />
-          </div>
+        <div className="fixed bottom-6 right-6 z-50">
+          {/* Mascote solto (fora do botão). Também abre o chat ao clicar. */}
+          <button
+            onClick={() => setOpen(true)}
+            className="absolute -top-[108px] -right-[10px] w-[120px] h-[120px] rounded-3xl bg-transparent hover:scale-[1.02] transition-transform"
+            aria-label="Abrir chat (mascote)"
+            title="Falar com a assistente virtual EMSERH"
+          >
+            <div className="relative w-full h-full">
+              <Image
+                src="/images/assistente-emserh.png.png"
+                alt="Assistente Virtual EMSERH"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+              {/* sombra suave para destacar do fundo */}
+              <div className="pointer-events-none absolute inset-0 drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)]" />
+            </div>
+          </button>
 
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-neutral-800 animate-pulse" />
-        </button>
+          {/* Botão “padrão site grande” */}
+          <button
+            onClick={() => setOpen(true)}
+            className="relative w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center"
+            aria-label="Abrir chat"
+            title="Abrir chat"
+          >
+            <MessageCircle className="w-6 h-6" />
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-neutral-900 animate-pulse" />
+          </button>
+        </div>
       )}
 
       {/* Widget de chat */}
