@@ -12,7 +12,6 @@ const sqlServerConfig: sql.config = {
   password: '#De$Ma2024!',
   options: {
     encrypt: false,
-    trustServerCertificate: true,
     enableArithAbort: true,
   },
 };

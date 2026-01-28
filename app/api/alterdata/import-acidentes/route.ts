@@ -13,8 +13,7 @@ const sqlServerConfig: sql.config = {
   user: 'DESSMA',
   password: '#De$Ma2024!',
   options: {
-    encrypt: false, // Se o servidor não usar SSL
-    trustServerCertificate: true,
+    encrypt: false,
     enableArithAbort: true,
   },
   pool: {
