@@ -29,7 +29,8 @@ export async function GET() {
     let pool: sql.ConnectionPool | null = null;
 
     try {
-      pool = await sql.connect(sqlServerConfig);
+      pool = new sql.ConnectionPool(sqlServerConfig);
+      await pool.connect();
 
       // Pega estrutura da tabela
       const columnsResult = await pool.request().query(`

@@ -200,7 +200,8 @@ export async function POST(req: Request) {
 
     try {
       // Conecta ao SQL Server (READ-ONLY)
-      pool = await sql.connect(sqlServerConfig);
+      pool = new sql.ConnectionPool(sqlServerConfig);
+      await pool.connect();
       
       // Consulta a tabela wdp.CAT
       const result = await pool.request().query('SELECT * FROM wdp.CAT');
