@@ -267,16 +267,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Pergunta vazia' }, { status: 400 });
     }
 
+    // Se a pergunta for continuação ("ela", "essa", "aí"), tenta inferir a última unidade citada
+    const inferLastUnit = (msgs: Array<{ role: string; content: string }>): string | null => {
+      // Procura de trás pra frente por: unidade "NOME..."
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i];
+        const txt = String(m?.content || '');
+        const match = txt.match(/unidade\s+\"([^\"]+)\"/i);
+        if (match?.[1]) return match[1].trim();
+      }
+      return null;
+    };
+
     // Carrega contexto de unidades/regionais
     const context = await loadContext();
 
     // Normaliza pergunta para análise
+    let effectiveQuestion = lastQuestion;
     const qLower = lastQuestion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    const isFollowup = /\b(ela|essa|esse|isso|a[ií]|da[ií]|dessa|desse)\b/i.test(qLower);
+    if (isFollowup) {
+      const lastUnit = inferLastUnit(messages as any);
+      if (lastUnit && !/unidade\s+/i.test(effectiveQuestion)) {
+        // “cola” o contexto da unidade na pergunta para os handlers/tools entenderem
+        effectiveQuestion = `${effectiveQuestion} na unidade ${lastUnit}`;
+      }
+    }
 
     // MODO "absurdamente inteligente": IA escolhe uma TOOL e a API executa a consulta real.
     // Só ativa se houver OPENAI_API_KEY; caso contrário, cai para os handlers atuais.
     try {
-      const toolAnswer = await answerWithToolCalling({ question: lastQuestion, messages });
+      const toolAnswer = await answerWithToolCalling({ question: effectiveQuestion, messages });
       if (toolAnswer?.ok) {
         return NextResponse.json({
           ok: true,
@@ -297,7 +319,7 @@ export async function POST(req: NextRequest) {
 
     if (isIdentityQuestion) {
       // Se tiver IA, deixa ela responder de forma natural
-      const aiIdentity = await processWithAI(lastQuestion, messages, context);
+      const aiIdentity = await processWithAI(effectiveQuestion, messages, context);
       if (aiIdentity.useAI && aiIdentity.response) {
         return NextResponse.json(aiIdentity.response);
       }
@@ -316,7 +338,7 @@ export async function POST(req: NextRequest) {
     
     if (isGreeting || isCasual || lastQuestion.trim().length < 10) {
       // Tenta usar IA para responder naturalmente
-      const aiResult = await processWithAI(lastQuestion, messages, context);
+      const aiResult = await processWithAI(effectiveQuestion, messages, context);
       if (aiResult.useAI && aiResult.response) {
         return NextResponse.json(aiResult.response);
       }
@@ -343,7 +365,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Tenta usar IA primeiro (se disponível)
-    const aiResult = await processWithAI(lastQuestion, messages, context);
+    const aiResult = await processWithAI(effectiveQuestion, messages, context);
     if (aiResult.useAI && aiResult.response) {
       // Se a IA respondeu, ainda podemos enriquecer com dados reais se necessário
 
@@ -368,7 +390,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fallback: processamento baseado em padrões com busca fuzzy
-    const locations = extractLocationNames(lastQuestion);
+    const locations = extractLocationNames(effectiveQuestion);
 
     // Detecção de intenções específicas primeiro
 
@@ -421,7 +443,7 @@ export async function POST(req: NextRequest) {
     if ((qLower.includes('colaborador') || qLower.includes('funcionario') || qLower.includes('pessoa') || qLower.includes('trabalhador'))
         && (qLower.includes('upa') || qLower.includes('unidade') || qLower.includes('hospital') || locations.unidades.length > 0)) {
       try {
-        const data = await queryColaboradoresUnidade(lastQuestion);
+        const data = await queryColaboradoresUnidade(effectiveQuestion);
         if (data.unidade) {
           return NextResponse.json({
             ok: true,

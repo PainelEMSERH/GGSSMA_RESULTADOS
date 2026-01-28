@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Send, Loader2, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
+import { useUser } from '@clerk/nextjs';
 
 // Componente de avatar da assistente com fallback
 function AssistenteAvatar({
@@ -95,6 +96,13 @@ export default function ChatWidget() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { user } = useUser();
+
+  const userAvatarUrl = user?.imageUrl || '';
+  const userName = user?.fullName || user?.firstName || 'Você';
+  const userInitials =
+    (user?.firstName?.[0] || userName[0] || '').toUpperCase() +
+    (user?.lastName?.[0] || '');
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -227,12 +235,11 @@ export default function ChatWidget() {
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex items-end ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
+                {/* Avatar do usuário (puxado do Clerk) */}
                 {msg.role === 'assistant' && (
-                  <div className="flex-shrink-0 mt-1">
-                    <AssistenteAvatar size={32} variant="bubble" className="border border-border" />
-                  </div>
+                  <div className="mr-2 flex-shrink-0" />
                 )}
                 <div
                   className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${
@@ -246,18 +253,26 @@ export default function ChatWidget() {
                     {msg.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
+
                 {msg.role === 'user' && (
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 dark:bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-1 text-white text-xs font-semibold">
-                    Você
+                  <div className="ml-2 flex-shrink-0">
+                    {userAvatarUrl ? (
+                      <img
+                        src={userAvatarUrl}
+                        alt={userName}
+                        className="w-8 h-8 rounded-full object-cover border border-border"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-emerald-600 dark:bg-emerald-500 flex items-center justify-center text-white text-xs font-semibold border border-border">
+                        {userInitials || 'V'}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             ))}
             {loading && (
-              <div className="flex justify-start gap-2">
-                <div className="flex-shrink-0">
-                  <AssistenteAvatar size={32} variant="bubble" className="border border-border" />
-                </div>
+              <div className="flex justify-start">
                 <div className="bg-card border border-border rounded-xl px-3 py-2 flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-muted" />
                   <span className="text-xs text-muted">Digitando...</span>
