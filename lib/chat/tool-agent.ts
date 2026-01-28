@@ -91,6 +91,31 @@ export async function answerWithToolCalling(input: {
   const messages = Array.isArray(input.messages) ? input.messages.slice(-12) : [];
   const context = await loadContext();
 
+  const qLower = normalizeText(question);
+
+  // REGRAS DURAS antes da IA decidir:
+  // 1) Se a pergunta é claramente "quantos colaboradores..." -> sempre usar colaboradores_unidade
+  if (
+    (qLower.includes('colaborador') || qLower.includes('colaborad')) &&
+    (qLower.includes('quantos') || qLower.includes('qtd') || qLower.includes('quantidade') || qLower.includes('tem '))
+  ) {
+    const data = await queryColaboradoresUnidade(question);
+    if (!data.unidade) {
+      return {
+        ok: true,
+        answer: 'Me diz o nome completo da unidade (por exemplo: "Quantos colaboradores ativos tem no HOSPITAL MACRORREGIONAL DRA RUTH NOLETO?").',
+        source: 'rule',
+        data,
+      };
+    }
+    return {
+      ok: true,
+      answer: `Na unidade "${data.unidade}" há ${data.total} colaborador(es) ativo(s) neste momento.`,
+      source: 'rule+data',
+      data,
+    };
+  }
+
   // Ferramentas disponíveis (intenção → query handler)
   const tools = [
     {
