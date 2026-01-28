@@ -271,6 +271,27 @@ export async function POST(req: NextRequest) {
     // Normaliza pergunta para análise
     const qLower = lastQuestion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+    // Perguntas "humanas" / identidade do assistente (não são de banco)
+    // Ex: "como você se chama?", "quem é você?", "o que você faz?"
+    const isIdentityQuestion = qLower.match(
+      /\b(como (voce|vc) se chama|qual (seu|teu) nome|quem (e|eh) (voce|vc)|voce (e|eh) quem|o que (voce|vc) faz|como funciona (isso|esse chat)|ajuda|me ajuda)\b/i
+    );
+
+    if (isIdentityQuestion) {
+      // Se tiver IA, deixa ela responder de forma natural
+      const aiIdentity = await processWithAI(lastQuestion, messages, context);
+      if (aiIdentity.useAI && aiIdentity.response) {
+        return NextResponse.json(aiIdentity.response);
+      }
+
+      // Fallback sem IA
+      return NextResponse.json({
+        ok: true,
+        answer:
+          'Eu sou a Assistente Virtual da EMSERH. Posso responder perguntas e buscar dados do sistema (colaboradores, entregas de EPI, extintores, acidentes, estoque etc.).\n\nPode mandar sua pergunta do jeito que você fala no dia a dia.',
+      });
+    }
+
     // Detecta saudações e conversas casuais - responde naturalmente SEM buscar dados
     const isGreeting = qLower.match(/\b(ol[áa]|oi|e[ai]|tudo bem|como vai|beleza|e a[ií]|opa|eae|bom dia|boa tarde|boa noite)\b/i);
     const isCasual = qLower.match(/\b(beleza|tranquilo|suave|de boa|de boas|blz|tmj|valeu|obrigad[ao]|obg|tchau|até|flw|ok|okay|entendi|entendido)\b/i);
@@ -285,7 +306,7 @@ export async function POST(req: NextRequest) {
       if (isGreeting) {
         return NextResponse.json({
           ok: true,
-          answer: 'Olá! Tudo bem sim, obrigado! 😊 Como posso ajudar você hoje?',
+          answer: 'Olá! Tudo bem sim, obrigado. Como posso ajudar você hoje?',
         });
       }
       if (isCasual) {

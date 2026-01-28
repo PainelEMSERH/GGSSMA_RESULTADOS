@@ -5,10 +5,37 @@ import { X, Send, Loader2, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
 
 // Componente de avatar da assistente com fallback
-function AssistenteAvatar({ size = 32, className = '' }: { size?: number; className?: string }) {
+function AssistenteAvatar({
+  size = 32,
+  className = '',
+  variant = 'bubble',
+}: {
+  size?: number;
+  className?: string;
+  variant?: 'floating' | 'header' | 'bubble';
+}) {
   const [imgSrc, setImgSrc] = useState<string>('/images/assistente-emserh.png.png'); // Tenta primeiro com dupla extensão
   const [imgError, setImgError] = useState(false);
   
+  const crop =
+    variant === 'floating'
+      ? {
+          // Botão flutuante: foco no rosto, com zoom leve
+          objectPosition: '50% 12%',
+          scaleClass: 'scale-[1.85]',
+        }
+      : variant === 'header'
+      ? {
+          // Header: foco no rosto, zoom moderado
+          objectPosition: '50% 14%',
+          scaleClass: 'scale-[1.65]',
+        }
+      : {
+          // Bolhas/mensagens: foco no rosto, zoom um pouco menor
+          objectPosition: '50% 16%',
+          scaleClass: 'scale-[1.55]',
+        };
+
   // Fallback visual melhorado
   if (imgError) {
     return (
@@ -29,13 +56,17 @@ function AssistenteAvatar({ size = 32, className = '' }: { size?: number; classN
   }
 
   return (
-    <div className={`rounded-full overflow-hidden ${className}`} style={{ width: size, height: size }}>
+    <div
+      className={`rounded-full overflow-hidden bg-white/10 ${className}`}
+      style={{ width: size, height: size }}
+    >
       <Image
         src={imgSrc}
         alt="Assistente Virtual EMSERH"
         width={size}
         height={size}
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover ${crop.scaleClass}`}
+        style={{ objectPosition: crop.objectPosition }}
         onError={() => {
           // Se falhar com .png.png, tenta .png
           if (imgSrc.includes('.png.png')) {
@@ -140,7 +171,11 @@ export default function ChatWidget() {
           aria-label="Abrir chat com assistente virtual"
           title="Falar com a assistente virtual EMSERH"
         >
-          <AssistenteAvatar size={64} className="group-hover:scale-110 transition-transform" />
+          <AssistenteAvatar
+            size={64}
+            variant="floating"
+            className="ring-2 ring-emerald-500/20"
+          />
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-neutral-800 animate-pulse" />
         </button>
       )}
@@ -152,7 +187,7 @@ export default function ChatWidget() {
           <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-emerald-600 to-emerald-500 dark:from-emerald-500 dark:to-emerald-400 text-white flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="border-2 border-white/30 flex-shrink-0">
-                <AssistenteAvatar size={40} />
+                <AssistenteAvatar size={40} variant="header" />
               </div>
               <div>
                 <h3 className="font-semibold text-sm">Assistente Virtual EMSERH</h3>
@@ -177,7 +212,7 @@ export default function ChatWidget() {
               >
                 {msg.role === 'assistant' && (
                   <div className="flex-shrink-0 mt-1">
-                    <AssistenteAvatar size={32} className="border border-border" />
+                    <AssistenteAvatar size={32} variant="bubble" className="border border-border" />
                   </div>
                 )}
                 <div
@@ -202,7 +237,7 @@ export default function ChatWidget() {
             {loading && (
               <div className="flex justify-start gap-2">
                 <div className="flex-shrink-0">
-                  <AssistenteAvatar size={32} className="border border-border" />
+                  <AssistenteAvatar size={32} variant="bubble" className="border border-border" />
                 </div>
                 <div className="bg-card border border-border rounded-xl px-3 py-2 flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-muted" />
