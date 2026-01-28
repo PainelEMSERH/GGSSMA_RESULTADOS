@@ -171,6 +171,74 @@ export async function queryUnidadeExiste(question: string): Promise<{
 }
 
 /**
+ * Query: busca colaborador por nome ("encontre/procure o João da Silva").
+ * Retorna até 10 correspondências com nome, CPF, unidade, regional, função e se está ativo.
+ */
+export async function queryBuscarColaborador(question: string): Promise<{
+  nomeBuscado: string | null;
+  resultados: Array<{
+    nome: string;
+    cpf: string;
+    unidade: string;
+    regional: string;
+    funcao: string;
+    ativo: boolean;
+  }>;
+}> {
+  // Tenta extrair nome da frase
+  let nome = extractPersonName(question);
+
+  if (!nome) {
+    // Fallback: tudo depois de "encontre"/"procure"/"achar"
+    const m = question.match(/(?:encontra(?:r)?|procura(?:r)?|achar?)\s+(.+)/i);
+    if (m && m[1]) {
+      nome = m[1].trim();
+    }
+  }
+
+  if (!nome || nome.split(/\s+/).length === 0) {
+    return { nomeBuscado: null, resultados: [] };
+  }
+
+  const esc = (s: string) => s.replace(/'/g, "''");
+  const nomeLike = `%${esc(nome)}%`;
+
+  const rows: any[] = await prisma.$queryRawUnsafe(
+    `
+      SELECT DISTINCT ON (a.cpf)
+        COALESCE(a.colaborador, '')        AS nome,
+        COALESCE(a.cpf, '')                AS cpf,
+        COALESCE(a.unidade_hospitalar, '') AS unidade_hospitalar,
+        COALESCE(u.regional_responsavel, '') AS regional,
+        COALESCE(a.funcao, '')            AS funcao,
+        CASE
+          WHEN ${DEMISSAO_WHERE} THEN true
+          ELSE false
+        END AS ativo
+      FROM stg_alterdata_v2 a
+      LEFT JOIN stg_unid_reg u
+        ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, '')))
+         = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+      WHERE UPPER(TRIM(a.colaborador)) LIKE UPPER('${nomeLike}')
+         OR UPPER(TRIM(a.cpf)) LIKE UPPER('${nomeLike}')
+      ORDER BY a.cpf, a.colaborador ASC
+      LIMIT 10
+    `
+  );
+
+  const resultados = rows.map((r) => ({
+    nome: String(r.nome || '').trim(),
+    cpf: String(r.cpf || '').trim(),
+    unidade: String(r.unidade_hospitalar || '').trim(),
+    regional: String(r.regional || '').trim(),
+    funcao: String(r.funcao || '').trim(),
+    ativo: !!r.ativo,
+  }));
+
+  return { nomeBuscado: nome, resultados };
+}
+
+/**
  * Query: Quantos colaboradores tem na unidade X
  */
 export async function queryColaboradoresUnidade(question: string): Promise<{ total: number; unidade: string | null }> {

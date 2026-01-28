@@ -20,6 +20,7 @@ import {
   queryColaboradorRecenteUnidade,
   queryFuncaoColaborador,
   queryUnidadeExiste,
+  queryBuscarColaborador,
 } from '@/lib/chat/query-handlers';
 
 type ChatMessage = {
@@ -393,6 +394,57 @@ export async function POST(req: NextRequest) {
     const locations = extractLocationNames(effectiveQuestion);
 
     // Detecção de intenções específicas primeiro
+
+    // 0) Buscar colaborador específico pelo nome ("encontre fulano", "procura ciclano")
+    if (
+      (qLower.includes('encontra') || qLower.includes('procura') || qLower.includes('achar')) &&
+      (qLower.includes('colaborador') || qLower.includes('pessoa') || qLower.includes('funcionario') || /\b[A-Z][a-z]+ [A-Z][a-z]+/.test(lastQuestion))
+    ) {
+      try {
+        const r = await queryBuscarColaborador(effectiveQuestion);
+        if (!r.nomeBuscado) {
+          return NextResponse.json({
+            ok: true,
+            answer: 'Me diz o nome completo do colaborador que você quer encontrar (por exemplo: "encontre o colaborador Jonathan Silva Alves").',
+          });
+        }
+
+        if (r.resultados.length === 0) {
+          return NextResponse.json({
+            ok: true,
+            answer: `Não encontrei nenhum colaborador que pareça com "${r.nomeBuscado}". Tenta me mandar o nome completo ou o CPF.`,
+            data: r,
+          });
+        }
+
+        if (r.resultados.length === 1) {
+          const c = r.resultados[0];
+          const status = c.ativo ? 'ativo' : 'inativo';
+          return NextResponse.json({
+            ok: true,
+            answer: `Encontrei: ${c.nome} (CPF: ${c.cpf || 'sem CPF informado'}), ${status}${c.funcao ? `, função ${c.funcao}` : ''}${c.unidade ? `, unidade ${c.unidade}` : ''}${c.regional ? `, Regional ${c.regional}` : ''}.`,
+            data: r,
+          });
+        }
+
+        const lista = r.resultados
+          .map(
+            (c) =>
+              `- ${c.nome} (CPF: ${c.cpf || 'sem CPF'}, ${c.funcao || 'sem função'}, ${c.unidade || 'sem unidade'}${
+                c.regional ? `, Regional ${c.regional}` : ''
+              })`
+          )
+          .join('\n');
+
+        return NextResponse.json({
+          ok: true,
+          answer: `Encontrei mais de um colaborador parecido com "${r.nomeBuscado}". Veja as opções:\n\n${lista}\n\nMe diga exatamente qual deles você quer usar nas próximas perguntas (pode copiar e colar o nome).`,
+          data: r,
+        });
+      } catch (e: any) {
+        return NextResponse.json({ ok: false, error: `Erro ao buscar colaborador: ${e?.message}` }, { status: 500 });
+      }
+    }
 
     // 0) "A unidade X existe?"
     if (
