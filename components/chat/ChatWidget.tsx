@@ -1,7 +1,54 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
+import { X, Send, Loader2, MessageCircle } from 'lucide-react';
+import Image from 'next/image';
+
+// Componente de avatar da assistente com fallback
+function AssistenteAvatar({ size = 32, className = '' }: { size?: number; className?: string }) {
+  const [imgSrc, setImgSrc] = useState<string>('/images/assistente-emserh.png.png'); // Tenta primeiro com dupla extensão
+  const [imgError, setImgError] = useState(false);
+  
+  // Fallback visual melhorado
+  if (imgError) {
+    return (
+      <div 
+        className={`rounded-full bg-gradient-to-br from-emerald-500 via-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold shadow-md ${className}`} 
+        style={{ width: size, height: size }}
+      >
+        {size >= 40 ? (
+          <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        ) : (
+          <span style={{ fontSize: size * 0.5 }}>A</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-full overflow-hidden ${className}`} style={{ width: size, height: size }}>
+      <Image
+        src={imgSrc}
+        alt="Assistente Virtual EMSERH"
+        width={size}
+        height={size}
+        className="w-full h-full object-cover"
+        onError={() => {
+          // Se falhar com .png.png, tenta .png
+          if (imgSrc.includes('.png.png')) {
+            setImgSrc('/images/assistente-emserh.png');
+          } else {
+            setImgError(true);
+          }
+        }}
+        unoptimized
+      />
+    </div>
+  );
+}
 
 type Message = {
   id: string;
@@ -85,31 +132,36 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Botão flutuante */}
+      {/* Botão flutuante com imagem da assistente */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center group"
-          aria-label="Abrir chat"
-          title="Fazer uma pergunta"
+          className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-white dark:bg-neutral-800 shadow-lg hover:shadow-xl transition-all flex items-center justify-center group overflow-hidden border-2 border-emerald-500 hover:border-emerald-600 dark:border-emerald-400 dark:hover:border-emerald-300 hover:scale-105"
+          aria-label="Abrir chat com assistente virtual"
+          title="Falar com a assistente virtual EMSERH"
         >
-          <MessageCircle className="w-6 h-6" />
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-neutral-950 animate-pulse" />
+          <AssistenteAvatar size={64} className="group-hover:scale-110 transition-transform" />
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-neutral-800 animate-pulse" />
         </button>
       )}
 
       {/* Widget de chat */}
       {open && (
         <div className="fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-12rem)] rounded-2xl border border-border bg-panel shadow-2xl flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-border bg-emerald-600 dark:bg-emerald-500 text-white flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5" />
-              <h3 className="font-semibold text-sm">Assistente EMSERH</h3>
+          {/* Header com imagem da assistente */}
+          <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-emerald-600 to-emerald-500 dark:from-emerald-500 dark:to-emerald-400 text-white flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="border-2 border-white/30 flex-shrink-0">
+                <AssistenteAvatar size={40} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">Assistente Virtual EMSERH</h3>
+                <p className="text-xs text-emerald-50 opacity-90">Online • Pronta para ajudar</p>
+              </div>
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="p-1.5 rounded-lg hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-white/20 transition-colors flex-shrink-0"
               aria-label="Fechar chat"
             >
               <X className="w-4 h-4" />
@@ -121,10 +173,15 @@ export default function ChatWidget() {
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
+                {msg.role === 'assistant' && (
+                  <div className="flex-shrink-0 mt-1">
+                    <AssistenteAvatar size={32} className="border border-border" />
+                  </div>
+                )}
                 <div
-                  className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
+                  className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${
                     msg.role === 'user'
                       ? 'bg-emerald-600 text-white dark:bg-emerald-500'
                       : 'bg-card border border-border text-text'
@@ -135,12 +192,21 @@ export default function ChatWidget() {
                     {msg.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
+                {msg.role === 'user' && (
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 dark:bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-1 text-white text-xs font-semibold">
+                    Você
+                  </div>
+                )}
               </div>
             ))}
             {loading && (
-              <div className="flex justify-start">
-                <div className="bg-card border border-border rounded-xl px-3 py-2">
+              <div className="flex justify-start gap-2">
+                <div className="flex-shrink-0">
+                  <AssistenteAvatar size={32} className="border border-border" />
+                </div>
+                <div className="bg-card border border-border rounded-xl px-3 py-2 flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-muted" />
+                  <span className="text-xs text-muted">Digitando...</span>
                 </div>
               </div>
             )}
