@@ -143,6 +143,8 @@ export function extractLocationNames(question: string): { unidades: string[]; re
     { patterns: ['ruth noleto', 'macro ruth', 'ruth', 'noleto'], name: 'ruth noleto' },
     { patterns: ['feme', 'feme hospital'], name: 'feme' },
     { patterns: ['imperatriz'], name: 'imperatriz' },
+    { patterns: ['upa imperatriz', 'upa de imperatriz'], name: 'upa imperatriz' },
+    { patterns: ['svo imperatriz', 'svo de imperatriz'], name: 'svo imperatriz' },
     { patterns: ['são luís', 'sao luis', 'sao luiz', 'são luiz'], name: 'são luís' },
     { patterns: ['caxias'], name: 'caxias' },
     { patterns: ['timon'], name: 'timon' },

@@ -7,6 +7,18 @@ import prisma from '@/lib/prisma';
 import { calcularStatus } from '@/lib/spci/utils';
 import { loadContext, findUnidade, findRegional, processWithAI } from '@/lib/chat/ai-handler';
 import { extractLocationNames } from '@/lib/chat/fuzzy-search';
+import {
+  queryColaboradoresUnidade,
+  queryMetaEntrega,
+  queryEPIEntregue,
+  queryDemitidos,
+  queryUltimaAtualizacaoAlterdata,
+  queryAcidentes,
+  queryUltimaAcidentada,
+  queryColaboradorMaisVelho,
+  queryColaboradorRecenteUnidade,
+  queryFuncaoColaborador,
+} from '@/lib/chat/query-handlers';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -151,8 +163,32 @@ async function queryEntregas(question: string, context: any) {
   };
 }
 
+/** Critério de colaborador ativo: igual às outras APIs (entregas/meta/diagnóstico) */
+const DEMISSAO_WHERE = `(
+  a.demissao IS NULL
+  OR a.demissao = ''
+  OR TRIM(a.demissao) = ''
+  OR (
+    CASE
+      WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+      WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+      WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+      ELSE NULL
+    END
+  ) IS NOT NULL
+  AND EXTRACT(YEAR FROM (
+    CASE
+      WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + (TRIM(a.demissao)::int))
+      WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+      WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+      ELSE NULL
+    END
+  ))::int >= 2026
+)`;
+
 /**
- * Executa query de colaboradores com busca fuzzy
+ * Executa query de colaboradores com busca fuzzy.
+ * Usa match exato por unidade (como entregas/diagnóstico) e mesmo critério de "ativo" (demissão nula ou ano >= 2026).
  */
 async function queryColaboradores(question: string, context: any) {
   const locations = extractLocationNames(question);
@@ -182,12 +218,15 @@ async function queryColaboradores(question: string, context: any) {
     }
   }
 
-  let where = `WHERE a.demissao IS NULL OR a.demissao = '' OR TRIM(a.demissao) = ''`;
-  if (regional) {
-    where += ` AND EXISTS (SELECT 1 FROM stg_unid_reg ur WHERE UPPER(TRIM(ur.regional_responsavel)) = UPPER(TRIM('${regional.replace(/'/g, "''")}')) AND UPPER(TRIM(ur.nmdepartamento)) = UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))))`;
+  // Match exato por unidade (não LIKE), igual às APIs de entregas/diagnóstico
+  const esc = (s: string) => s.replace(/'/g, "''");
+  let where = `WHERE ${DEMISSAO_WHERE} AND COALESCE(a.cpf, '') != '' AND COALESCE(a.funcao, '') != ''`;
+
+  if (regional && !unidade) {
+    where += ` AND EXISTS (SELECT 1 FROM stg_unid_reg ur WHERE UPPER(TRIM(ur.regional_responsavel)) = UPPER(TRIM('${esc(regional)}')) AND UPPER(TRIM(ur.nmdepartamento)) = UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))))`;
   }
   if (unidade) {
-    where += ` AND UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) LIKE UPPER('%${unidade.replace(/'/g, "''")}%')`;
+    where += ` AND (UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM('${esc(unidade)}')) OR EXISTS (SELECT 1 FROM stg_unid_reg ur WHERE UPPER(TRIM(ur.nmdepartamento)) = UPPER(TRIM('${esc(unidade)}')) AND UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(ur.nmdepartamento))))`;
   }
 
   const rows: any[] = await prisma.$queryRawUnsafe(`
@@ -257,6 +296,166 @@ export async function POST(req: NextRequest) {
 
     // Fallback: processamento baseado em padrões com busca fuzzy
     const qLower = lastQuestion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const locations = extractLocationNames(lastQuestion);
+
+    // Detecção de intenções específicas primeiro
+
+    // 1) Colaboradores em unidade específica
+    if ((qLower.includes('colaborador') || qLower.includes('funcionario') || qLower.includes('pessoa') || qLower.includes('trabalhador'))
+        && (qLower.includes('upa') || qLower.includes('unidade') || qLower.includes('hospital') || locations.unidades.length > 0)) {
+      try {
+        const data = await queryColaboradoresUnidade(lastQuestion);
+        if (data.unidade) {
+          return NextResponse.json({
+            ok: true,
+            answer: `Na unidade "${data.unidade}" há ${data.total} colaborador(es) ativo(s).`,
+            data,
+          });
+        }
+      } catch (e: any) {
+        // Continua para outros handlers
+      }
+    }
+
+    // 2) Planejado de entrega (meta)
+    if ((qLower.includes('planejado') || qLower.includes('meta') || qLower.includes('previsto'))
+        && (qLower.includes('entrega') || qLower.includes('epi'))) {
+      try {
+        const data = await queryMetaEntrega(lastQuestion);
+        return NextResponse.json({
+          ok: true,
+          answer: `O planejado de entrega de EPI para ${data.mes}/${data.ano} é de ${data.meta} unidade(s).`,
+          data,
+        });
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 3) EPI específico entregue (ex: máscaras N95)
+    if ((qLower.includes('entregue') || qLower.includes('entregou')) && (qLower.includes('mascara') || qLower.includes('n95') || qLower.includes('luva') || qLower.includes('epi'))) {
+      try {
+        const data = await queryEPIEntregue(lastQuestion);
+        if (data.epi && data.unidade) {
+          return NextResponse.json({
+            ok: true,
+            answer: `Foram entregues ${data.total} unidade(s) de ${data.epi} na unidade "${data.unidade}".`,
+            data,
+          });
+        }
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 4) Demitidos em período específico
+    if (qLower.includes('demitido') || qLower.includes('demissao')) {
+      try {
+        const data = await queryDemitidos(lastQuestion);
+        const periodo = data.mes ? `${data.mes}/${data.ano}` : `${data.ano}`;
+        return NextResponse.json({
+          ok: true,
+          answer: `Em ${periodo} foram registrados ${data.total} demitido(s).`,
+          data,
+        });
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 5) Última atualização do Alterdata
+    if (qLower.includes('ultima') && (qLower.includes('atualiz') || qLower.includes('alterdata'))) {
+      try {
+        const data = await queryUltimaAtualizacaoAlterdata();
+        return NextResponse.json({
+          ok: true,
+          answer: data.data ? `A última atualização do Alterdata foi em ${data.data}.` : 'Não foi possível encontrar a data da última atualização do Alterdata.',
+          data,
+        });
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 6) Acidentes por regional e mês
+    if (qLower.includes('acidente') && (qLower.includes('regional') || locations.regionais.length > 0)) {
+      try {
+        const data = await queryAcidentes(lastQuestion);
+        if (data.regionais.length > 0) {
+          const regs = data.regionais.join(' e ');
+          const periodo = data.mes ? `${data.mes}/${data.ano}` : `${data.ano}`;
+          return NextResponse.json({
+            ok: true,
+            answer: `Na(s) regional(is) ${regs} em ${periodo} foram registrados ${data.total} acidente(s).`,
+            data,
+          });
+        }
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 7) Última acidentada
+    if (qLower.includes('ultima') && qLower.includes('acident')) {
+      try {
+        const data = await queryUltimaAcidentada();
+        return NextResponse.json({
+          ok: true,
+          answer: data.nome ? `A última acidentada registrada foi ${data.nome}${data.data ? ` em ${data.data}` : ''}.` : 'Não foi encontrada nenhuma acidentada registrada.',
+          data,
+        });
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 8) Colaborador mais velho
+    if ((qLower.includes('mais velho') || qLower.includes('mais antigo') || qLower.includes('tempo')) && qLower.includes('colaborador')) {
+      try {
+        const data = await queryColaboradorMaisVelho();
+        return NextResponse.json({
+          ok: true,
+          answer: data.nome ? `O colaborador mais velho da EMSERH é ${data.nome}${data.admissao ? ` (admitido em ${data.admissao})` : ''}.` : 'Não foi possível encontrar o colaborador mais velho.',
+          data,
+        });
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 9) Colaborador que entrou recentemente em unidade
+    if ((qLower.includes('recente') || qLower.includes('entrou') || qLower.includes('admitido')) && (qLower.includes('upa') || qLower.includes('unidade') || locations.unidades.length > 0)) {
+      try {
+        const data = await queryColaboradorRecenteUnidade(lastQuestion);
+        if (data.unidade && data.nome) {
+          return NextResponse.json({
+            ok: true,
+            answer: `O colaborador que entrou mais recentemente na unidade "${data.unidade}" foi ${data.nome}${data.admissao ? ` (admitido em ${data.admissao})` : ''}.`,
+            data,
+          });
+        }
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 10) Função de colaborador específico
+    if (qLower.includes('funcao') || qLower.includes('cargo')) {
+      try {
+        const data = await queryFuncaoColaborador(lastQuestion);
+        if (data.nome && data.funcao) {
+          return NextResponse.json({
+            ok: true,
+            answer: `A função de ${data.nome} é ${data.funcao}.`,
+            data,
+          });
+        }
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // Padrões gerais abaixo
 
     // 1) EXTINTORES
     if (qLower.includes('extintor') || qLower.includes('spci')) {

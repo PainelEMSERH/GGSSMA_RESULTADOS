@@ -164,14 +164,28 @@ ${context.unidades.length > 50 ? `\n... e mais ${context.unidades.length - 50} u
 REGIONAIS:
 ${context.regionais.map(r => `- ${r}`).join('\n')}
 
+TIPOS DE PERGUNTAS QUE VOCÊ PODE RESPONDER:
+1. Colaboradores: "quantos colaboradores tem na upa de imperatriz?"
+2. Meta/Planejado: "esse mês qual meu planejado de entrega de epi?"
+3. EPIs entregues: "quantas máscaras n95 eu entreguei no svo de imperatriz?"
+4. Demitidos: "quantos demitidos eu tenho em jan de 26?"
+5. Atualização: "qual a última vez que o alterdata foi atualizado?"
+6. Acidentes: "quantos acidentes eu tive esse mês na regional norte e sul?"
+7. Última acidentada: "qual nome da última acidentada registrada?"
+8. Colaborador mais velho: "qual colaborador mais velho da emserh?"
+9. Admissão recente: "qual colaborador entrou recentemente lá na upa de imperatriz?"
+10. Função: "qual função do jonathan silva alves?"
+
 INSTRUÇÕES:
 - Seja conversacional e natural
 - Entenda perguntas mesmo com erros de digitação ou nomes parciais
 - Exemplo: "macro ruth noleto" = "Hospital Macrorregional Ruth Noleto de Imperatriz" (Regional SUL)
+- Exemplo: "upa de imperatriz" = busca fuzzy por unidades com "upa" e "imperatriz"
 - Sempre responda em português brasileiro
 - Se não souber algo, seja honesto
 - Use dados reais quando possível
-- Seja útil e prestativo`;
+- Seja útil e prestativo
+- IMPORTANTE: Quando a pergunta for sobre dados específicos (colaboradores, entregas, etc.), você deve indicar que precisa buscar no banco de dados. O sistema executará a query automaticamente.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
