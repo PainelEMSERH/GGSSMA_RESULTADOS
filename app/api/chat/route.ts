@@ -734,15 +734,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Resposta padrão conversacional - tenta IA primeiro
-    const aiFallback = await processWithAI(lastQuestion, messages, context);
+    const aiFallback = await processWithAI(effectiveQuestion, messages, context);
     if (aiFallback.useAI && aiFallback.response) {
       return NextResponse.json(aiFallback.response);
     }
 
-    // Se não conseguiu entender, responde de forma natural
+    // Se não conseguiu entender, responde de forma simples (sem texto engessado)
     return NextResponse.json({
       ok: true,
-      answer: 'Desculpe, não entendi muito bem sua pergunta. Pode reformular? Posso ajudar com informações sobre colaboradores, entregas de EPI, extintores, acidentes, estoque e muito mais. Pergunte de forma natural!',
+      answer:
+        'Entendi que você está conversando comigo, mas não ficou claro o que você quer saber. Pode me dizer, em uma frase, qual dúvida você tem sobre colaboradores, EPIs, acidentes, estoque ou unidades?',
     });
   } catch (e: any) {
     console.error('[chat] erro:', e);
