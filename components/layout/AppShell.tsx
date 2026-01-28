@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { UserButton } from "@clerk/nextjs";
 import ThemeSwitcherGeist from "@/components/components/ThemeSwitcherGeist";
+import ChatWidget from "@/components/chat/ChatWidget";
 import {
   LayoutDashboard,
   PackageCheck,
@@ -120,6 +121,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <div className="p-6 max-w-full overflow-x-hidden">{children}</div>
       </main>
+      <ChatWidget />
     </div>
   );
 }
