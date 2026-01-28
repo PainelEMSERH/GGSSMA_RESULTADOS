@@ -5,6 +5,7 @@
 import prisma from '@/lib/prisma';
 import { findUnidade, findRegional } from './ai-handler';
 import { extractLocationNames } from './fuzzy-search';
+import { fuzzySearch } from './fuzzy-search';
 
 const DEMISSAO_WHERE = `(
   a.demissao IS NULL
@@ -116,6 +117,57 @@ export function extractPersonName(question: string): string | null {
   }
   
   return names.length > 0 ? names.join(' ') : null;
+}
+
+/**
+ * Query: Verifica se uma unidade existe (com fuzzy + sugestões).
+ * Retorna o melhor match e até 5 sugestões.
+ */
+export async function queryUnidadeExiste(question: string): Promise<{
+  existe: boolean;
+  unidadeInformada: string | null;
+  melhorMatch: { unidade: string; regional: string } | null;
+  sugestoes: Array<{ unidade: string; regional: string; score: number }>;
+}> {
+  const locations = extractLocationNames(question);
+  const unidadeInformada = locations.unidades?.[0] ? String(locations.unidades[0]).trim() : null;
+
+  if (!unidadeInformada) {
+    return { existe: false, unidadeInformada: null, melhorMatch: null, sugestoes: [] };
+  }
+
+  // Carrega lista atual de unidades do banco (sempre atualiza com novos imports)
+  const rows: any[] = await prisma.$queryRawUnsafe(`
+    SELECT DISTINCT nmdepartamento AS unidade, regional_responsavel AS regional
+    FROM stg_unid_reg
+    WHERE COALESCE(nmdepartamento,'') != ''
+  `);
+
+  const candidates = rows.map((r) => String(r.unidade || '').trim()).filter(Boolean);
+  const byName = new Map<string, { unidade: string; regional: string }>();
+  for (const r of rows) {
+    const u = String(r.unidade || '').trim();
+    const reg = String(r.regional || '').trim();
+    if (u) byName.set(u, { unidade: u, regional: reg });
+  }
+
+  const matches = fuzzySearch(unidadeInformada, candidates, 0.35).slice(0, 5);
+  const sugestoes = matches
+    .map((m) => {
+      const info = byName.get(m.text);
+      return { unidade: m.text, regional: info?.regional || '', score: m.score };
+    })
+    .filter((x) => x.unidade);
+
+  const melhor = sugestoes[0] || null;
+  const existe = !!melhor && melhor.score >= 0.55;
+
+  return {
+    existe,
+    unidadeInformada,
+    melhorMatch: melhor ? { unidade: melhor.unidade, regional: melhor.regional } : null,
+    sugestoes,
+  };
 }
 
 /**

@@ -167,15 +167,29 @@ export default function ChatWidget() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-white dark:bg-neutral-800 shadow-lg hover:shadow-xl transition-all flex items-center justify-center group overflow-hidden border-2 border-emerald-500 hover:border-emerald-600 dark:border-emerald-400 dark:hover:border-emerald-300 hover:scale-105"
+          className="fixed bottom-6 right-6 z-50 w-[84px] h-[84px] rounded-2xl bg-white dark:bg-neutral-800 shadow-lg hover:shadow-2xl transition-all flex items-center justify-center group overflow-hidden border border-emerald-500/40 hover:border-emerald-500 dark:border-emerald-400/40 dark:hover:border-emerald-300 hover:scale-[1.03]"
           aria-label="Abrir chat com assistente virtual"
           title="Falar com a assistente virtual EMSERH"
         >
-          <AssistenteAvatar
-            size={64}
-            variant="floating"
-            className="ring-2 ring-emerald-500/20"
-          />
+          {/* Sticker (sem “bolinha”) para não cortar a personagem */}
+          <div className="relative w-full h-full">
+            <Image
+              src="/images/assistente-emserh.png.png"
+              alt="Assistente Virtual EMSERH"
+              fill
+              className="object-cover"
+              style={{ objectPosition: '50% 18%' }}
+              unoptimized
+              onError={() => {
+                // fallback para nome alternativo
+                // (o Next/Image vai re-renderizar pelo estado do AssistenteAvatar; aqui usamos fallback simples visual)
+              }}
+            />
+            {/* brilho + borda */}
+            <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/10 dark:from-black/20 dark:to-white/5" />
+          </div>
+
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-neutral-800 animate-pulse" />
         </button>
       )}

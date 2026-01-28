@@ -7,6 +7,7 @@ import prisma from '@/lib/prisma';
 import { calcularStatus } from '@/lib/spci/utils';
 import { loadContext, findUnidade, findRegional, processWithAI } from '@/lib/chat/ai-handler';
 import { extractLocationNames } from '@/lib/chat/fuzzy-search';
+import { answerWithToolCalling } from '@/lib/chat/tool-agent';
 import {
   queryColaboradoresUnidade,
   queryMetaEntrega,
@@ -18,6 +19,7 @@ import {
   queryColaboradorMaisVelho,
   queryColaboradorRecenteUnidade,
   queryFuncaoColaborador,
+  queryUnidadeExiste,
 } from '@/lib/chat/query-handlers';
 
 type ChatMessage = {
@@ -271,6 +273,22 @@ export async function POST(req: NextRequest) {
     // Normaliza pergunta para análise
     const qLower = lastQuestion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+    // MODO "absurdamente inteligente": IA escolhe uma TOOL e a API executa a consulta real.
+    // Só ativa se houver OPENAI_API_KEY; caso contrário, cai para os handlers atuais.
+    try {
+      const toolAnswer = await answerWithToolCalling({ question: lastQuestion, messages });
+      if (toolAnswer?.ok) {
+        return NextResponse.json({
+          ok: true,
+          answer: toolAnswer.answer,
+          source: toolAnswer.source,
+          data: toolAnswer.data,
+        });
+      }
+    } catch {
+      // se a IA falhar, seguimos com os handlers locais
+    }
+
     // Perguntas "humanas" / identidade do assistente (não são de banco)
     // Ex: "como você se chama?", "quem é você?", "o que você faz?"
     const isIdentityQuestion = qLower.match(
@@ -353,6 +371,51 @@ export async function POST(req: NextRequest) {
     const locations = extractLocationNames(lastQuestion);
 
     // Detecção de intenções específicas primeiro
+
+    // 0) "A unidade X existe?"
+    if (
+      (qLower.includes('unidade') || qLower.includes('hospital') || qLower.includes('upa') || locations.unidades.length > 0) &&
+      (qLower.includes('existe') || qLower.includes('tem') || qLower.includes('tem essa'))
+    ) {
+      try {
+        const r = await queryUnidadeExiste(lastQuestion);
+        if (!r.unidadeInformada) {
+          return NextResponse.json({
+            ok: true,
+            answer: 'Qual unidade você quer verificar? Ex: \"A unidade Ruth Noleto existe?\"',
+          });
+        }
+
+        if (r.existe && r.melhorMatch) {
+          return NextResponse.json({
+            ok: true,
+            answer: `Sim — encontrei a unidade \"${r.melhorMatch.unidade}\"${r.melhorMatch.regional ? ` (Regional ${r.melhorMatch.regional})` : ''}.`,
+            data: r,
+          });
+        }
+
+        if (r.sugestoes.length > 0) {
+          const sug = r.sugestoes
+            .map((s) => `- ${s.unidade}${s.regional ? ` (Regional ${s.regional})` : ''}`)
+            .join('\n');
+          return NextResponse.json({
+            ok: true,
+            answer:
+              `Não encontrei uma unidade com esse nome exatamente. Você quis dizer alguma dessas?\n\n${sug}\n\nResponda com o nome correto que eu confirmo.`,
+            data: r,
+          });
+        }
+
+        return NextResponse.json({
+          ok: true,
+          answer:
+            'Não encontrei essa unidade no cadastro atual. Se você me disser a cidade ou a regional, eu tento localizar pelo nome aproximado.',
+          data: r,
+        });
+      } catch {
+        // Continua para os outros handlers
+      }
+    }
 
     // 1) Colaboradores em unidade específica
     if ((qLower.includes('colaborador') || qLower.includes('funcionario') || qLower.includes('pessoa') || qLower.includes('trabalhador'))
