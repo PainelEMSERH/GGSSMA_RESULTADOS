@@ -12,14 +12,7 @@ type Message = {
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Olá! Sou o assistente do EMSERH. Posso responder perguntas sobre:\n\n• Extintores (SPCI)\n• Entregas de EPI\n• Estoque\n• Acidentes\n• Colaboradores\n• Ordens de Serviço\n\nExemplo: "Quantos extintores tem na unidade X?"',
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

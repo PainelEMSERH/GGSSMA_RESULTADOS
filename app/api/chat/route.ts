@@ -268,11 +268,45 @@ export async function POST(req: NextRequest) {
     // Carrega contexto de unidades/regionais
     const context = await loadContext();
 
+    // Normaliza pergunta para análise
+    const qLower = lastQuestion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // Detecta saudações e conversas casuais - responde naturalmente SEM buscar dados
+    const isGreeting = qLower.match(/\b(ol[áa]|oi|e[ai]|tudo bem|como vai|beleza|e a[ií]|opa|eae|bom dia|boa tarde|boa noite)\b/i);
+    const isCasual = qLower.match(/\b(beleza|tranquilo|suave|de boa|de boas|blz|tmj|valeu|obrigad[ao]|obg|tchau|até|flw|ok|okay|entendi|entendido)\b/i);
+    
+    if (isGreeting || isCasual || lastQuestion.trim().length < 10) {
+      // Tenta usar IA para responder naturalmente
+      const aiResult = await processWithAI(lastQuestion, messages, context);
+      if (aiResult.useAI && aiResult.response) {
+        return NextResponse.json(aiResult.response);
+      }
+      // Fallback conversacional
+      if (isGreeting) {
+        return NextResponse.json({
+          ok: true,
+          answer: 'Olá! Tudo bem sim, obrigado! 😊 Como posso ajudar você hoje?',
+        });
+      }
+      if (isCasual) {
+        return NextResponse.json({
+          ok: true,
+          answer: 'Por nada! Se precisar de mais alguma coisa, é só chamar!',
+        });
+      }
+      // Se for muito curto e não identificou, tenta IA
+      if (lastQuestion.trim().length < 10) {
+        const aiResult = await processWithAI(lastQuestion, messages, context);
+        if (aiResult.useAI && aiResult.response) {
+          return NextResponse.json(aiResult.response);
+        }
+      }
+    }
+
     // Tenta usar IA primeiro (se disponível)
     const aiResult = await processWithAI(lastQuestion, messages, context);
     if (aiResult.useAI && aiResult.response) {
       // Se a IA respondeu, ainda podemos enriquecer com dados reais se necessário
-      const qLower = lastQuestion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
       // Se a pergunta é sobre extintores, busca dados reais
       if (qLower.includes('extintor') || qLower.includes('spci')) {
@@ -295,7 +329,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Fallback: processamento baseado em padrões com busca fuzzy
-    const qLower = lastQuestion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const locations = extractLocationNames(lastQuestion);
 
     // Detecção de intenções específicas primeiro
@@ -594,16 +627,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Resposta padrão conversacional
+    // Resposta padrão conversacional - tenta IA primeiro
+    const aiFallback = await processWithAI(lastQuestion, messages, context);
+    if (aiFallback.useAI && aiFallback.response) {
+      return NextResponse.json(aiFallback.response);
+    }
+
+    // Se não conseguiu entender, responde de forma natural
     return NextResponse.json({
       ok: true,
-      answer: 'Olá! Posso ajudar você com informações sobre:\n\n• Extintores (SPCI) - quantos tem, quais estão vencidos\n• Entregas de EPI - quantas foram feitas, por unidade/regional\n• Estoque - itens abaixo do mínimo\n• Acidentes - registros por ano\n• Colaboradores - quantos ativos por unidade/regional\n• Ordens de Serviço\n\nPergunte de forma natural, por exemplo:\n"Quantos extintores tem no macro ruth noleto?"\n"Quantas entregas foram feitas este mês na regional sul?"\n\nComo posso ajudar?',
-      suggestions: [
-        'Quantos extintores tem no macro ruth noleto?',
-        'Quantas entregas foram feitas este mês?',
-        'Quais itens estão abaixo do mínimo?',
-        'Quantos colaboradores ativos na regional sul?',
-      ],
+      answer: 'Desculpe, não entendi muito bem sua pergunta. Pode reformular? Posso ajudar com informações sobre colaboradores, entregas de EPI, extintores, acidentes, estoque e muito mais. Pergunte de forma natural!',
     });
   } catch (e: any) {
     console.error('[chat] erro:', e);
