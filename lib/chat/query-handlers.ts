@@ -6,6 +6,7 @@ import prisma from '@/lib/prisma';
 import { findUnidade, findRegional } from './ai-handler';
 import { extractLocationNames } from './fuzzy-search';
 import { fuzzySearch } from './fuzzy-search';
+import { calcularStatus } from '@/lib/spci/utils';
 
 const DEMISSAO_WHERE = `(
   a.demissao IS NULL
@@ -96,22 +97,31 @@ export function extractEPI(question: string): string | null {
  * Extrai nome de pessoa da pergunta
  */
 export function extractPersonName(question: string): string | null {
-  // Procura padrões como "do jonathan", "do fulano", "da maria"
-  const match = question.match(/\b(?:do|da|de|o|a)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
-  if (match && match[1]) {
-    return match[1].trim();
+  // Procura padrões como "do jonathan", "do fulano", "da maria", "colaborador Jonathan Silva Alves"
+  const match1 = question.match(/\b(?:do|da|de|o|a)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
+  if (match1 && match1[1]) {
+    return match1[1].trim();
   }
   
-  // Procura nomes próprios (palavras com inicial maiúscula)
+  // Procura após "colaborador" ou "funcionário"
+  const match2 = question.match(/\b(?:colaborador|funcionario|funcionário)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i);
+  if (match2 && match2[1]) {
+    return match2[1].trim();
+  }
+  
+  // Procura nomes próprios (palavras com inicial maiúscula) - pega todas as palavras consecutivas
   const words = question.split(/\s+/);
   const names: string[] = [];
+  let collecting = false;
   for (let i = 0; i < words.length; i++) {
-    if (/^[A-Z][a-z]+$/.test(words[i])) {
-      names.push(words[i]);
-      if (i < words.length - 1 && /^[A-Z][a-z]+$/.test(words[i + 1])) {
-        names.push(words[i + 1]);
-        i++;
-      }
+    const word = words[i];
+    // Remove pontuação no final
+    const cleanWord = word.replace(/[.,!?;:]$/, '');
+    if (/^[A-Z][a-z]+$/.test(cleanWord)) {
+      names.push(cleanWord);
+      collecting = true;
+    } else if (collecting) {
+      // Se estava coletando e encontrou uma palavra que não é nome próprio, para
       break;
     }
   }
@@ -648,4 +658,171 @@ export async function queryFuncaoColaborador(question: string): Promise<{ nome: 
     }
   } catch {}
   return { nome: null, funcao: null };
+}
+
+/**
+ * Query: Matrícula de um colaborador específico
+ */
+export async function queryMatriculaColaborador(question: string): Promise<{ nome: string | null; matricula: string | null }> {
+  const nome = extractPersonName(question);
+  if (!nome) {
+    return { nome: null, matricula: null };
+  }
+
+  const esc = (s: string) => s.replace(/'/g, "''");
+  try {
+    const rows: any[] = await prisma.$queryRawUnsafe(`
+      SELECT DISTINCT colaborador AS nome, matricula
+      FROM stg_alterdata_v2
+      WHERE UPPER(TRIM(colaborador)) LIKE UPPER('%${esc(nome)}%')
+        AND COALESCE(matricula, '') != ''
+        AND ${DEMISSAO_WHERE}
+      ORDER BY colaborador ASC
+      LIMIT 1
+    `);
+    if (rows.length > 0) {
+      return { nome: rows[0].nome, matricula: rows[0].matricula };
+    }
+  } catch {}
+  return { nome: null, matricula: null };
+}
+
+/**
+ * Query: Extintores por unidade/regional
+ */
+export async function queryExtintores(question: string): Promise<{ total: number; vencidos: number; dentroPrazo: number; unidade: string | null; regional: string | null }> {
+  const locations = extractLocationNames(question);
+  let unidade: string | null = null;
+  let regional: string | null = null;
+
+  if (locations.unidades.length > 0) {
+    for (const loc of locations.unidades) {
+      const found = await findUnidade(loc);
+      if (found) {
+        unidade = found.unidade;
+        if (!regional && found.regional) {
+          regional = found.regional;
+        }
+        break;
+      }
+    }
+  }
+
+  if (locations.regionais.length > 0 && !regional) {
+    for (const loc of locations.regionais) {
+      const found = await findRegional(loc);
+      if (found) {
+        regional = found;
+        break;
+      }
+    }
+  }
+
+  const esc = (s: string) => s.replace(/'/g, "''");
+  let whereSql = '';
+  const conditions: string[] = [];
+
+  if (regional) {
+    conditions.push(`"Regional" = '${esc(regional)}'`);
+  }
+  if (unidade) {
+    conditions.push(`TRIM("Unidade") ILIKE '%${esc(unidade)}%'`);
+  }
+
+  if (conditions.length > 0) {
+    whereSql = `WHERE ${conditions.join(' AND ')}`;
+  }
+
+  const rows: any[] = await prisma.$queryRawUnsafe(`
+    SELECT "Unidade", "Regional", "Última recarga"
+    FROM spci_planilha
+    ${whereSql}
+  `);
+
+  let total = 0;
+  let vencidos = 0;
+  let dentroPrazo = 0;
+  
+  for (const row of rows) {
+    total++;
+    const calculo = calcularStatus(row['Última recarga']);
+    if (calculo.status === 'VENCIDO') vencidos++;
+    else dentroPrazo++;
+  }
+
+  return { total, vencidos, dentroPrazo, unidade, regional };
+}
+
+/**
+ * Query: Estoque (itens abaixo do mínimo)
+ */
+export async function queryEstoque(question: string): Promise<{ items: Array<{ unidade: string; item: string; quantidade: number; minimo: number }>; unidade: string | null; regional: string | null }> {
+  const locations = extractLocationNames(question);
+  let unidade: string | null = null;
+  let regional: string | null = null;
+
+  if (locations.unidades.length > 0) {
+    for (const loc of locations.unidades) {
+      const found = await findUnidade(loc);
+      if (found) {
+        unidade = found.unidade;
+        break;
+      }
+    }
+  }
+
+  if (locations.regionais.length > 0 && !regional) {
+    for (const loc of locations.regionais) {
+      const found = await findRegional(loc);
+      if (found) {
+        regional = found;
+        break;
+      }
+    }
+  }
+
+  const esc = (s: string) => s.replace(/'/g, "''");
+  let where = `WHERE e.quantidade < e.minimo`;
+  const params: any[] = [];
+  let paramIndex = 1;
+
+  if (regional) {
+    params.push(regional);
+    where += ` AND EXISTS (SELECT 1 FROM "Regional" r WHERE r.id = u."regionalId" AND UPPER(TRIM(r.nome)) = UPPER(TRIM($${paramIndex})))`;
+    paramIndex++;
+  }
+  if (unidade) {
+    params.push(`%${unidade}%`);
+    where += ` AND UPPER(TRIM(u.nome)) LIKE UPPER($${paramIndex})`;
+    paramIndex++;
+  }
+
+  const rows: any[] = params.length > 0
+    ? await prisma.$queryRawUnsafe(`
+        SELECT u.nome AS unidade, i.nome AS item, e.quantidade::int, e.minimo::int
+        FROM "Estoque" e
+        JOIN "Item" i ON i.id = e."itemId"
+        JOIN "Unidade" u ON u.id = e."unidadeId"
+        ${where}
+        ORDER BY e.quantidade ASC
+        LIMIT 20
+      `, ...params)
+    : await prisma.$queryRawUnsafe(`
+        SELECT u.nome AS unidade, i.nome AS item, e.quantidade::int, e.minimo::int
+        FROM "Estoque" e
+        JOIN "Item" i ON i.id = e."itemId"
+        JOIN "Unidade" u ON u.id = e."unidadeId"
+        ${where}
+        ORDER BY e.quantidade ASC
+        LIMIT 20
+      `);
+
+  const items = rows.map((r: any) => ({
+    unidade: String(r.unidade || ''),
+    item: String(r.item || ''),
+    quantidade: Number(r.quantidade || 0),
+    minimo: Number(r.minimo || 0),
+  }));
+
+  return { items, unidade, regional };
 }

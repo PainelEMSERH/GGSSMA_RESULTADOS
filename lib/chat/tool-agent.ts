@@ -6,10 +6,15 @@ import {
   queryColaboradoresUnidade,
   queryDemitidos,
   queryEPIEntregue,
+  queryEstoque,
+  queryExtintores,
   queryFuncaoColaborador,
+  queryMatriculaColaborador,
+  queryMetaEntrega,
   queryUltimaAcidentada,
   queryUltimaAtualizacaoAlterdata,
   queryUnidadeExiste,
+  queryBuscarColaborador,
 } from '@/lib/chat/query-handlers';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
@@ -74,6 +79,26 @@ async function runTool(toolName: string, args: any): Promise<ToolResult> {
     }
     case 'funcao_colaborador': {
       const data = await queryFuncaoColaborador(question);
+      return { ok: true, tool: toolName, data };
+    }
+    case 'matricula_colaborador': {
+      const data = await queryMatriculaColaborador(question);
+      return { ok: true, tool: toolName, data };
+    }
+    case 'extintores': {
+      const data = await queryExtintores(question);
+      return { ok: true, tool: toolName, data };
+    }
+    case 'estoque': {
+      const data = await queryEstoque(question);
+      return { ok: true, tool: toolName, data };
+    }
+    case 'meta_entrega': {
+      const data = await queryMetaEntrega(question);
+      return { ok: true, tool: toolName, data };
+    }
+    case 'buscar_colaborador': {
+      const data = await queryBuscarColaborador(question);
       return { ok: true, tool: toolName, data };
     }
     default:
@@ -219,6 +244,66 @@ export async function answerWithToolCalling(input: {
       function: {
         name: 'funcao_colaborador',
         description: 'Retorna função/cargo de um colaborador pelo nome.',
+        parameters: {
+          type: 'object',
+          properties: { question: { type: 'string' } },
+          required: ['question'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'matricula_colaborador',
+        description: 'Retorna matrícula de um colaborador pelo nome.',
+        parameters: {
+          type: 'object',
+          properties: { question: { type: 'string' } },
+          required: ['question'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'extintores',
+        description: 'Conta extintores por unidade/regional e mostra quantos estão vencidos.',
+        parameters: {
+          type: 'object',
+          properties: { question: { type: 'string' } },
+          required: ['question'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'estoque',
+        description: 'Lista itens de estoque abaixo do mínimo por unidade/regional.',
+        parameters: {
+          type: 'object',
+          properties: { question: { type: 'string' } },
+          required: ['question'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'meta_entrega',
+        description: 'Retorna meta/planejado de entrega de EPI para um período e regional.',
+        parameters: {
+          type: 'object',
+          properties: { question: { type: 'string' } },
+          required: ['question'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'buscar_colaborador',
+        description: 'Busca colaborador por nome ou CPF e retorna informações completas.',
         parameters: {
           type: 'object',
           properties: { question: { type: 'string' } },

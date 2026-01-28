@@ -19,6 +19,7 @@ import {
   queryColaboradorMaisVelho,
   queryColaboradorRecenteUnidade,
   queryFuncaoColaborador,
+  queryMatriculaColaborador,
   queryUnidadeExiste,
   queryBuscarColaborador,
 } from '@/lib/chat/query-handlers';
@@ -640,6 +641,30 @@ export async function POST(req: NextRequest) {
             answer: `A função de ${data.nome} é ${data.funcao}.`,
             data,
           });
+        }
+      } catch (e: any) {
+        // Continua
+      }
+    }
+
+    // 11) Matrícula de colaborador específico
+    if (qLower.includes('matricula') || qLower.includes('matrícula')) {
+      try {
+        const data = await queryMatriculaColaborador(lastQuestion);
+        if (data.nome) {
+          if (data.matricula) {
+            return NextResponse.json({
+              ok: true,
+              answer: `A matrícula do colaborador ${data.nome} é ${data.matricula}.`,
+              data,
+            });
+          } else {
+            return NextResponse.json({
+              ok: true,
+              answer: `Encontrei o colaborador "${data.nome}", mas não há matrícula cadastrada para ele.`,
+              data,
+            });
+          }
         }
       } catch (e: any) {
         // Continua
