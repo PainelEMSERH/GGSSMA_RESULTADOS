@@ -8,6 +8,57 @@ import { auth } from '@clerk/nextjs/server';
 /** HHT = colaboradores ativos × 150 (por mês). */
 const HHT_POR_ATIVO = 150;
 
+/** Calcula colaboradores ativos por mês a partir do Alterdata: admitidos até o fim do mês e (demissão vazia ou demissão após o fim do mês). */
+async function ativosPorMesAlterdata(ano: number): Promise<Record<number, number> | null> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+      `
+      WITH ultimo_dia AS (
+        SELECT m AS mes, (make_date($1::int, m, 1) + interval '1 month' - interval '1 day')::date AS fim
+        FROM generate_series(1, 12) AS m
+      ),
+      base AS (
+        SELECT
+          COALESCE(a.cpf, '') AS cpf,
+          CASE
+            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^\\d+$' THEN (DATE '1899-12-30' + TRIM(a.admissao)::int)::date
+            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.admissao), 1, 10)::date
+            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.admissao), 1, 10), 'DD/MM/YYYY')
+            ELSE NULL
+          END AS admissao_d,
+          CASE
+            WHEN a.demissao IS NULL OR TRIM(COALESCE(a.demissao,'')) = '' THEN NULL
+            WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + TRIM(a.demissao)::int)::date
+            WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+            WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+            ELSE NULL
+          END AS demissao_d
+        FROM stg_alterdata_v2 a
+        WHERE COALESCE(a.cpf, '') != ''
+      )
+      SELECT ud.mes::int AS mes, COUNT(DISTINCT b.cpf)::int AS ativos
+      FROM ultimo_dia ud
+      CROSS JOIN base b
+      WHERE b.admissao_d IS NOT NULL
+        AND b.admissao_d <= ud.fim
+        AND (b.demissao_d IS NULL OR b.demissao_d > ud.fim)
+      GROUP BY ud.mes
+      ORDER BY ud.mes
+      `,
+      ano
+    );
+    const out: Record<number, number> = {};
+    for (let m = 1; m <= 12; m++) out[m] = 0;
+    for (const r of rows || []) {
+      const mes = Number(r.mes);
+      if (mes >= 1 && mes <= 12) out[mes] = Number(r.ativos ?? 0);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -21,7 +72,8 @@ export async function GET(req: Request) {
       whereStg += ` AND "Regional" ILIKE $2`;
     }
 
-    const [ativosRows, acidentesPorMesRows] = await Promise.all([
+    const [ativosAlterdata, ativosRows, acidentesPorMesRows] = await Promise.all([
+      ativosPorMesAlterdata(ano),
       prisma.ativosMensal.findMany({
         where: { ano },
         orderBy: { mes: 'asc' },
@@ -35,8 +87,13 @@ export async function GET(req: Request) {
     ]);
 
     const ativosPorMes: Record<number, number> = {};
-    for (const r of ativosRows) {
-      if (r.mes >= 1 && r.mes <= 12) ativosPorMes[r.mes] = r.ativos;
+    for (let m = 1; m <= 12; m++) ativosPorMes[m] = 0;
+    if (ativosAlterdata) {
+      for (let m = 1; m <= 12; m++) ativosPorMes[m] = ativosAlterdata[m] ?? 0;
+    } else {
+      for (const r of ativosRows) {
+        if (r.mes >= 1 && r.mes <= 12) ativosPorMes[r.mes] = r.ativos;
+      }
     }
     const acidentesPorMes: Record<number, number> = {};
     for (const r of acidentesPorMesRows || []) {
@@ -68,7 +125,11 @@ export async function GET(req: Request) {
       });
     }
 
-    return NextResponse.json({ ok: true, registros });
+    return NextResponse.json({
+      ok: true,
+      registros,
+      fonteAtivos: ativosAlterdata ? 'alterdata' : 'manual',
+    });
   } catch (e: any) {
     console.error('[acidentes/taxa-frequencia][GET] error', e);
     return NextResponse.json(

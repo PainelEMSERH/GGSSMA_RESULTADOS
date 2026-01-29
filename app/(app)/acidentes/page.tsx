@@ -331,13 +331,15 @@ export default function AcidentesPage() {
     return base;
   });
   const [tfSavingAtivos, setTfSavingAtivos] = useState(false);
+  const [tfFonteAtivos, setTfFonteAtivos] = useState<'alterdata' | 'manual' | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams();
     params.set('ano', tfAno);
     if (regional) params.set('regional', regional);
-    fetchJSON<{ registros: any[] }>('/api/acidentes/taxa-frequencia?' + params.toString())
+    fetchJSON<{ registros: any[]; fonteAtivos?: 'alterdata' | 'manual' }>('/api/acidentes/taxa-frequencia?' + params.toString())
       .then((d) => {
+        setTfFonteAtivos(d.fonteAtivos ?? null);
         const base: any = {};
         ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
           base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
@@ -359,6 +361,7 @@ export default function AcidentesPage() {
         setTfMeses(base);
       })
       .catch(() => {
+        setTfFonteAtivos(null);
         const base: any = {};
         ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
           base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
@@ -823,6 +826,11 @@ export default function AcidentesPage() {
                   <div className="flex items-center gap-2">
                     <span className="w-32 text-[11px] font-medium text-muted">
                       Colaboradores ativos
+                      {tfFonteAtivos === 'alterdata' && (
+                        <span className="ml-1 text-emerald-600 dark:text-emerald-400" title="Contagem automática: admitidos até o fim do mês e demissão vazia ou após o fim do mês">
+                          (Alterdata)
+                        </span>
+                      )}
                     </span>
                     <div className="grid grid-cols-12 gap-1 flex-1">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
@@ -942,7 +950,7 @@ export default function AcidentesPage() {
               </p>
               <p className="text-[11px] text-muted">
                 Acidentes são puxados automaticamente da planilha (stg_acidentes) por mês (jan–dez).
-                Informe os <strong>colaboradores ativos</strong> de cada mês e salve para calcular a TF.
+                Colaboradores ativos: quando a base Alterdata está importada, a contagem é automática (admitidos até o fim do mês e demissão vazia ou após o fim do mês). Caso contrário, preencha e salve.
               </p>
             </div>
 
