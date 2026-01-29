@@ -5,11 +5,14 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import * as sql from 'mssql';
 
+// Use ALTERDATA_SERVER=192.168.176.5,1433 (ou a porta da instância) para forçar porta; senão usa 192.168.176.5\ALTERDATA
 const sqlServerConfig: sql.config = {
-  server: '192.168.176.5\\ALTERDATA',
-  database: 'ALTERDATA_PACK',
-  user: 'DESSMA',
-  password: '#De$Ma2024!',
+  server: process.env.ALTERDATA_SERVER || '192.168.176.5\\ALTERDATA',
+  database: process.env.ALTERDATA_DATABASE || 'ALTERDATA_PACK',
+  user: process.env.ALTERDATA_USER || 'DESSMA',
+  password: process.env.ALTERDATA_PASSWORD || '#De$Ma2024!',
+  connectionTimeout: 30000, // 30s
+  requestTimeout: 60000,   // 60s
   options: {
     encrypt: false,
   },

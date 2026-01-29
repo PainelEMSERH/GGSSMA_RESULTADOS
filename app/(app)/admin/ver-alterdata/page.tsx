@@ -34,7 +34,10 @@ export default function VerAlterdataPage() {
           <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Admin • Alterdata</p>
           <h1 className="mt-1 text-lg font-semibold">Estrutura da Tabela wdp.CAT</h1>
           <p className="mt-1 text-xs text-muted">
-            Visualize a estrutura e uma amostra de dados da tabela wdp.CAT do SQL Server Alterdata
+            Visualize a estrutura e uma amostra de dados da tabela wdp.CAT do SQL Server Alterdata.
+          </p>
+          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+            Esta conexão só funciona quando o painel está rodando em <strong>localhost</strong> (npm run dev) na mesma rede do servidor Alterdata. Se você abrir o site pela internet (Vercel), vai dar timeout.
           </p>
         </div>
         <button

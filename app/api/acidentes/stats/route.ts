@@ -10,93 +10,87 @@ export async function GET(req: Request) {
     const regional = url.searchParams.get('regional') || '';
     const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
 
-    const where: any = {
-      ano: parseInt(ano, 10),
-    };
-
+    const params: any[] = [parseInt(ano, 10)];
+    let whereSql = `WHERE ano = $1`;
     if (regional) {
-      where.regional = regional;
+      params.push(regional);
+      whereSql += ` AND "Regional" ILIKE $2`;
     }
 
-    // Total de acidentes no ano
-    const totalAno = await prisma.acidente.count({ where });
-
-    // Total de acidentes no mês atual
     const mesAtual = new Date().getMonth() + 1;
-    const totalMes = await prisma.acidente.count({
-      where: { ...where, mes: mesAtual },
-    });
 
-    // Por regional
-    const porRegional = await prisma.acidente.groupBy({
-      by: ['regional'],
-      where,
-      _count: true,
-    });
+    const totalAnoRow = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT COUNT(*)::int AS total FROM stg_acidentes ${whereSql}`,
+      ...params
+    );
+    const totalMesRow = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT COUNT(*)::int AS total FROM stg_acidentes ${whereSql} AND mes = $${params.length + 1}`,
+      ...params,
+      mesAtual
+    );
 
-    // Por tipo
-    const porTipo = await prisma.acidente.groupBy({
-      by: ['tipo'],
-      where,
-      _count: true,
-    });
+    const porRegionalRows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT COALESCE(NULLIF(TRIM("Regional"),''),'Não informado') AS regional, COUNT(*)::int AS quantidade
+       FROM stg_acidentes ${whereSql}
+       GROUP BY 1
+       ORDER BY 2 DESC`,
+      ...params
+    );
 
-    // Por unidade
-    const porUnidade = await prisma.acidente.groupBy({
-      by: ['unidadeHospitalar'],
-      where,
-      _count: true,
-      orderBy: { _count: { unidadeHospitalar: 'desc' } },
-      take: 20,
-    });
+    const porTipoRows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT COALESCE(NULLIF(TRIM("Tipo_Acidente"),''),'outros') AS tipo, COUNT(*)::int AS quantidade
+       FROM stg_acidentes ${whereSql}
+       GROUP BY 1
+       ORDER BY 2 DESC`,
+      ...params
+    );
 
-    // Por mês (todos os meses do ano)
+    const porUnidadeRows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT COALESCE(NULLIF(TRIM(nmdepartamento),''),'Não informado') AS unidade, COUNT(*)::int AS quantidade
+       FROM stg_acidentes ${whereSql}
+       GROUP BY 1
+       ORDER BY 2 DESC
+       LIMIT 20`,
+      ...params
+    );
+
+    const porMesRows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT mes::int AS mes, COUNT(*)::int AS quantidade
+       FROM stg_acidentes ${whereSql}
+       GROUP BY mes
+       ORDER BY mes`,
+      ...params
+    );
     const porMes: Record<string, number> = {};
-    for (let m = 1; m <= 12; m++) {
-      const count = await prisma.acidente.count({
-        where: { ...where, mes: m },
-      });
-      porMes[String(m).padStart(2, '0')] = count;
+    for (let m = 1; m <= 12; m++) porMes[String(m).padStart(2, '0')] = 0;
+    for (const r of porMesRows || []) {
+      const m = Number(r.mes);
+      if (m >= 1 && m <= 12) porMes[String(m).padStart(2, '0')] = Number(r.quantidade || 0);
     }
 
-    // Por status
-    const porStatus = await prisma.acidente.groupBy({
-      by: ['status'],
-      where,
-      _count: true,
-    });
+    // Não existe status na planilha → mantemos um único status "aberto"
+    const porStatus = [{ status: 'aberto', quantidade: Number(totalAnoRow?.[0]?.total || 0) }];
 
-    // Com e sem afastamento
-    const comAfastamento = await prisma.acidente.count({
-      where: { ...where, comAfastamento: true },
-    });
-    const semAfastamento = await prisma.acidente.count({
-      where: { ...where, comAfastamento: false },
-    });
+    const comAfastamentoRow = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT COUNT(*)::int AS total FROM stg_acidentes ${whereSql} AND (LOWER(COALESCE(houve_afastamento::text,'')) IN ('verdadeiro','true','1','sim','t','yes','y'))`,
+      ...params
+    );
+    const semAfastamentoRow = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT COUNT(*)::int AS total FROM stg_acidentes ${whereSql} AND NOT (LOWER(COALESCE(houve_afastamento::text,'')) IN ('verdadeiro','true','1','sim','t','yes','y'))`,
+      ...params
+    );
 
     return NextResponse.json({
       ok: true,
-      totalAno,
-      totalMes,
-      porRegional: porRegional.map((r) => ({
-        regional: r.regional || 'Não informado',
-        quantidade: r._count,
-      })),
-      porTipo: porTipo.map((t) => ({
-        tipo: t.tipo,
-        quantidade: t._count,
-      })),
-      porUnidade: porUnidade.map((u) => ({
-        unidade: u.unidadeHospitalar,
-        quantidade: u._count,
-      })),
+      totalAno: Number(totalAnoRow?.[0]?.total || 0),
+      totalMes: Number(totalMesRow?.[0]?.total || 0),
+      porRegional: (porRegionalRows || []).map((r) => ({ regional: r.regional, quantidade: r.quantidade })),
+      porTipo: (porTipoRows || []).map((t) => ({ tipo: t.tipo, quantidade: t.quantidade })),
+      porUnidade: (porUnidadeRows || []).map((u) => ({ unidade: u.unidade, quantidade: u.quantidade })),
       porMes,
-      porStatus: porStatus.map((s) => ({
-        status: s.status,
-        quantidade: s._count,
-      })),
-      comAfastamento,
-      semAfastamento,
+      porStatus,
+      comAfastamento: Number(comAfastamentoRow?.[0]?.total || 0),
+      semAfastamento: Number(semAfastamentoRow?.[0]?.total || 0),
     });
   } catch (e: any) {
     console.error('[acidentes/stats] error', e);

@@ -18,53 +18,99 @@ export async function GET(req: Request) {
     const pageSize = parseInt(url.searchParams.get('pageSize') || '25', 10);
     const q = url.searchParams.get('q') || '';
 
-    const where: any = {
-      ano: parseInt(ano, 10),
-    };
+    // Fonte agora é a tabela stg_acidentes (CSV do Alterdata/planilha) no Neon.
+    // IMPORTANTe: essa rota é somente leitura.
+    const params: any[] = [];
+    let p = 1;
+    const where: string[] = [];
+
+    // ano obrigatório (coluna gerada)
+    params.push(parseInt(ano, 10));
+    where.push(`ano = $${p++}`);
 
     if (regional) {
-      where.regional = regional;
+      params.push(regional);
+      where.push(`("Regional" ILIKE $${p++})`);
     }
-
     if (unidade) {
-      where.unidadeHospitalar = { contains: unidade, mode: 'insensitive' };
+      params.push(`%${unidade}%`);
+      where.push(`(nmdepartamento ILIKE $${p++})`);
     }
-
     if (tipo) {
-      where.tipo = tipo;
+      // Na planilha o campo é "Tipo_Acidente"
+      params.push(tipo);
+      where.push(`("Tipo_Acidente" ILIKE $${p++})`);
     }
-
     if (status) {
-      where.status = status;
+      // Não existe status na planilha; ignora (mantém compatibilidade do filtro)
     }
-
     if (empresa) {
-      where.empresa = empresa;
+      // Não existe empresa na planilha; ignora (mantém compatibilidade do filtro)
     }
-
     if (mes) {
-      where.mes = parseInt(mes, 10);
+      params.push(parseInt(mes, 10));
+      where.push(`mes = $${p++}`);
     }
-
     if (q) {
-      where.OR = [
-        { nome: { contains: q, mode: 'insensitive' } },
-        { unidadeHospitalar: { contains: q, mode: 'insensitive' } },
-        { numeroCAT: { contains: q, mode: 'insensitive' } },
-        { riat: { contains: q, mode: 'insensitive' } },
-        { sinan: { contains: q, mode: 'insensitive' } },
-      ];
+      params.push(`%${q}%`);
+      const qParam = `$${p++}`;
+      where.push(`(
+        "NmFuncionario" ILIKE ${qParam}
+        OR nmdepartamento ILIKE ${qParam}
+        OR COALESCE(numero_cat,'') ILIKE ${qParam}
+        OR COALESCE(codigo_cid,'') ILIKE ${qParam}
+        OR COALESCE(observacoes_cat,'') ILIKE ${qParam}
+      )`);
     }
 
-    const [rows, total] = await Promise.all([
-      prisma.acidente.findMany({
-        where,
-        orderBy: { data: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.acidente.count({ where }),
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const offset = (page - 1) * pageSize;
+    params.push(pageSize, offset);
+    const limitParam = `$${p++}`;
+    const offsetParam = `$${p++}`;
+
+    const rowsSql = `
+      SELECT
+        COALESCE(numero_cat, '') AS "numeroCAT",
+        COALESCE("NmFuncionario",'') AS "nome",
+        COALESCE(nmdepartamento,'') AS "unidadeHospitalar",
+        NULLIF(TRIM(COALESCE("Regional",'')),'') AS "regional",
+        COALESCE("Tipo_Acidente",'outros') AS "tipo",
+        (LOWER(COALESCE(houve_afastamento::text,'')) IN ('verdadeiro','true','1','sim','t','yes','y')) AS "comAfastamento",
+        (CASE WHEN data_acidente IS NOT NULL AND TRIM(data_acidente) <> '' THEN to_date(data_acidente, 'DD/MM/YYYY')::timestamptz ELSE NULL END) AS "data",
+        NULLIF(TRIM(COALESCE(hora_formatada, '')), '') AS "hora",
+        mes::int AS "mes",
+        ano::int AS "ano",
+        NULL::text AS "riat",
+        NULL::text AS "sinan",
+        'aberto'::text AS "status",
+        NULLIF(TRIM(COALESCE(descricao_complementar_lesao,'')),'') AS "descricao",
+        NULLIF(TRIM(COALESCE(nmfuncao,'')),'') AS "funcaoTrabalhador",
+        NULL::text AS "tipoVinculo",
+        NULLIF(TRIM(COALESCE(descricao_situacao_geradora,'')),'') AS "causaImediata",
+        NULLIF(TRIM(COALESCE(descricao_natureza_lesao,'')),'') AS "causaRaiz",
+        NULLIF(TRIM(COALESCE(observacoes_cat,'')),'') AS "fatoresContrib",
+        COALESCE(NrCPF,'') AS "cpf"
+      FROM stg_acidentes
+      ${whereSql}
+      ORDER BY (CASE WHEN data_acidente IS NOT NULL AND TRIM(data_acidente) <> '' THEN to_date(data_acidente, 'DD/MM/YYYY') END) DESC NULLS LAST
+      LIMIT ${limitParam}
+      OFFSET ${offsetParam}
+    `;
+
+    const totalSql = `
+      SELECT COUNT(*)::int AS total
+      FROM stg_acidentes
+      ${whereSql}
+    `;
+
+    const [rows, tot] = await Promise.all([
+      prisma.$queryRawUnsafe<any[]>(rowsSql, ...params),
+      prisma.$queryRawUnsafe<any[]>(totalSql, ...params.slice(0, params.length - 2)),
     ]);
+
+    const total = tot?.[0]?.total ?? 0;
 
     return NextResponse.json({
       ok: true,

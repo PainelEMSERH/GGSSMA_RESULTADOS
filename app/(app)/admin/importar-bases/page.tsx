@@ -27,10 +27,10 @@ const IMPORT_MODULES: ImportModule[] = [
   },
   {
     id: 'acidentes',
-    name: 'Acidentes',
-    description: 'Importar base de acidentes de trabalho',
+    name: 'Acidentes (stg_acidentes)',
+    description: 'Apaga a base atual e sobe a nova. CSV (separador ;) ou Excel com colunas da planilha Alterdata.',
     icon: '⚠️',
-    endpoint: '/api/import/acidentes',
+    endpoint: '/api/acidentes/import-stg',
   },
   {
     id: 'ordens_servico',
@@ -81,9 +81,10 @@ export default function ImportarBasesPage() {
           message: 'Erro ao importar: ' + (j?.error || 'verifique o arquivo e tente novamente.'),
         });
       } else {
+        const count = j.imported ?? j.total_rows ?? 0;
         setStatus({
           type: 'success',
-          message: `✅ Importação concluída! ${j.total_rows || 0} registro(s) processado(s).${j.batchId ? ` Lote: ${j.batchId}` : ''}`,
+          message: j.message || `✅ Importação concluída! ${count} registro(s) importado(s). A base anterior foi apagada.`,
         });
         // Limpa o formulário
         setFile(null);
@@ -186,7 +187,8 @@ export default function ImportarBasesPage() {
                     )}
                     {selectedModule === 'acidentes' && (
                       <>
-                        <p>Colunas esperadas: Data do Acidente, Nome, CPF, Função, Unidade, Tipo, Gravidade, Descrição, Causa, Medidas Corretivas</p>
+                        <p><strong>Base de acidentes (stg_acidentes):</strong> ao importar, a base atual é apagada e substituída pela do arquivo.</p>
+                        <p className="mt-1">CSV com separador <strong>;</strong> (ponto e vírgula) ou Excel, com as colunas da planilha Alterdata: CdChamada, NmFuncionario, nmdepartamento, data_acidente (DD/MM/YYYY), numero_cat, Regional, etc.</p>
                       </>
                     )}
                     {selectedModule === 'ordens_servico' && (
