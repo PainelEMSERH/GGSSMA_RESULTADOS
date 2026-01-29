@@ -397,58 +397,7 @@ export default function AcidentesPage() {
     return opts.unidades.filter((u) => u.regional === regional);
   }, [opts.unidades, regional]);
 
-  function handleOpenModal(row?: AcidenteRow) {
-    if (row) {
-      setEditing(row);
-      setFormData({
-        nome: row.nome,
-        empresa: row.empresa,
-        unidadeHospitalar: row.unidadeHospitalar,
-        regional: row.regional || '',
-        tipo: row.tipo,
-        comAfastamento: row.comAfastamento,
-        data: toInputDate(row.data),
-        hora: row.hora || '',
-        numeroCAT: row.numeroCAT || '',
-        riat: row.riat || '',
-        sinan: row.sinan || '',
-        status: row.status,
-        descricao: row.descricao || '',
-        setor: row.setor || '',
-        funcaoTrabalhador: row.funcaoTrabalhador || '',
-        tipoVinculo: row.tipoVinculo || '',
-        causaImediata: row.causaImediata || '',
-        causaRaiz: row.causaRaiz || '',
-        fatoresContrib: row.fatoresContrib || '',
-      });
-    } else {
-      setEditing(null);
-      setFormData({
-        nome: '',
-        empresa: 'EMSERH',
-        unidadeHospitalar: '',
-        regional: regional || '',
-        tipo: '',
-        comAfastamento: false,
-        data: '',
-        hora: '',
-        numeroCAT: '',
-        riat: '',
-        sinan: '',
-        status: 'aberto',
-        descricao: '',
-        setor: '',
-        funcaoTrabalhador: '',
-        tipoVinculo: '',
-        causaImediata: '',
-        causaRaiz: '',
-        fatoresContrib: '',
-      });
-    }
-    setModalOpen(true);
-  }
-
-  // Salvamento removido.
+  // Modal de edição/novo removido (página somente leitura).
 
   function toggleExpand(id: string) {
     setExpandedRows((prev) => {
@@ -968,13 +917,7 @@ export default function AcidentesPage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
-              <button
-                type="button"
-                onClick={() => handleOpenModal()}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-[11px] font-semibold text-white hover:bg-emerald-500"
-              >
-                Registrar novo acidente
-              </button>
+              <span className="text-[11px] text-muted">Base somente leitura (importe em Admin → Importar bases).</span>
             </div>
           </section>
 
@@ -1094,15 +1037,7 @@ export default function AcidentesPage() {
                               {STATUS_ACIDENTE.find((s) => s.value === row.status)?.label || row.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenModal(row)}
-                              className="rounded border border-border px-2 py-1 text-[10px] hover:bg-card"
-                            >
-                              Editar
-                            </button>
-                          </td>
+                          <td className="px-3 py-2 text-center text-muted text-[10px]">—</td>
                         </tr>
                         {isExpanded && (
                           <tr>
