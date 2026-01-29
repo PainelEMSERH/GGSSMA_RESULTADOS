@@ -270,9 +270,6 @@ export default function AcidentesPage() {
   // Detalhes expandidos
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  // Importação do Alterdata
-  const [importing, setImporting] = useState(false);
-
   // Visão Geral
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -415,45 +412,6 @@ export default function AcidentesPage() {
     return total > 0 ? Math.ceil(total / pageSize) : 1;
   }, [total]);
 
-  async function handleImportAlterdata() {
-    if (!confirm('Deseja importar acidentes do Alterdata? Isso pode levar alguns minutos.')) {
-      return;
-    }
-
-    try {
-      setImporting(true);
-      const res = await fetchJSON<{ ok: boolean; message: string; imported: number; updated: number; errors: number; total: number }>(
-        '/api/alterdata/import-acidentes',
-        { method: 'POST' }
-      );
-
-      if (res.ok) {
-        alert(`Importação concluída!\n\n${res.message}\n\nTotal processado: ${res.total}\nNovos: ${res.imported}\nAtualizados: ${res.updated}\nErros: ${res.errors}`);
-        // Recarrega a lista
-        const params = new URLSearchParams();
-        if (regional) params.set('regional', regional);
-        if (tipo) params.set('tipo', tipo);
-        if (status) params.set('status', status);
-        if (empresa) params.set('empresa', empresa);
-        if (ano) params.set('ano', ano);
-        if (mes) params.set('mes', mes);
-        if (q) params.set('q', q);
-        params.set('page', String(page));
-        params.set('pageSize', String(pageSize));
-
-        const d = await fetchJSON<{ rows: AcidenteRow[]; total: number }>(`/api/acidentes/list?${params.toString()}`);
-        setRows(d.rows || []);
-        setTotal(d.total || 0);
-      } else {
-        alert(`Erro na importação: ${res.message || 'Erro desconhecido'}`);
-      }
-    } catch (e: any) {
-      alert(`Erro ao importar: ${e?.message || String(e)}`);
-    } finally {
-      setImporting(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -466,15 +424,9 @@ export default function AcidentesPage() {
             Registro, análise e acompanhamento de acidentes de trabalho nas unidades da EMSERH.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleImportAlterdata}
-          disabled={importing}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Download className="w-4 h-4" />
-          {importing ? 'Importando...' : 'Importar do Alterdata'}
-        </button>
+        <span className="rounded-full border border-border bg-panel px-3 py-1.5 text-[11px] text-muted">
+          Somente leitura (importe em Admin → Importar bases)
+        </span>
       </div>
 
       {/* Filtros - card padronizado */}
