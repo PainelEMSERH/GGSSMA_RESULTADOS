@@ -335,6 +335,39 @@ model TaxaFrequenciaAcidente {
   @@index([ano, mes])
 }
 
+// Colaboradores ativos por mês (ano/mes). HHT = ativos * 150.
+model AtivosMensal {
+  id        String   @id @default(cuid())
+  ano       Int
+  mes       Int
+  ativos    Int      // colaboradores ativos no mês
+  criadoEm  DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([ano, mes], name: "ativos_ano_mes")
+  @@index([ano, mes])
+}
+
+// Investigação do acidente (conforme RIAT): anexos RIAT, CAT, SINAN e observações.
+// Ligado ao acidente da planilha (stg_acidentes) por acidenteRef = numeroCAT|data|nome.
+model AcidenteInvestigacao {
+  id                 String   @id @default(cuid())
+  acidenteRef        String   @unique  // chave estável: numeroCAT|dataISO|nome (identifica o acidente na planilha)
+  numeroCAT          String?
+  statusInvestigacao String?  // em_andamento | concluida
+  riatUrl            String?  // link ou URL do documento RIAT
+  riatNome           String?
+  catUrl             String?
+  catNome            String?
+  sinanUrl           String?
+  sinanNome          String?
+  observacoes        String?  @db.Text
+  criadoEm           DateTime @default(now())
+  atualizadoEm       DateTime @updatedAt
+
+  @@index([acidenteRef])
+}
+
 model PreferenciaUsuario {
   id              String   @id @default(cuid())
   clerkUserId     String   @unique

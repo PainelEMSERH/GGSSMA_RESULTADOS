@@ -5,15 +5,68 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@clerk/nextjs/server';
 
+/** HHT = colaboradores ativos × 150 (por mês). */
+const HHT_POR_ATIVO = 150;
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
+    const regional = url.searchParams.get('regional') || '';
     const ano = parseInt(url.searchParams.get('ano') || String(new Date().getFullYear()), 10);
 
-    const registros = await prisma.taxaFrequenciaAcidente.findMany({
-      where: { ano },
-      orderBy: { mes: 'asc' },
-    });
+    const params: any[] = [ano];
+    let whereStg = `WHERE ano = $1`;
+    if (regional) {
+      params.push(regional);
+      whereStg += ` AND "Regional" ILIKE $2`;
+    }
+
+    const [ativosRows, acidentesPorMesRows] = await Promise.all([
+      prisma.ativosMensal.findMany({
+        where: { ano },
+        orderBy: { mes: 'asc' },
+      }),
+      prisma.$queryRawUnsafe<any[]>(
+        `SELECT mes::int AS mes, COUNT(*)::int AS quantidade
+         FROM stg_acidentes ${whereStg}
+         GROUP BY mes ORDER BY mes`,
+        ...params
+      ),
+    ]);
+
+    const ativosPorMes: Record<number, number> = {};
+    for (const r of ativosRows) {
+      if (r.mes >= 1 && r.mes <= 12) ativosPorMes[r.mes] = r.ativos;
+    }
+    const acidentesPorMes: Record<number, number> = {};
+    for (const r of acidentesPorMesRows || []) {
+      const m = Number(r.mes);
+      if (m >= 1 && m <= 12) acidentesPorMes[m] = Number(r.quantidade || 0);
+    }
+
+    const registros: Array<{
+      mes: number;
+      ativos: number;
+      horasHomemTrabalhadas: number;
+      numeroAcidentes: number;
+      taxaFrequencia: number | null;
+    }> = [];
+    for (let mes = 1; mes <= 12; mes++) {
+      const ativos = ativosPorMes[mes] ?? 0;
+      const horasHomemTrabalhadas = ativos * HHT_POR_ATIVO;
+      const numeroAcidentes = acidentesPorMes[mes] ?? 0;
+      const taxaFrequencia =
+        horasHomemTrabalhadas > 0
+          ? (numeroAcidentes * 1_000_000) / horasHomemTrabalhadas
+          : null;
+      registros.push({
+        mes,
+        ativos,
+        horasHomemTrabalhadas,
+        numeroAcidentes,
+        taxaFrequencia: taxaFrequencia != null ? Math.round(taxaFrequencia * 100) / 100 : null,
+      });
+    }
 
     return NextResponse.json({ ok: true, registros });
   } catch (e: any) {

@@ -27,6 +27,7 @@ type AcidenteRow = {
   causaImediata?: string | null;
   causaRaiz?: string | null;
   fatoresContrib?: string | null;
+  hasInvestigacao?: boolean;
 };
 
 type StatsData = {
@@ -98,6 +99,25 @@ const STATUS_ACIDENTE = [
 ];
 
 const LS_REGIONAL_KEY = 'acidentes:regional';
+
+/** Chave estável do acidente (planilha) para vincular investigação */
+function acidenteRef(row: AcidenteRow): string {
+  const cat = (row.numeroCAT || '').trim();
+  const data = (row.data || '').toString().replace(/T.*$/, '');
+  const nome = (row.nome || '').trim();
+  return `${cat}|${data}|${nome}`;
+}
+
+type InvestigacaoForm = {
+  statusInvestigacao: string;
+  riatUrl: string;
+  riatNome: string;
+  catUrl: string;
+  catNome: string;
+  sinanUrl: string;
+  sinanNome: string;
+  observacoes: string;
+};
 
 type PlanoAcaoItem = {
   descricao: string;
@@ -254,6 +274,7 @@ export default function AcidentesPage() {
 
   // Dados
   const [rows, setRows] = useState<AcidenteRow[]>([]);
+  const [listKey, setListKey] = useState(0);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 25;
@@ -270,6 +291,22 @@ export default function AcidentesPage() {
   // Detalhes expandidos
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
+  // Investigação do acidente (RIAT, CAT, SINAN)
+  const [investigacaoRow, setInvestigacaoRow] = useState<AcidenteRow | null>(null);
+  const [investigacaoForm, setInvestigacaoForm] = useState<InvestigacaoForm>({
+    statusInvestigacao: '',
+    riatUrl: '',
+    riatNome: '',
+    catUrl: '',
+    catNome: '',
+    sinanUrl: '',
+    sinanNome: '',
+    observacoes: '',
+  });
+  const [investigacaoLoading, setInvestigacaoLoading] = useState(false);
+  const [investigacaoSaving, setInvestigacaoSaving] = useState(false);
+  const [investigacaoRiatDownloading, setInvestigacaoRiatDownloading] = useState(false);
+
   // Visão Geral
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -280,6 +317,7 @@ export default function AcidentesPage() {
     Record<
       string,
       {
+        ativos: string;
         accidentes: string;
         horas: string;
         tf: string;
@@ -288,22 +326,25 @@ export default function AcidentesPage() {
   >(() => {
     const base: any = {};
     ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
-      base[m] = { accidentes: '', horas: '', tf: '--' };
+      base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
     });
     return base;
   });
+  const [tfSavingAtivos, setTfSavingAtivos] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams();
     params.set('ano', tfAno);
+    if (regional) params.set('regional', regional);
     fetchJSON<{ registros: any[] }>('/api/acidentes/taxa-frequencia?' + params.toString())
       .then((d) => {
         const base: any = {};
         ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
-          base[m] = { accidentes: '', horas: '', tf: '--' };
+          base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
         });
         (d.registros || []).forEach((r: any) => {
           const mes = String(r.mes).padStart(2, '0');
+          const ativos = r.ativos != null ? String(r.ativos) : '';
           const acidentes = String(r.numeroAcidentes ?? '');
           const horas =
             r.horasHomemTrabalhadas != null
@@ -313,18 +354,18 @@ export default function AcidentesPage() {
             r.taxaFrequencia != null
               ? Number(r.taxaFrequencia).toFixed(2)
               : '--';
-          base[mes] = { accidentes: acidentes, horas, tf };
+          base[mes] = { ativos, accidentes, horas, tf };
         });
         setTfMeses(base);
       })
       .catch(() => {
         const base: any = {};
         ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
-          base[m] = { accidentes: '', horas: '', tf: '--' };
+          base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
         });
         setTfMeses(base);
       });
-  }, [tfAno]);
+  }, [tfAno, regional]);
 
   // Carrega regional do localStorage
   useEffect(() => {
@@ -366,7 +407,8 @@ export default function AcidentesPage() {
 
     fetchJSON<{ rows: AcidenteRow[]; total: number }>(`/api/acidentes/list?${params.toString()}`)
       .then((d) => {
-        setRows(d.rows || []);
+        const list = (d.rows || []).map((r: AcidenteRow) => ({ ...r, id: acidenteRef(r) }));
+        setRows(list);
         setTotal(d.total || 0);
       })
       .catch(() => {
@@ -374,7 +416,7 @@ export default function AcidentesPage() {
         setTotal(0);
       })
       .finally(() => setLoading(false));
-  }, [regional, tipo, status, empresa, ano, mes, q, page]);
+  }, [regional, tipo, status, empresa, ano, mes, q, page, listKey]);
 
   // Carrega estatísticas
   useEffect(() => {
@@ -411,6 +453,107 @@ export default function AcidentesPage() {
   const totalPages = useMemo(() => {
     return total > 0 ? Math.ceil(total / pageSize) : 1;
   }, [total]);
+
+  async function openInvestigacao(row: AcidenteRow) {
+    setInvestigacaoRow(row);
+    const ref = acidenteRef(row);
+    setInvestigacaoLoading(true);
+    setInvestigacaoForm({
+      statusInvestigacao: '',
+      riatUrl: '',
+      riatNome: '',
+      catUrl: '',
+      catNome: '',
+      sinanUrl: '',
+      sinanNome: '',
+      observacoes: '',
+    });
+    try {
+      const res = await fetchJSON<{ ok: boolean; investigacao: any }>(`/api/acidentes/investigacao?ref=${encodeURIComponent(ref)}`);
+      if (res.investigacao) {
+        setInvestigacaoForm({
+          statusInvestigacao: res.investigacao.statusInvestigacao || '',
+          riatUrl: res.investigacao.riatUrl || '',
+          riatNome: res.investigacao.riatNome || '',
+          catUrl: res.investigacao.catUrl || '',
+          catNome: res.investigacao.catNome || '',
+          sinanUrl: res.investigacao.sinanUrl || '',
+          sinanNome: res.investigacao.sinanNome || '',
+          observacoes: res.investigacao.observacoes || '',
+        });
+      }
+    } catch {
+      // mantém form vazio
+    } finally {
+      setInvestigacaoLoading(false);
+    }
+  }
+
+  function closeInvestigacao() {
+    setInvestigacaoRow(null);
+  }
+
+  async function downloadRiatPreenchida() {
+    if (!investigacaoRow) return;
+    setInvestigacaoRiatDownloading(true);
+    try {
+      const res = await fetch('/api/acidentes/riat-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acidente: investigacaoRow,
+          observacoes: investigacaoForm.observacoes || '',
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Erro ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `RIAT_${(investigacaoRow.nome || 'acidente').slice(0, 30)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao baixar RIAT');
+    } finally {
+      setInvestigacaoRiatDownloading(false);
+    }
+  }
+
+  async function saveInvestigacao() {
+    if (!investigacaoRow) return;
+    const ref = acidenteRef(investigacaoRow);
+    setInvestigacaoSaving(true);
+    try {
+      await fetchJSON('/api/acidentes/investigacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acidenteRef: ref,
+          numeroCAT: investigacaoRow.numeroCAT || null,
+          statusInvestigacao: investigacaoForm.statusInvestigacao || null,
+          riatUrl: investigacaoForm.riatUrl || null,
+          riatNome: investigacaoForm.riatNome || null,
+          catUrl: investigacaoForm.catUrl || null,
+          catNome: investigacaoForm.catNome || null,
+          sinanUrl: investigacaoForm.sinanUrl || null,
+          sinanNome: investigacaoForm.sinanNome || null,
+          observacoes: investigacaoForm.observacoes || null,
+        }),
+      });
+      setListKey((k) => k + 1);
+      closeInvestigacao();
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao salvar investigação');
+    } finally {
+      setInvestigacaoSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -679,31 +822,7 @@ export default function AcidentesPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="w-32 text-[11px] font-medium text-muted">
-                      Nº de Acidentes *
-                    </span>
-                    <div className="grid grid-cols-12 gap-1 flex-1">
-                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
-                        (m) => {
-                          const quantidade =
-                            stats?.porMes?.[String(parseInt(m, 10))] ??
-                            stats?.porMes?.[m] ??
-                            0;
-                          return (
-                            <div
-                              key={m}
-                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-center text-text"
-                            >
-                              {quantidade}
-                            </div>
-                          );
-                        },
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="w-32 text-[11px] font-medium text-muted">
-                      Horas-Homem (h) *
+                      Colaboradores ativos
                     </span>
                     <div className="grid grid-cols-12 gap-1 flex-1">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
@@ -714,27 +833,68 @@ export default function AcidentesPage() {
                               key={m}
                               type="number"
                               min={0}
-                              step="0.01"
                               className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-center outline-none focus:ring-1 focus:ring-emerald-500"
-                              value={linha?.horas ?? ''}
+                              placeholder="0"
+                              value={linha?.ativos ?? ''}
                               onChange={(e) => {
-                                const horas = e.target.value;
-                                const quantidade =
-                                  stats?.porMes?.[String(parseInt(m, 10))] ??
-                                  stats?.porMes?.[m] ??
-                                  0;
-                                let tf = '--';
-                                const aNum = quantidade;
-                                const hNum = parseFloat((horas || '0').replace(',', '.'));
-                                if (!Number.isNaN(aNum) && !Number.isNaN(hNum) && hNum > 0) {
-                                  tf = ((aNum * 1_000_000) / hNum).toFixed(2);
-                                }
+                                const ativos = e.target.value;
+                                const ativosNum = parseInt(ativos, 10);
+                                const hht = Number.isNaN(ativosNum) || ativosNum < 0 ? 0 : ativosNum * 150;
+                                const acidentes = parseInt(linha?.accidentes ?? '0', 10) || 0;
+                                const tf = hht > 0 ? ((acidentes * 1_000_000) / hht).toFixed(2) : '--';
                                 setTfMeses((prev) => ({
                                   ...prev,
-                                  [m]: { ...(prev[m] || { accidentes: '', horas: '', tf: '--' }), horas, tf },
+                                  [m]: {
+                                    ...(prev[m] || { ativos: '', accidentes: '', horas: '', tf: '--' }),
+                                    ativos,
+                                    horas: String(hht),
+                                    tf,
+                                  },
                                 }));
                               }}
                             />
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="w-32 text-[11px] font-medium text-muted">
+                      HHT (ativos × 150)
+                    </span>
+                    <div className="grid grid-cols-12 gap-1 flex-1">
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                        (m) => {
+                          const linha = tfMeses[m];
+                          return (
+                            <div
+                              key={m}
+                              className="w-full rounded border border-border bg-panel/70 px-1 py-1 text-[11px] text-center text-text"
+                            >
+                              {linha?.horas ?? '--'}
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="w-32 text-[11px] font-medium text-muted">
+                      Nº de Acidentes
+                    </span>
+                    <div className="grid grid-cols-12 gap-1 flex-1">
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
+                        (m) => {
+                          const linha = tfMeses[m];
+                          return (
+                            <div
+                              key={m}
+                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-center text-text"
+                            >
+                              {linha?.accidentes ?? '0'}
+                            </div>
                           );
                         },
                       )}
@@ -772,60 +932,71 @@ export default function AcidentesPage() {
 
             <div className="mt-2 rounded-lg border border-dashed border-border bg-panel/70 p-3 space-y-1">
               <p className="text-[11px] text-muted">
-                Fórmula oficial da Taxa de Frequência (TF):
-                <br />
+                <strong>HHT</strong> = colaboradores ativos × 150 (horas-homem por mês).
+              </p>
+              <p className="text-[11px] text-muted">
+                Fórmula da Taxa de Frequência (TF):{' '}
                 <span className="font-mono text-[11px] text-text">
-                  TF = (Número de Acidentes de Trabalho × 1.000.000) / Total de Horas-Homem
-                  Trabalhadas
+                  TF = (Nº de Acidentes × 1.000.000) / HHT
                 </span>
               </p>
               <p className="text-[11px] text-muted">
-                O fator <span className="font-mono">1.000.000</span> é fixo e não editável. O
-                cálculo é realizado automaticamente após o preenchimento dos dados obrigatórios.
+                Acidentes são puxados automaticamente da planilha (stg_acidentes) por mês (jan–dez).
+                Informe os <strong>colaboradores ativos</strong> de cada mês e salve para calcular a TF.
               </p>
             </div>
 
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
               <p className="text-[11px] text-muted">
-                As taxas mensais de frequência serão armazenadas para fins de histórico anual e
-                comparação entre períodos.
+                Salve os ativos por mês para que o HHT e a TF sejam calculados automaticamente.
               </p>
               <button
                 type="button"
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                disabled={tfSavingAtivos}
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
                 onClick={async () => {
                   try {
+                    setTfSavingAtivos(true);
                     const anoNum = parseInt(tfAno || String(new Date().getFullYear()), 10);
-                    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-                    for (const m of meses) {
-                      const linha = tfMeses[m];
-                      if (!linha) continue;
-                      const quantidade =
-                        stats?.porMes?.[String(parseInt(m, 10))] ??
-                        stats?.porMes?.[m] ??
-                        0;
-                      const horas = parseFloat((linha.horas || '0').replace(',', '.'));
-                      if (Number.isNaN(quantidade) || Number.isNaN(horas) || horas <= 0) {
-                        continue;
+                    const registros = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(
+                      (m) => {
+                        const linha = tfMeses[m];
+                        const ativos = parseInt((linha?.ativos ?? '0').replace(/\D/g, ''), 10);
+                        return { mes: parseInt(m, 10), ativos: Number.isNaN(ativos) ? 0 : ativos };
                       }
-                      await fetchJSON('/api/acidentes/taxa-frequencia', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          ano: anoNum,
-                          mes: parseInt(m, 10),
-                          numeroAcidentes: quantidade,
-                          horasHomemTrabalhadas: horas,
-                        }),
-                      });
-                    }
-                    alert('Taxas de Frequência do ano salvas com sucesso.');
+                    );
+                    await fetchJSON('/api/acidentes/ativos-mensal', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ano: anoNum, registros }),
+                    });
+                    const params = new URLSearchParams();
+                    params.set('ano', String(anoNum));
+                    if (regional) params.set('regional', regional);
+                    const d = await fetchJSON<{ registros: any[] }>('/api/acidentes/taxa-frequencia?' + params.toString());
+                    const base: any = {};
+                    ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((mm) => {
+                      base[mm] = { ativos: '', accidentes: '', horas: '', tf: '--' };
+                    });
+                    (d.registros || []).forEach((r: any) => {
+                      const mes = String(r.mes).padStart(2, '0');
+                      base[mes] = {
+                        ativos: String(r.ativos ?? ''),
+                        accidentes: String(r.numeroAcidentes ?? ''),
+                        horas: String(r.horasHomemTrabalhadas ?? ''),
+                        tf: r.taxaFrequencia != null ? Number(r.taxaFrequencia).toFixed(2) : '--',
+                      };
+                    });
+                    setTfMeses(base);
+                    alert('Ativos salvos. TF recalculada.');
                   } catch (e: any) {
-                    alert(e?.message || 'Erro ao salvar Taxas de Frequência');
+                    alert(e?.message || 'Erro ao salvar ativos');
+                  } finally {
+                    setTfSavingAtivos(false);
                   }
                 }}
               >
-                Salvar taxas do ano
+                {tfSavingAtivos ? 'Salvando...' : 'Salvar ativos do ano'}
               </button>
             </div>
           </section>
@@ -989,7 +1160,22 @@ export default function AcidentesPage() {
                               {STATUS_ACIDENTE.find((s) => s.value === row.status)?.label || row.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center text-muted text-[10px]">—</td>
+                          <td className="px-3 py-2 text-center">
+                            <div className="inline-flex items-center gap-1.5">
+                              {row.hasInvestigacao && (
+                                <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-medium text-white" title="Investigação registrada">
+                                  OK
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => openInvestigacao(row)}
+                                className="inline-flex items-center gap-1 rounded bg-amber-600 px-2 py-1.5 text-[10px] font-semibold text-white hover:bg-amber-500"
+                              >
+                                {row.hasInvestigacao ? 'Ver/Editar' : 'Investigar'}
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                         {isExpanded && (
                           <tr>
@@ -1164,7 +1350,176 @@ export default function AcidentesPage() {
           </div>
       </div>
 
-      {/* Modal removido: agora é somente leitura */}
+      {/* Painel Investigação do acidente (RIAT, CAT, SINAN) */}
+      {investigacaoRow && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={closeInvestigacao} aria-hidden />
+          <div className="relative w-full max-w-2xl overflow-y-auto bg-panel border-l border-border shadow-xl flex flex-col max-h-full">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
+              <h2 className="text-sm font-semibold">Investigação do acidente (conforme RIAT)</h2>
+              <button
+                type="button"
+                onClick={closeInvestigacao}
+                className="rounded border border-border px-2 py-1 text-[10px] hover:bg-panel"
+              >
+                Fechar
+              </button>
+            </div>
+            <div className="flex-1 p-4 space-y-6 text-xs">
+              {/* Resumo do acidente (somente leitura) */}
+              <section className="rounded-lg border border-border bg-card/50 p-4">
+                <h3 className="text-[11px] font-semibold uppercase text-muted mb-3">Acidente</h3>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <p><span className="font-medium text-muted">Nome:</span> {investigacaoRow.nome}</p>
+                  <p><span className="font-medium text-muted">Data/Hora:</span> {formatDate(investigacaoRow.data)} {investigacaoRow.hora || ''}</p>
+                  <p><span className="font-medium text-muted">Unidade:</span> {investigacaoRow.unidadeHospitalar}</p>
+                  <p><span className="font-medium text-muted">Regional:</span> {investigacaoRow.regional || '—'}</p>
+                  <p><span className="font-medium text-muted">CAT:</span> {investigacaoRow.numeroCAT || '—'}</p>
+                  <p><span className="font-medium text-muted">Tipo:</span> {TIPOS_ACIDENTE.find((t) => t.value === investigacaoRow.tipo)?.label || investigacaoRow.tipo}</p>
+                </div>
+                {investigacaoRow.descricao && (
+                  <p className="mt-2 pt-2 border-t border-border text-muted"><span className="font-medium">Descrição:</span> {investigacaoRow.descricao}</p>
+                )}
+              </section>
+
+              {/* Formulário investigação */}
+              <section className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-900/10 p-4 space-y-4">
+                <h3 className="text-[11px] font-semibold uppercase text-amber-800 dark:text-amber-200">Investigação — RIAT, CAT e SINAN</h3>
+                <p className="text-[11px] text-muted">
+                  Anexe os documentos: informe o <strong>link</strong> do arquivo (ex.: Google Drive, OneDrive ou URL direta) e, se quiser, um nome para exibição.
+                </p>
+                {investigacaoLoading ? (
+                  <p className="text-muted">Carregando...</p>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block font-medium text-muted mb-1">Status da investigação</label>
+                      <select
+                        value={investigacaoForm.statusInvestigacao}
+                        onChange={(e) => setInvestigacaoForm((f) => ({ ...f, statusInvestigacao: e.target.value }))}
+                        className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                      >
+                        <option value="">Selecione</option>
+                        <option value="em_andamento">Em andamento</option>
+                        <option value="concluida">Concluída</option>
+                      </select>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-1">
+                      <div className="rounded border border-border bg-background p-3 space-y-2">
+                        <span className="font-semibold text-muted">RIAT (Registro de Investigação de Acidente de Trabalho)</span>
+                        <input
+                          type="url"
+                          placeholder="Link do documento RIAT (ex.: Drive, OneDrive)"
+                          value={investigacaoForm.riatUrl}
+                          onChange={(e) => setInvestigacaoForm((f) => ({ ...f, riatUrl: e.target.value }))}
+                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nome do arquivo (opcional)"
+                          value={investigacaoForm.riatNome}
+                          onChange={(e) => setInvestigacaoForm((f) => ({ ...f, riatNome: e.target.value }))}
+                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                        />
+                        {investigacaoForm.riatUrl && (
+                          <a href={investigacaoForm.riatUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
+                            Abrir documento →
+                          </a>
+                        )}
+                      </div>
+                      <div className="rounded border border-border bg-background p-3 space-y-2">
+                        <span className="font-semibold text-muted">CAT (Comunicação de Acidente de Trabalho)</span>
+                        <input
+                          type="url"
+                          placeholder="Link do documento CAT (ex.: Drive, OneDrive)"
+                          value={investigacaoForm.catUrl}
+                          onChange={(e) => setInvestigacaoForm((f) => ({ ...f, catUrl: e.target.value }))}
+                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nome do arquivo (opcional)"
+                          value={investigacaoForm.catNome}
+                          onChange={(e) => setInvestigacaoForm((f) => ({ ...f, catNome: e.target.value }))}
+                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                        />
+                        {investigacaoForm.catUrl && (
+                          <a href={investigacaoForm.catUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
+                            Abrir documento →
+                          </a>
+                        )}
+                      </div>
+                      <div className="rounded border border-border bg-background p-3 space-y-2">
+                        <span className="font-semibold text-muted">SINAN (Sistema de Informação de Agravos de Notificação)</span>
+                        <input
+                          type="url"
+                          placeholder="Link do documento SINAN (ex.: Drive, OneDrive)"
+                          value={investigacaoForm.sinanUrl}
+                          onChange={(e) => setInvestigacaoForm((f) => ({ ...f, sinanUrl: e.target.value }))}
+                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nome do arquivo (opcional)"
+                          value={investigacaoForm.sinanNome}
+                          onChange={(e) => setInvestigacaoForm((f) => ({ ...f, sinanNome: e.target.value }))}
+                          className="w-full rounded border border-border bg-background px-3 py-2 text-xs"
+                        />
+                        {investigacaoForm.sinanUrl && (
+                          <a href={investigacaoForm.sinanUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline">
+                            Abrir documento →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-medium text-muted mb-1">Observações da investigação</label>
+                      <textarea
+                        placeholder="Observações, conclusões, medidas tomadas..."
+                        value={investigacaoForm.observacoes}
+                        onChange={(e) => setInvestigacaoForm((f) => ({ ...f, observacoes: e.target.value }))}
+                        className="w-full min-h-[100px] rounded border border-border bg-background px-3 py-2 text-xs"
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
+                      <button
+                        type="button"
+                        onClick={downloadRiatPreenchida}
+                        disabled={investigacaoRiatDownloading}
+                        className="rounded border border-emerald-600 bg-emerald-600/10 px-4 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/20 disabled:opacity-50"
+                      >
+                        {investigacaoRiatDownloading ? 'Gerando...' : 'Baixar RIAT preenchida'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeInvestigacao}
+                        className="rounded border border-border px-4 py-2 text-xs font-medium hover:bg-card"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveInvestigacao}
+                        disabled={investigacaoSaving}
+                        className="rounded bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
+                      >
+                        {investigacaoSaving ? 'Salvando...' : 'Salvar investigação'}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-muted pt-1">
+                      A RIAT preenchida pode ser levada ao Gov.br Assinador para assinatura digital.
+                    </p>
+                  </>
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

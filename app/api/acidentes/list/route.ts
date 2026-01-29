@@ -112,9 +112,31 @@ export async function GET(req: Request) {
 
     const total = tot?.[0]?.total ?? 0;
 
+    // Chave estável (igual ao frontend): numeroCAT|dataISO|nome
+    const toRef = (r: any) => {
+      const cat = (r?.numeroCAT ?? '').toString().trim();
+      const data = (r?.data ?? '').toString().replace(/T.*$/, '').trim();
+      const nome = (r?.nome ?? '').toString().trim();
+      return `${cat}|${data}|${nome}`;
+    };
+    const refs = rows.map(toRef).filter(Boolean);
+    const investigados = refs.length
+      ? await prisma.acidenteInvestigacao.findMany({
+          where: { acidenteRef: { in: refs } },
+          select: { acidenteRef: true },
+        })
+      : [];
+    const setRef = new Set(investigados.map((i) => i.acidenteRef));
+
+    const rowsWithFlag = rows.map((r: any) => ({
+      ...r,
+      id: toRef(r),
+      hasInvestigacao: setRef.has(toRef(r)),
+    }));
+
     return NextResponse.json({
       ok: true,
-      rows,
+      rows: rowsWithFlag,
       total,
       page,
       pageSize,

@@ -1,0 +1,39 @@
+MODELO RIAT (Anexo III - Ficha de Investigação de acidentes - EMSERH)
+=====================================================================
+
+COMO USAR
+---------
+1. Se você TEM o arquivo Excel oficial da RIAT (igual às imagens enviadas):
+   - Salve-o com o nome: riat.xlsx
+   - Coloque em: public/templates/ (EMSERH/public/templates/riat.xlsx)
+   - O sistema vai preencher os dados do acidente nas células do modelo.
+
+2. Se você NÃO tiver o arquivo:
+   - Não precisa fazer nada. O sistema gera automaticamente um modelo
+     com a mesma estrutura (Seções 1–8: Dados do empregado, Dados do
+     acidente, Causas, Parecer SESMT, Plano de ação, Responsabilidades,
+     Registro fotográfico) e já preenche com os dados do acidente.
+
+O QUE ACONTECE AO CLICAR EM "BAIXAR RIAT PREENCHIDA"
+----------------------------------------------------
+• O sistema preenche: nome, data, hora, unidade (Lotação), Cargo/Função,
+  número CAT, tipo de acidente (X no checkbox), afastamento (Sim/Não),
+  descrição, agente causador (causa imediata), causa raiz, fatores
+  material/humano, observações, datas da investigação.
+• Gera um Excel para download (ex.: RIAT_João Silva_27-01-2026.xlsx).
+• O usuário leva o arquivo ao Gov.br Assinador para assinatura digital.
+
+MAPA DE CÉLULAS (modelo oficial – primeira aba)
+----------------------------------------------
+  H3/I3: Data inicial e final da investigação
+  C5: Responsável | F6: N° FICHA SINAN | F5: Número CAT
+  B7–B12: Nome, Matrícula, Lotação, Cargo/Função, Tempo função/experiência
+  B14/D14: Data e Hora do acidente | B15/G15: Local e especificação
+  B20–F20: Tipo (Típico, Trajeto, Mat.Biológico, Químico, Incidente) – valor "X"
+  G19/H19: Afastamento Sim/Não – valor "X"
+  G21: Agente causador | B25: Descrição do acidente
+  B36: Fator material | B38: Fator humano
+  B53–B56: Circunstâncias, Impacto, Causa raiz, Ações corretivas
+
+Para alterar posições, edite getCellMap() em:
+  app/api/acidentes/riat-download/route.ts
