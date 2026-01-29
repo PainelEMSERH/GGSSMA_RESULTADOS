@@ -354,7 +354,7 @@ export default function AcidentesPage() {
             r.taxaFrequencia != null
               ? Number(r.taxaFrequencia).toFixed(2)
               : '--';
-          base[mes] = { ativos, accidentes, horas, tf };
+          base[mes] = { ativos, acidentes, horas, tf };
         });
         setTfMeses(base);
       })
