@@ -8,7 +8,9 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const regional = url.searchParams.get('regional') || '';
-    const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
+    const anoParam = url.searchParams.get('ano');
+    const filterByYear = anoParam != null && anoParam !== '' && anoParam !== 'todos';
+    const ano = filterByYear ? anoParam : String(new Date().getFullYear());
 
     const dataParsedExpr = `(CASE
       WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
@@ -18,11 +20,20 @@ export async function GET(req: Request) {
     const monthExpr = `EXTRACT(MONTH FROM ${dataParsedExpr})::int`;
 
     const anoNum = parseInt(ano, 10);
-    const params: any[] = [anoNum];
-    let whereSql = `WHERE ( (ano IS NOT NULL AND ano::int = $1) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $1 ) )`;
-    if (regional) {
-      params.push(regional);
-      whereSql += ` AND "Regional" ILIKE $2`;
+    const params: any[] = [];
+    let whereSql = 'WHERE 1=1';
+    if (filterByYear) {
+      params.push(anoNum);
+      whereSql = `WHERE ( (ano IS NOT NULL AND ano::int = $1) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $1 ) )`;
+      if (regional) {
+        params.push(regional);
+        whereSql += ` AND "Regional" ILIKE $2`;
+      }
+    } else {
+      if (regional) {
+        params.push(regional);
+        whereSql += ` AND "Regional" ILIKE $1`;
+      }
     }
 
     const mesAtual = new Date().getMonth() + 1;

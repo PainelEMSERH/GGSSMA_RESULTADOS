@@ -12,8 +12,9 @@ export async function GET(req: Request) {
     const tipo = url.searchParams.get('tipo') || '';
     const status = url.searchParams.get('status') || '';
     const empresa = url.searchParams.get('empresa') || '';
-    const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
-    const mes = url.searchParams.get('mes') || '';
+    const anoParam = url.searchParams.get('ano');
+    const filterByYear = anoParam != null && anoParam !== '' && anoParam !== 'todos';
+    const ano = filterByYear ? anoParam : String(new Date().getFullYear());
     const page = parseInt(url.searchParams.get('page') || '1', 10);
     const pageSize = parseInt(url.searchParams.get('pageSize') || '25', 10);
     const q = url.searchParams.get('q') || '';
@@ -31,9 +32,11 @@ export async function GET(req: Request) {
     const monthExpr = `EXTRACT(MONTH FROM ${dataParsedExpr})::int`;
 
     const where: string[] = [];
-    params.push(anoNum);
-    where.push(`( (ano IS NOT NULL AND ano::int = $${p}) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $${p} ) )`);
-    p++;
+    if (filterByYear) {
+      params.push(anoNum);
+      where.push(`( (ano IS NOT NULL AND ano::int = $${p}) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $${p} ) )`);
+      p++;
+    }
 
     if (regional) {
       params.push(regional);
@@ -65,7 +68,7 @@ export async function GET(req: Request) {
       )`);
     }
 
-    const whereSql = `WHERE ${where.join(' AND ')}`;
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
     const offset = (page - 1) * pageSize;
     params.push(pageSize, offset);

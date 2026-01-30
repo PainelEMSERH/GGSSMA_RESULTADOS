@@ -268,7 +268,7 @@ export default function AcidentesPage() {
   const [tipo, setTipo] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [empresa, setEmpresa] = useState<string>('');
-  const [ano, setAno] = useState<string>(String(new Date().getFullYear()));
+  const [ano, setAno] = useState<string>('todos');
   const [mes, setMes] = useState<string>('');
   const [q, setQ] = useState<string>('');
 
@@ -649,15 +649,19 @@ export default function AcidentesPage() {
             </div>
             <div className="flex flex-col gap-1">
               <span className="font-medium">Ano</span>
-              <input
-                type="number"
-                className="w-28 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+              <select
+                className="w-36 rounded border border-border bg-card px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                 value={ano}
                 onChange={(e) => {
                   setAno(e.target.value);
                   setPage(1);
                 }}
-              />
+              >
+                <option value="todos">Todos os anos</option>
+                {[new Date().getFullYear(), 2024, 2023, 2022, 2021, 2020].map((y) => (
+                  <option key={y} value={String(y)}>{y}</option>
+                ))}
+              </select>
             </div>
             <div className="flex flex-col gap-1">
               <span className="font-medium">Mês</span>
@@ -1091,8 +1095,13 @@ export default function AcidentesPage() {
                 )}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="px-3 py-6 text-center text-muted">
-                      Nenhum acidente encontrado.
+                    <td colSpan={14} className="px-3 py-6 text-center">
+                      <p className="text-muted">Nenhum acidente encontrado.</p>
+                      {total === 0 && (
+                        <p className="mt-2 text-[11px] text-muted">
+                          Se não aparecer nenhum acidente, selecione <strong>«Todos os anos»</strong> no filtro ou tente outro ano (ex.: 2021, 2022).
+                        </p>
+                      )}
                     </td>
                   </tr>
                 )}
