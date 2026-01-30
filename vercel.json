@@ -1,4 +1,4 @@
 {
   "buildCommand": "next build",
-  "installCommand": "npm install; npm i -E chart.js@4.4.6 react-chartjs-2@5.2.0"
+  "installCommand": "npm install && npm i -E chart.js@4.4.6 react-chartjs-2@5.2.0 && npm i --no-save @next/swc-linux-x64-gnu@14.2.25"
 }

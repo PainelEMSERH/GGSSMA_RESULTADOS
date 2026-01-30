@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useState } from 'react';
 import { REGIONALS } from '@/lib/unidReg';
 import { AlertTriangle, ChevronDown, ChevronUp, Eye, EyeOff, Plus, Search } from 'lucide-react';
 
@@ -564,7 +564,7 @@ export default function AcidentesView() {
     }
   };
 
-  return (<React.Fragment><div className="space-y-4">
+  return (<Fragment><div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
@@ -1544,6 +1544,6 @@ export default function AcidentesView() {
           </div>
         </div>
       )}
-    </div></React.Fragment>);
+    </div></Fragment>);
 }
 
