@@ -264,11 +264,6 @@ function StatusPill({ status }: { status: 'pendente' | 'andamento' | 'concluido'
   );
 }
 
-/** Wrapper com nome PascalCase para evitar bug do SWC que rejeita <div após parêntese */
-function AcidentesRoot({ children }: { children: React.ReactNode }) {
-  return <div className="space-y-4">{children}</div>;
-}
-
 export default function AcidentesView() {
   // Filtros
   const [regional, setRegional] = useState<string>('');
@@ -570,7 +565,7 @@ export default function AcidentesView() {
   };
 
   const content = (
-    <AcidentesRoot>
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
@@ -1550,7 +1545,7 @@ export default function AcidentesView() {
           </div>
         </div>
       )}
-    </AcidentesRoot>
+    </div>
   );
   return content;
 }
