@@ -52,14 +52,14 @@ type MetaRealData = {
   ano: number;
 };
 
-const fetchJSON = async <T = any>(url: string, init?: RequestInit): Promise<T> => {
+async function fetchJSON<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { cache: 'no-store', ...init });
   const data = await r.json();
   if (!r.ok) {
     throw new Error((data && (data.error || data.message)) || 'Erro ao carregar dados');
   }
   return data as T;
-};
+}
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '-';
