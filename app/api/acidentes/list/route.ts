@@ -129,12 +129,17 @@ export async function GET(req: Request) {
       return `${cat}|${data}|${nome}`;
     };
     const refs = rows.map(toRef).filter(Boolean);
-    const investigados = refs.length
-      ? await prisma.acidenteInvestigacao.findMany({
+    let investigados: { acidenteRef: string }[] = [];
+    if (refs.length > 0) {
+      try {
+        investigados = await prisma.acidenteInvestigacao.findMany({
           where: { acidenteRef: { in: refs } },
           select: { acidenteRef: true },
-        })
-      : [];
+        });
+      } catch {
+        // Tabela AcidenteInvestigacao pode não existir no Neon; lista segue sem flag de investigação
+      }
+    }
     const setRef = new Set(investigados.map((i) => i.acidenteRef));
 
     const rowsWithFlag = rows.map((r: any) => ({
