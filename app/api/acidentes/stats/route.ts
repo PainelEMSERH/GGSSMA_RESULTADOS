@@ -9,7 +9,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const regional = url.searchParams.get('regional') || '';
     const anoParam = url.searchParams.get('ano');
-    const filterByYear = anoParam != null && anoParam !== '' && anoParam !== 'todos';
+    const semFiltroAno = anoParam == null || anoParam === '' || String(anoParam).toLowerCase() === 'todos';
+    const filterByYear = !semFiltroAno;
     const ano = filterByYear ? anoParam : String(new Date().getFullYear());
 
     const dataParsedExpr = `(CASE
