@@ -778,7 +778,6 @@ export default function AcidentesView() {
                 </div>
               </div>
             </div>
-            {/* Segunda linha - investigados por regional e por tipo */}
             {((stats.porRegionalInvestigados?.length ?? 0) > 0 || (stats.porTipoInvestigados?.length ?? 0) > 0) && (
               <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border/60 pt-2">
                 <div className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-[10px]">
