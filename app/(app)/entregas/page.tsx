@@ -1218,26 +1218,31 @@ export default function EntregasPage() {
             {state.regional && (
               <>
                 {/* Alertas de entregas vencidas — quando entregar de novo (controle de qualidade, não entra na meta) */}
-                {(loadingAlertas || alertasVencidas.length > 0) && (
-                  <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                        <div>
-                          <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Alertas de entregas vencidas</h3>
-                          <p className="text-[11px] text-amber-700 dark:text-amber-300">Quando entregar de novo — controle de qualidade (não impacta meta)</p>
-                        </div>
+                <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                      <div>
+                        <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Alertas de entregas vencidas</h3>
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300">Quando entregar de novo — controle de qualidade (não impacta meta)</p>
                       </div>
-                      {loadingAlertas && (
-                        <div className="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                      )}
-                      {!loadingAlertas && alertasVencidas.length > 0 && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100">
-                          {alertasVencidas.length} vencida{alertasVencidas.length !== 1 ? 's' : ''}
-                        </span>
-                      )}
                     </div>
+                    {loadingAlertas && (
+                      <div className="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    )}
                     {!loadingAlertas && alertasVencidas.length > 0 && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100">
+                        {alertasVencidas.length} vencida{alertasVencidas.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  {loadingAlertas && (
+                    <div className="px-4 py-3 text-[11px] text-amber-700 dark:text-amber-300">Carregando alertas...</div>
+                  )}
+                  {!loadingAlertas && alertasVencidas.length === 0 && (
+                    <div className="px-4 py-3 text-[11px] text-amber-700 dark:text-amber-300">Nenhuma entrega vencida no momento.</div>
+                  )}
+                  {!loadingAlertas && alertasVencidas.length > 0 && (
                       <div className="max-h-48 overflow-y-auto">
                         <table className="min-w-full text-[11px]">
                           <thead className="bg-amber-100/50 dark:bg-amber-900/30 sticky top-0">
@@ -1270,8 +1275,7 @@ export default function EntregasPage() {
                         )}
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
 
               <div className="rounded-xl border border-border bg-panel overflow-hidden">
                 <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
