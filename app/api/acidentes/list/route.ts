@@ -18,15 +18,22 @@ export async function GET(req: Request) {
     const pageSize = parseInt(url.searchParams.get('pageSize') || '25', 10);
     const q = url.searchParams.get('q') || '';
 
-    // Fonte agora é a tabela stg_acidentes (CSV do Alterdata/planilha) no Neon.
-    // IMPORTANTe: essa rota é somente leitura.
+    // Fonte: stg_acidentes no Neon. Filtro por ano: usa coluna ano se preenchida, senão deriva de data_acidente (suporta DD/MM/YYYY e YYYY-MM-DD).
+    const anoNum = parseInt(ano, 10);
     const params: any[] = [];
     let p = 1;
-    const where: string[] = [];
 
-    // ano obrigatório (coluna gerada)
-    params.push(parseInt(ano, 10));
-    where.push(`ano = $${p++}`);
+    const dataParsedExpr = `(CASE
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(data_acidente), 1, 10), 'DD/MM/YYYY')
+      ELSE NULL END)`;
+    const yearExpr = `EXTRACT(YEAR FROM ${dataParsedExpr})::int`;
+    const monthExpr = `EXTRACT(MONTH FROM ${dataParsedExpr})::int`;
+
+    const where: string[] = [];
+    params.push(anoNum);
+    where.push(`( (ano IS NOT NULL AND ano::int = $${p}) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $${p} ) )`);
+    p++;
 
     if (regional) {
       params.push(regional);
@@ -37,19 +44,14 @@ export async function GET(req: Request) {
       where.push(`(nmdepartamento ILIKE $${p++})`);
     }
     if (tipo) {
-      // Na planilha o campo é "Tipo_Acidente"
       params.push(tipo);
       where.push(`("Tipo_Acidente" ILIKE $${p++})`);
     }
-    if (status) {
-      // Não existe status na planilha; ignora (mantém compatibilidade do filtro)
-    }
-    if (empresa) {
-      // Não existe empresa na planilha; ignora (mantém compatibilidade do filtro)
-    }
     if (mes) {
-      params.push(parseInt(mes, 10));
-      where.push(`mes = $${p++}`);
+      const mesNum = parseInt(mes, 10);
+      params.push(mesNum);
+      where.push(`( (mes IS NOT NULL AND mes::int = $${p}) OR ( (mes IS NULL OR mes::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${monthExpr} = $${p} ) )`);
+      p++;
     }
     if (q) {
       params.push(`%${q}%`);
@@ -63,12 +65,15 @@ export async function GET(req: Request) {
       )`);
     }
 
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = `WHERE ${where.join(' AND ')}`;
 
     const offset = (page - 1) * pageSize;
     params.push(pageSize, offset);
     const limitParam = `$${p++}`;
     const offsetParam = `$${p++}`;
+
+    const orderDataExpr = `(CASE WHEN ${dataParsedExpr} IS NOT NULL THEN ${dataParsedExpr}::timestamptz ELSE NULL END)`;
+    const selectMesAno = `COALESCE(mes::int, ${monthExpr})::int AS "mes", COALESCE(ano::int, ${yearExpr})::int AS "ano"`;
 
     const rowsSql = `
       SELECT
@@ -78,10 +83,9 @@ export async function GET(req: Request) {
         NULLIF(TRIM(COALESCE("Regional",'')),'') AS "regional",
         COALESCE("Tipo_Acidente",'outros') AS "tipo",
         (LOWER(COALESCE(houve_afastamento::text,'')) IN ('verdadeiro','true','1','sim','t','yes','y')) AS "comAfastamento",
-        (CASE WHEN data_acidente IS NOT NULL AND TRIM(data_acidente) <> '' THEN to_date(data_acidente, 'DD/MM/YYYY')::timestamptz ELSE NULL END) AS "data",
+        (CASE WHEN ${dataParsedExpr} IS NOT NULL THEN ${dataParsedExpr}::timestamptz ELSE NULL END) AS "data",
         NULLIF(TRIM(COALESCE(hora_formatada, '')), '') AS "hora",
-        mes::int AS "mes",
-        ano::int AS "ano",
+        ${selectMesAno},
         NULL::text AS "riat",
         NULL::text AS "sinan",
         'aberto'::text AS "status",
@@ -94,7 +98,7 @@ export async function GET(req: Request) {
         COALESCE(NrCPF,'') AS "cpf"
       FROM stg_acidentes
       ${whereSql}
-      ORDER BY (CASE WHEN data_acidente IS NOT NULL AND TRIM(data_acidente) <> '' THEN to_date(data_acidente, 'DD/MM/YYYY') END) DESC NULLS LAST
+      ORDER BY ${orderDataExpr} DESC NULLS LAST
       LIMIT ${limitParam}
       OFFSET ${offsetParam}
     `;

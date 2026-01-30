@@ -65,12 +65,19 @@ export async function GET(req: Request) {
     const regional = url.searchParams.get('regional') || '';
     const ano = parseInt(url.searchParams.get('ano') || String(new Date().getFullYear()), 10);
 
+    const dataParsedExpr = `(CASE
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(data_acidente), 1, 10), 'DD/MM/YYYY')
+      ELSE NULL END)`;
+    const yearExpr = `EXTRACT(YEAR FROM ${dataParsedExpr})::int`;
+    const monthExprStg = `EXTRACT(MONTH FROM ${dataParsedExpr})::int`;
     const params: any[] = [ano];
-    let whereStg = `WHERE ano = $1`;
+    let whereStg = `WHERE ( (ano IS NOT NULL AND ano::int = $1) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $1 ) )`;
     if (regional) {
       params.push(regional);
       whereStg += ` AND "Regional" ILIKE $2`;
     }
+    const mesColStg = `COALESCE(mes::int, ${monthExprStg})::int`;
 
     const [ativosAlterdata, ativosRows, acidentesPorMesRows] = await Promise.all([
       ativosPorMesAlterdata(ano),
@@ -79,9 +86,9 @@ export async function GET(req: Request) {
         orderBy: { mes: 'asc' },
       }),
       prisma.$queryRawUnsafe<any[]>(
-        `SELECT mes::int AS mes, COUNT(*)::int AS quantidade
+        `SELECT ${mesColStg} AS mes, COUNT(*)::int AS quantidade
          FROM stg_acidentes ${whereStg}
-         GROUP BY mes ORDER BY mes`,
+         GROUP BY ${mesColStg} ORDER BY 1`,
         ...params
       ),
     ]);

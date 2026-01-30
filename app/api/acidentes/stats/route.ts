@@ -10,8 +10,16 @@ export async function GET(req: Request) {
     const regional = url.searchParams.get('regional') || '';
     const ano = url.searchParams.get('ano') || String(new Date().getFullYear());
 
-    const params: any[] = [parseInt(ano, 10)];
-    let whereSql = `WHERE ano = $1`;
+    const dataParsedExpr = `(CASE
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(data_acidente), 1, 10), 'DD/MM/YYYY')
+      ELSE NULL END)`;
+    const yearExpr = `EXTRACT(YEAR FROM ${dataParsedExpr})::int`;
+    const monthExpr = `EXTRACT(MONTH FROM ${dataParsedExpr})::int`;
+
+    const anoNum = parseInt(ano, 10);
+    const params: any[] = [anoNum];
+    let whereSql = `WHERE ( (ano IS NOT NULL AND ano::int = $1) OR ( (ano IS NULL OR ano::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${yearExpr} = $1 ) )`;
     if (regional) {
       params.push(regional);
       whereSql += ` AND "Regional" ILIKE $2`;
@@ -23,8 +31,9 @@ export async function GET(req: Request) {
       `SELECT COUNT(*)::int AS total FROM stg_acidentes ${whereSql}`,
       ...params
     );
+    const mesFilter = `( (mes IS NOT NULL AND mes::int = $${params.length + 1}) OR ( (mes IS NULL OR mes::text = '') AND ${dataParsedExpr} IS NOT NULL AND ${monthExpr} = $${params.length + 1} ) )`;
     const totalMesRow = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT COUNT(*)::int AS total FROM stg_acidentes ${whereSql} AND mes = $${params.length + 1}`,
+      `SELECT COUNT(*)::int AS total FROM stg_acidentes ${whereSql} AND ${mesFilter}`,
       ...params,
       mesAtual
     );
@@ -54,11 +63,12 @@ export async function GET(req: Request) {
       ...params
     );
 
+    const mesCol = `COALESCE(mes::int, ${monthExpr})::int`;
     const porMesRows = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT mes::int AS mes, COUNT(*)::int AS quantidade
+      `SELECT ${mesCol} AS mes, COUNT(*)::int AS quantidade
        FROM stg_acidentes ${whereSql}
-       GROUP BY mes
-       ORDER BY mes`,
+       GROUP BY ${mesCol}
+       ORDER BY 1`,
       ...params
     );
     const porMes: Record<string, number> = {};
