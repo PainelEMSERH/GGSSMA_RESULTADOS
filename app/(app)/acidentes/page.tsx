@@ -666,7 +666,7 @@ export default function AcidentesPage() {
                 }}
               >
                 <option value="todos">Todos os anos</option>
-                {[new Date().getFullYear(), 2024, 2023, 2022, 2021, 2020].map((y) => (
+                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - i).map((y) => (
                   <option key={y} value={String(y)}>{y}</option>
                 ))}
               </select>
