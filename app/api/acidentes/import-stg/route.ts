@@ -103,7 +103,9 @@ export async function POST(req: Request) {
         return out;
       });
     } else {
-      const text = buf.toString('utf8');
+      // CSV exportado do Excel no Brasil costuma vir em Latin-1 (ISO-8859-1) ou Windows-1252.
+      // Ler como UTF-8 quebra ã, ç, á, í etc. Tentar latin1 para corrigir acentos e cedilha.
+      const text = buf.toString('latin1');
       rows = parseCSVSemicolon(text);
     }
 

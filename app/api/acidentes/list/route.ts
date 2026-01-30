@@ -13,7 +13,8 @@ export async function GET(req: Request) {
     const status = url.searchParams.get('status') || '';
     const empresa = url.searchParams.get('empresa') || '';
     const anoParam = url.searchParams.get('ano');
-    const filterByYear = anoParam != null && anoParam !== '' && anoParam !== 'todos';
+    const semFiltroAno = anoParam == null || anoParam === '' || String(anoParam).toLowerCase() === 'todos';
+    const filterByYear = !semFiltroAno;
     const ano = filterByYear ? anoParam : String(new Date().getFullYear());
     const mes = url.searchParams.get('mes') || '';
     const page = parseInt(url.searchParams.get('page') || '1', 10);

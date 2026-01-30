@@ -314,6 +314,7 @@ export default function AcidentesPage() {
   // Taxa de Frequência (TF) - edição anual (12 meses)
   const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear() - 1));
   const [tfAnosComDados, setTfAnosComDados] = useState<number[]>([]);
+  const [tfLoading, setTfLoading] = useState(false);
   const [tfMeses, setTfMeses] = useState<
     Record<
       string,
@@ -335,6 +336,7 @@ export default function AcidentesPage() {
   const [tfFonteAtivos, setTfFonteAtivos] = useState<'alterdata' | 'manual' | null>(null);
 
   useEffect(() => {
+    setTfLoading(true);
     const params = new URLSearchParams();
     params.set('ano', tfAno);
     if (regional) params.set('regional', regional);
@@ -371,12 +373,9 @@ export default function AcidentesPage() {
       })
       .catch(() => {
         setTfFonteAtivos(null);
-        const base: any = {};
-        ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
-          base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
-        });
-        setTfMeses(base);
-      });
+        // Não limpa a tabela em erro: mantém dados anteriores visíveis
+      })
+      .finally(() => setTfLoading(false));
   }, [tfAno, regional]);
 
   // Carrega regional do localStorage
@@ -411,7 +410,7 @@ export default function AcidentesPage() {
     if (tipo) params.set('tipo', tipo);
     if (status) params.set('status', status);
     if (empresa) params.set('empresa', empresa);
-    if (ano) params.set('ano', ano);
+    params.set('ano', ano || 'todos');
     if (mes) params.set('mes', mes);
     if (q) params.set('q', q);
     params.set('page', String(page));
@@ -809,11 +808,13 @@ export default function AcidentesPage() {
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-[11px] font-medium text-muted">
                   Ano de referência
+                  {tfLoading && <span className="ml-2 text-emerald-600">Carregando...</span>}
                 </span>
                 <select
-                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500 min-w-[6rem]"
+                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500 min-w-[6rem] disabled:opacity-70"
                   value={tfAno}
                   onChange={(e) => setTfAno(e.target.value)}
+                  disabled={tfLoading}
                 >
                   {[
                     ...new Set([
