@@ -722,57 +722,59 @@ export default function AcidentesView() {
       {/* VISÃO GERAL â€“ blocos institucionais */}
       <div className="space-y-4">
         {/* Bloco 0: Estatísticas â€“ uma linha compacta */}
-        <section className="rounded-lg border border-border bg-panel p-2 shadow-sm">
+        <section className="rounded-xl border border-border bg-panel p-4 shadow-sm">
           {statsLoading ? (
-            <p className="text-[10px] text-muted">Carregando...</p>
+            <p className="text-sm text-muted">Carregando...</p>
           ) : stats ? (
             <>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7">
-              <div className="rounded border border-border bg-bg px-2 py-1.5">
-                <p className="text-[9px] uppercase text-muted">Total no Ano</p>
-                <p className="text-base font-semibold">{stats.totalAno}</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
+                <p className="text-xs uppercase tracking-wide text-muted mb-1">Total no Ano</p>
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{stats.totalAno}</p>
               </div>
-              <div className="rounded border border-border bg-bg px-2 py-1.5">
-                <p className="text-[9px] uppercase text-muted">Total no Mês</p>
-                <p className="text-base font-semibold">{stats.totalMes}</p>
+              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
+                <p className="text-xs uppercase tracking-wide text-muted mb-1">Total no Mês</p>
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{stats.totalMes}</p>
               </div>
-              <div className="rounded border border-border bg-bg px-2 py-1.5">
-                <p className="text-[9px] uppercase text-muted">Com Afast.</p>
-                <p className="text-base font-semibold text-red-400">{stats.comAfastamento}</p>
+              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
+                <p className="text-xs uppercase tracking-wide text-muted mb-1">Com Afast.</p>
+                <p className="text-2xl sm:text-3xl font-bold text-red-500 dark:text-red-400 tabular-nums">{stats.comAfastamento}</p>
               </div>
-              <div className="rounded border border-border bg-bg px-2 py-1.5">
-                <p className="text-[9px] uppercase text-muted">Sem Afast.</p>
-                <p className="text-base font-semibold text-emerald-400">{stats.semAfastamento}</p>
+              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
+                <p className="text-xs uppercase tracking-wide text-muted mb-1">Sem Afast.</p>
+                <p className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{stats.semAfastamento}</p>
               </div>
-              <div className="rounded border border-border bg-bg px-2 py-1.5">
-                <p className="text-[9px] uppercase text-muted">Investigados</p>
-                <p className="text-base font-semibold">{stats.totalInvestigados ?? 0}</p>
+              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center col-span-2 sm:col-span-1">
+                <p className="text-xs uppercase tracking-wide text-muted mb-1">Investigados</p>
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{stats.totalInvestigados ?? 0}</p>
               </div>
-              <div className="rounded border border-border bg-bg px-2 py-1.5 text-[10px] sm:col-span-2 lg:col-span-1">
-                <p className="mb-0.5 font-semibold text-muted">Por Regional</p>
-                <div className="max-h-16 overflow-y-auto">
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/60 pt-4 mt-4">
+              <div className="rounded-lg border border-border bg-bg px-4 py-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Por Regional</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 min-h-[2rem]">
                   {!stats.porRegional?.length ? (
                     <span className="text-muted">â€”</span>
                   ) : (
-                    stats.porRegional.slice(0, 5).map((r) => (
-                      <div key={r.regional} className="flex justify-between gap-1">
-                        <span className="truncate">{r.regional}</span>
-                        <span className="font-medium">{r.quantidade}</span>
+                    (stats.porRegional ?? []).map((r) => (
+                      <div key={r.regional} className="flex items-baseline justify-between gap-2 min-w-[5.5rem]">
+                        <span className="text-sm truncate max-w-[4.5rem]" title={r.regional}>{r.regional}</span>
+                        <span className="text-base font-bold tabular-nums">{r.quantidade}</span>
                       </div>
                     ))
                   )}
                 </div>
               </div>
-              <div className="rounded border border-border bg-bg px-2 py-1.5 text-[10px] sm:col-span-2 lg:col-span-1">
-                <p className="mb-0.5 font-semibold text-muted">Por Tipo</p>
-                <div className="max-h-16 overflow-y-auto">
+              <div className="rounded-lg border border-border bg-bg px-4 py-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Por Tipo</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 min-h-[2rem]">
                   {!stats.porTipo?.length ? (
                     <span className="text-muted">â€”</span>
                   ) : (
-                    stats.porTipo.slice(0, 5).map((t) => (
-                      <div key={t.tipo} className="flex justify-between gap-1">
-                        <span className="truncate">{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
-                        <span className="font-medium">{t.quantidade}</span>
+                    (stats.porTipo ?? []).map((t) => (
+                      <div key={t.tipo} className="flex items-baseline justify-between gap-2 min-w-[5.5rem]">
+                        <span className="text-sm truncate max-w-[4.5rem]" title={TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}>{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
+                        <span className="text-base font-bold tabular-nums">{t.quantidade}</span>
                       </div>
                     ))
                   )}
@@ -812,11 +814,11 @@ export default function AcidentesView() {
         </section>
 
         {/* Bloco 1: Taxa de Frequência (TF) */}
-          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
+          <section className="rounded-xl border border-border bg-panel p-5 shadow-sm space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold">Taxa de Frequência de Acidentes de Trabalho (TF)</h2>
-                <p className="mt-1 text-[11px] text-muted">
+                <h2 className="text-base font-semibold text-foreground">Taxa de Frequência de Acidentes de Trabalho (TF)</h2>
+                <p className="mt-1.5 text-xs text-muted leading-relaxed max-w-2xl">
                   Indicador calculado mensalmente com base no número de acidentes de trabalho e no
                   total de horas-homem trabalhadas, permitindo o monitoramento da frequência de
                   acidentes ao longo do tempo.
@@ -824,14 +826,14 @@ export default function AcidentesView() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <span className="text-[11px] font-medium text-muted">
+                <span className="text-xs font-medium text-muted">
                   Ano de referência
                   {tfLoading && <span className="ml-2 text-emerald-600">Carregando...</span>}
                 </span>
                 <select
-                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500 min-w-[6rem] disabled:opacity-70"
+                  className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500/50 min-w-[8rem] disabled:opacity-70"
                   value={tfAno}
                   onChange={(e) => setTfAno(e.target.value)}
                   disabled={tfLoading}
@@ -857,21 +859,21 @@ export default function AcidentesView() {
                 </select>
               </div>
               {tfAnosComDados.length > 0 && (
-                <p className="text-[10px] text-muted">
+                <p className="text-xs text-muted">
                   Anos com acidentes na base: {tfAnosComDados.join(', ')}. Selecione o ano para ver Nº de Acidentes e TF por mês.
                 </p>
               )}
 
-              <div className="space-y-2 rounded-xl border border-border bg-bg/60 p-3 overflow-x-auto">
-                <div className="flex items-center gap-2 px-1">
-                  <span className="w-36 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted">
+              <div className="space-y-3 rounded-xl border border-border bg-bg/50 p-4 overflow-x-auto">
+                <div className="flex items-center gap-3 px-0.5">
+                  <span className="w-40 shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">
                     Mês
                   </span>
                   <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                     {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((nome) => (
                       <div
                         key={nome}
-                        className="min-w-[2.5rem] rounded bg-muted/50 py-1 text-center text-[10px] font-semibold text-muted"
+                        className="min-w-[3rem] rounded-lg bg-muted/40 py-2 flex items-center justify-center text-xs font-semibold text-muted"
                       >
                         {nome}
                       </div>
@@ -879,9 +881,9 @@ export default function AcidentesView() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
                       Colaboradores ativos
                       {tfFonteAtivos === 'alterdata' && (
                         <span className="ml-1 text-emerald-600 dark:text-emerald-400" title="Contagem automática">
@@ -898,7 +900,7 @@ export default function AcidentesView() {
                               key={m}
                               type="number"
                               min={0}
-                              className="min-w-[2.5rem] rounded-md border border-border bg-card px-1.5 py-1.5 text-[11px] text-center tabular-nums outline-none focus:ring-2 focus:ring-emerald-500/50"
+                              className="min-w-[3rem] rounded-lg border border-border bg-card px-2 py-2 text-sm text-center tabular-nums outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                               placeholder="0"
                               value={linha?.ativos ?? ''}
                               onChange={(e) => {
@@ -925,20 +927,22 @@ export default function AcidentesView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
-                      HHT (ativos ã— 150)
+                  <div className="flex items-center gap-3">
+                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
+                      HHT (ativos × 150)
                     </span>
                     <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
                         (m) => {
                           const linha = tfMeses[m];
+                          const horasNum = parseInt(linha?.horas ?? '', 10);
+                          const horasStr = Number.isNaN(horasNum) ? '--' : horasNum.toLocaleString('pt-BR');
                           return (
                             <div
                               key={m}
-                              className="min-w-[2.5rem] rounded-md border border-border bg-panel/70 px-1.5 py-1.5 text-[11px] text-center tabular-nums text-text"
+                              className="min-w-[3rem] rounded-lg border border-border bg-panel/60 px-2 py-2 flex items-center justify-center text-sm tabular-nums text-foreground"
                             >
-                              {linha?.horas ?? '--'}
+                              {horasStr}
                             </div>
                           );
                         },
@@ -946,20 +950,23 @@ export default function AcidentesView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
+                  <div className="flex items-center gap-3">
+                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
                       Nº de Acidentes
                     </span>
                     <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
                         (m) => {
                           const linha = tfMeses[m];
+                          const acc = linha?.accidentes ?? '0';
+                          const n = parseInt(acc, 10);
+                          const accStr = Number.isNaN(n) ? '0' : n.toLocaleString('pt-BR');
                           return (
                             <div
                               key={m}
-                              className="min-w-[2.5rem] rounded-md border border-border bg-card px-1.5 py-1.5 text-[11px] text-center tabular-nums text-text"
+                              className="min-w-[3rem] rounded-lg border border-border bg-card px-2 py-2 flex items-center justify-center text-sm tabular-nums text-foreground"
                             >
-                              {linha?.accidentes ?? '0'}
+                              {accStr}
                             </div>
                           );
                         },
@@ -967,8 +974,8 @@ export default function AcidentesView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
+                  <div className="flex items-center gap-3">
+                    <span className="w-40 shrink-0 text-xs font-medium text-muted">
                       TF (por milhão de horas)
                     </span>
                     <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
@@ -978,7 +985,7 @@ export default function AcidentesView() {
                           return (
                             <div
                               key={m}
-                              className="min-w-[2.5rem] rounded-md border border-border bg-panel/70 px-1.5 py-1.5 text-[11px] text-center tabular-nums"
+                              className="min-w-[3rem] rounded-lg border border-border bg-panel/60 px-2 py-2 flex items-center justify-center text-sm tabular-nums text-foreground"
                             >
                               {linha?.tf && linha.tf !== '--'
                                 ? Number(linha.tf).toLocaleString('pt-BR', {
@@ -996,14 +1003,14 @@ export default function AcidentesView() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border mt-2">
-              <p className="text-[11px] text-muted">
+            <div className="flex items-center justify-between gap-4 pt-4 border-t border-border mt-4 flex-wrap">
+              <p className="text-xs text-muted">
                 Salve os ativos por mês para que o HHT e a TF sejam calculados automaticamente.
               </p>
               <button
                 type="button"
                 disabled={tfSavingAtivos}
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50 transition-colors"
                 onClick={async () => {
                   try {
                     setTfSavingAtivos(true);
