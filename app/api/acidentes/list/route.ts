@@ -15,6 +15,7 @@ export async function GET(req: Request) {
     const anoParam = url.searchParams.get('ano');
     const filterByYear = anoParam != null && anoParam !== '' && anoParam !== 'todos';
     const ano = filterByYear ? anoParam : String(new Date().getFullYear());
+    const mes = url.searchParams.get('mes') || '';
     const page = parseInt(url.searchParams.get('page') || '1', 10);
     const pageSize = parseInt(url.searchParams.get('pageSize') || '25', 10);
     const q = url.searchParams.get('q') || '';
