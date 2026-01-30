@@ -564,7 +564,7 @@ export default function AcidentesView() {
     }
   };
 
-  return (<Fragment><div className="space-y-4">
+  return <Fragment><div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
@@ -1544,6 +1544,6 @@ export default function AcidentesView() {
           </div>
         </div>
       )}
-    </div></Fragment>);
+    </div></Fragment>;
 }
 
