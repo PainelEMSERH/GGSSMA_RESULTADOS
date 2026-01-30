@@ -354,6 +354,8 @@ model AcidenteInvestigacao {
   id                 String   @id @default(cuid())
   acidenteRef        String   @unique  // chave estável: numeroCAT|dataISO|nome (identifica o acidente na planilha)
   numeroCAT          String?
+  regional           String?  // para breakdown "investigados por regional"
+  tipo               String?  // para breakdown "investigados por tipo"
   statusInvestigacao String?  // em_andamento | concluida
   riatUrl            String?  // link ou URL do documento RIAT
   riatNome           String?

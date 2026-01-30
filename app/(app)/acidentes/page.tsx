@@ -40,6 +40,9 @@ type StatsData = {
   porStatus: Array<{ status: string; quantidade: number }>;
   comAfastamento: number;
   semAfastamento: number;
+  totalInvestigados?: number;
+  porRegionalInvestigados?: Array<{ regional: string; quantidade: number }>;
+  porTipoInvestigados?: Array<{ tipo: string; quantidade: number }>;
 };
 
 type MetaRealData = {
@@ -550,6 +553,8 @@ export default function AcidentesPage() {
         body: JSON.stringify({
           acidenteRef: ref,
           numeroCAT: investigacaoRow.numeroCAT || null,
+          regional: investigacaoRow.regional ?? null,
+          tipo: investigacaoRow.tipo ?? null,
           statusInvestigacao: investigacaoForm.statusInvestigacao || null,
           riatUrl: investigacaoForm.riatUrl || null,
           riatNome: investigacaoForm.riatNome || null,
@@ -726,71 +731,92 @@ export default function AcidentesPage() {
 
       {/* VISÃO GERAL – blocos institucionais */}
       <div className="space-y-4">
-        {/* Bloco 0: Estatísticas Resumidas */}
-        <section className="rounded-xl border border-border bg-panel p-3 shadow-sm space-y-2">
+        {/* Bloco 0: Estatísticas – uma linha compacta */}
+        <section className="rounded-lg border border-border bg-panel p-2 shadow-sm">
           {statsLoading ? (
-            <p className="text-[11px] text-muted">Carregando estatísticas...</p>
+            <p className="text-[10px] text-muted">Carregando...</p>
           ) : stats ? (
-            <>
-              <div className="grid gap-2 md:grid-cols-4">
-                <div className="rounded-lg border border-border bg-bg px-3 py-2">
-                  <p className="text-[10px] text-muted">Total no Ano</p>
-                  <p className="mt-1 text-xl font-semibold">{stats.totalAno}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-bg px-3 py-2">
-                  <p className="text-[10px] text-muted">Total no Mês</p>
-                  <p className="mt-1 text-xl font-semibold">{stats.totalMes}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-bg px-3 py-2">
-                  <p className="text-[10px] text-muted">Com Afastamento</p>
-                  <p className="mt-1 text-xl font-semibold text-red-400">{stats.comAfastamento}</p>
-                </div>
-                <div className="rounded-lg border border-border bg-bg px-3 py-2">
-                  <p className="text-[10px] text-muted">Sem Afastamento</p>
-                  <p className="mt1 text-xl font-semibold text-emerald-400">{stats.semAfastamento}</p>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7">
+              <div className="rounded border border-border bg-bg px-2 py-1.5">
+                <p className="text-[9px] uppercase text-muted">Total no Ano</p>
+                <p className="text-base font-semibold">{stats.totalAno}</p>
+              </div>
+              <div className="rounded border border-border bg-bg px-2 py-1.5">
+                <p className="text-[9px] uppercase text-muted">Total no Mês</p>
+                <p className="text-base font-semibold">{stats.totalMes}</p>
+              </div>
+              <div className="rounded border border-border bg-bg px-2 py-1.5">
+                <p className="text-[9px] uppercase text-muted">Com Afast.</p>
+                <p className="text-base font-semibold text-red-400">{stats.comAfastamento}</p>
+              </div>
+              <div className="rounded border border-border bg-bg px-2 py-1.5">
+                <p className="text-[9px] uppercase text-muted">Sem Afast.</p>
+                <p className="text-base font-semibold text-emerald-400">{stats.semAfastamento}</p>
+              </div>
+              <div className="rounded border border-border bg-bg px-2 py-1.5">
+                <p className="text-[9px] uppercase text-muted">Investigados</p>
+                <p className="text-base font-semibold">{stats.totalInvestigados ?? 0}</p>
+              </div>
+              <div className="rounded border border-border bg-bg px-2 py-1.5 text-[10px] sm:col-span-2 lg:col-span-1">
+                <p className="mb-0.5 font-semibold text-muted">Por Regional</p>
+                <div className="max-h-16 overflow-y-auto">
+                  {!stats.porRegional?.length ? (
+                    <span className="text-muted">—</span>
+                  ) : (
+                    stats.porRegional.slice(0, 5).map((r) => (
+                      <div key={r.regional} className="flex justify-between gap-1">
+                        <span className="truncate">{r.regional}</span>
+                        <span className="font-medium">{r.quantidade}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                <div className="rounded-lg border border-border bg-bg px-3 py-2 text-[11px]">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="font-semibold">Por Regional</span>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto">
-                    {stats.porRegional.length === 0 ? (
-                      <p className="text-[11px] text-muted">Sem registros.</p>
-                    ) : (
-                      stats.porRegional.map((r) => (
-                        <div key={r.regional} className="flex items-center justify-between py-0.5">
-                          <span>{r.regional}</span>
-                          <span className="font-semibold">{r.quantidade}</span>
-                        </div>
-                      ))
-                    )}
+              <div className="rounded border border-border bg-bg px-2 py-1.5 text-[10px] sm:col-span-2 lg:col-span-1">
+                <p className="mb-0.5 font-semibold text-muted">Por Tipo</p>
+                <div className="max-h-16 overflow-y-auto">
+                  {!stats.porTipo?.length ? (
+                    <span className="text-muted">—</span>
+                  ) : (
+                    stats.porTipo.slice(0, 5).map((t) => (
+                      <div key={t.tipo} className="flex justify-between gap-1">
+                        <span className="truncate">{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
+                        <span className="font-medium">{t.quantidade}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Segunda linha: investigados por regional e por tipo */}
+            {((stats.porRegionalInvestigados?.length ?? 0) > 0 || (stats.porTipoInvestigados?.length ?? 0) > 0) && (
+              <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border/60 pt-2">
+                <div className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-[10px]">
+                  <p className="mb-0.5 font-semibold text-amber-700 dark:text-amber-400">Investigados por Regional</p>
+                  <div className="max-h-14 overflow-y-auto">
+                    {(stats.porRegionalInvestigados ?? []).map((r) => (
+                      <div key={r.regional} className="flex justify-between gap-1">
+                        <span className="truncate">{r.regional}</span>
+                        <span className="font-medium">{r.quantidade}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-bg px-3 py-2 text-[11px]">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="font-semibold">Por Tipo</span>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto">
-                    {stats.porTipo.length === 0 ? (
-                      <p className="text-[11px] text-muted">Sem registros.</p>
-                    ) : (
-                      stats.porTipo.map((t) => (
-                        <div key={t.tipo} className="flex items-center justify-between py-0.5">
-                          <span>
-                            {TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}
-                          </span>
-                          <span className="font-semibold">{t.quantidade}</span>
-                        </div>
-                      ))
-                    )}
+                <div className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 text-[10px]">
+                  <p className="mb-0.5 font-semibold text-amber-700 dark:text-amber-400">Investigados por Tipo</p>
+                  <div className="max-h-14 overflow-y-auto">
+                    {(stats.porTipoInvestigados ?? []).map((t) => (
+                      <div key={t.tipo} className="flex justify-between gap-1">
+                        <span className="truncate">{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
+                        <span className="font-medium">{t.quantidade}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
-            </>
+            )}
           ) : (
-            <p className="text-[11px] text-muted">Nenhuma estatística disponível.</p>
+            <p className="text-[10px] text-muted">Nenhuma estatística disponível.</p>
           )}
         </section>
 
@@ -845,16 +871,16 @@ export default function AcidentesPage() {
                 </p>
               )}
 
-              <div className="space-y-2 rounded-lg border border-border bg-bg/60 p-2 overflow-x-auto">
+              <div className="space-y-2 rounded-xl border border-border bg-bg/60 p-3 overflow-x-auto">
                 <div className="flex items-center gap-2 px-1">
-                  <span className="w-32 text-[10px] uppercase tracking-wide text-muted">
+                  <span className="w-36 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted">
                     Mês
                   </span>
-                  <div className="grid grid-cols-12 gap-1 flex-1">
+                  <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                     {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((nome) => (
                       <div
                         key={nome}
-                        className="text-center text-[10px] font-semibold text-muted"
+                        className="min-w-[2.5rem] rounded bg-muted/50 py-1 text-center text-[10px] font-semibold text-muted"
                       >
                         {nome}
                       </div>
@@ -862,17 +888,17 @@ export default function AcidentesPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-32 text-[11px] font-medium text-muted">
+                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
                       Colaboradores ativos
                       {tfFonteAtivos === 'alterdata' && (
-                        <span className="ml-1 text-emerald-600 dark:text-emerald-400" title="Contagem automática: admitidos até o fim do mês e demissão vazia ou após o fim do mês">
+                        <span className="ml-1 text-emerald-600 dark:text-emerald-400" title="Contagem automática">
                           (Alterdata)
                         </span>
                       )}
                     </span>
-                    <div className="grid grid-cols-12 gap-1 flex-1">
+                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
                         (m) => {
                           const linha = tfMeses[m];
@@ -881,7 +907,7 @@ export default function AcidentesPage() {
                               key={m}
                               type="number"
                               min={0}
-                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-center outline-none focus:ring-1 focus:ring-emerald-500"
+                              className="min-w-[2.5rem] rounded-md border border-border bg-card px-1.5 py-1.5 text-[11px] text-center tabular-nums outline-none focus:ring-2 focus:ring-emerald-500/50"
                               placeholder="0"
                               value={linha?.ativos ?? ''}
                               onChange={(e) => {
@@ -909,17 +935,17 @@ export default function AcidentesPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="w-32 text-[11px] font-medium text-muted">
+                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
                       HHT (ativos × 150)
                     </span>
-                    <div className="grid grid-cols-12 gap-1 flex-1">
+                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
                         (m) => {
                           const linha = tfMeses[m];
                           return (
                             <div
                               key={m}
-                              className="w-full rounded border border-border bg-panel/70 px-1 py-1 text-[11px] text-center text-text"
+                              className="min-w-[2.5rem] rounded-md border border-border bg-panel/70 px-1.5 py-1.5 text-[11px] text-center tabular-nums text-text"
                             >
                               {linha?.horas ?? '--'}
                             </div>
@@ -930,17 +956,17 @@ export default function AcidentesPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="w-32 text-[11px] font-medium text-muted">
+                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
                       Nº de Acidentes
                     </span>
-                    <div className="grid grid-cols-12 gap-1 flex-1">
+                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
                         (m) => {
                           const linha = tfMeses[m];
                           return (
                             <div
                               key={m}
-                              className="w-full rounded border border-border bg-card px-1 py-1 text-[11px] text-center text-text"
+                              className="min-w-[2.5rem] rounded-md border border-border bg-card px-1.5 py-1.5 text-[11px] text-center tabular-nums text-text"
                             >
                               {linha?.accidentes ?? '0'}
                             </div>
@@ -951,17 +977,17 @@ export default function AcidentesPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="w-32 text-[11px] font-medium text-muted">
+                    <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
                       TF (por milhão de horas)
                     </span>
-                    <div className="grid grid-cols-12 gap-1 flex-1">
+                    <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
                         (m) => {
                           const linha = tfMeses[m];
                           return (
                             <div
                               key={m}
-                              className="w-full rounded border border-border bg-panel/70 px-1 py-1 text-[11px] text-center"
+                              className="min-w-[2.5rem] rounded-md border border-border bg-panel/70 px-1.5 py-1.5 text-[11px] text-center tabular-nums"
                             >
                               {linha?.tf && linha.tf !== '--'
                                 ? Number(linha.tf).toLocaleString('pt-BR', {
@@ -979,23 +1005,7 @@ export default function AcidentesPage() {
               </div>
             </div>
 
-            <div className="mt-2 rounded-lg border border-dashed border-border bg-panel/70 p-3 space-y-1">
-              <p className="text-[11px] text-muted">
-                <strong>HHT</strong> = colaboradores ativos × 150 (horas-homem por mês).
-              </p>
-              <p className="text-[11px] text-muted">
-                Fórmula da Taxa de Frequência (TF):{' '}
-                <span className="font-mono text-[11px] text-text">
-                  TF = (Nº de Acidentes × 1.000.000) / HHT
-                </span>
-              </p>
-              <p className="text-[11px] text-muted">
-                Acidentes são puxados automaticamente da planilha (stg_acidentes) por mês (jan–dez).
-                Colaboradores ativos: quando a base Alterdata está importada, a contagem é automática (admitidos até o fim do mês e demissão vazia ou após o fim do mês). Caso contrário, preencha e salve.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border mt-2">
               <p className="text-[11px] text-muted">
                 Salve os ativos por mês para que o HHT e a TF sejam calculados automaticamente.
               </p>
@@ -1050,50 +1060,6 @@ export default function AcidentesPage() {
             </div>
           </section>
 
-        {/* Bloco 2: Investigação */}
-          <section className="rounded-xl border border-border bg-panel p-4 shadow-sm space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold">Investigação de Acidente de Trabalho</h2>
-                <p className="mt-1 text-[11px] text-muted">
-                  Estrutura padronizada para registro, análise e tratamento de acidentes de
-                  trabalho, garantindo conformidade legal e rastreabilidade das informações.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3 text-[11px] text-muted">
-              <div className="space-y-1">
-                <div className="font-semibold text-text">Identificação do Acidente</div>
-                <ul className="list-disc list-inside space-y-0.5">
-                  <li>Data e hora do evento</li>
-                  <li>Unidade, regional e setor de ocorrência</li>
-                  <li>Função e tipo de vínculo do trabalhador</li>
-                </ul>
-              </div>
-              <div className="space-y-1">
-                <div className="font-semibold text-text">Classificação do Acidente</div>
-                <ul className="list-disc list-inside space-y-0.5">
-                  <li>Queda, acidente de trânsito, perfurocortante, biológico, ergonomia, etc.</li>
-                  <li>Indicação de afastamento e gravidade</li>
-                </ul>
-              </div>
-              <div className="space-y-1">
-                <div className="font-semibold text-text">Descrição e Análise Técnica</div>
-                <ul className="list-disc list-inside space-y-0.5">
-                  <li>O que, como, onde e por que aconteceu</li>
-                  <li>Verificação de EPI, treinamento e condições inseguras</li>
-                  <li>Causa imediata, causa raiz e fatores contribuintes</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
-              <span className="text-[11px] text-muted">Base somente leitura (importe em Admin → Importar bases).</span>
-            </div>
-          </section>
-
-        {/* Bloco 3 removido: explicação textual do Plano de Ação Automático */}
       </div>
 
       {/* Registros de Acidentes */}

@@ -46,6 +46,8 @@ export async function POST(req: Request) {
 
     const data = {
       numeroCAT: body.numeroCAT?.trim() || null,
+      regional: body.regional?.trim() || null,
+      tipo: body.tipo?.trim() || null,
       statusInvestigacao: body.statusInvestigacao?.trim() || null,
       riatUrl: body.riatUrl?.trim() || null,
       riatNome: body.riatNome?.trim() || null,

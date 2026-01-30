@@ -102,6 +102,31 @@ export async function GET(req: Request) {
       ...params
     );
 
+    let totalInvestigados = 0;
+    let porRegionalInvestigados: Array<{ regional: string; quantidade: number }> = [];
+    let porTipoInvestigados: Array<{ tipo: string; quantidade: number }> = [];
+    try {
+      totalInvestigados = await prisma.acidenteInvestigacao.count();
+      const invPorReg = await prisma.acidenteInvestigacao.groupBy({
+        by: ['regional'],
+        _count: { id: true },
+      });
+      porRegionalInvestigados = invPorReg.map((r) => ({
+        regional: r.regional && r.regional.trim() !== '' ? r.regional : 'Não informado',
+        quantidade: r._count.id,
+      })).sort((a, b) => b.quantidade - a.quantidade);
+      const invPorTipo = await prisma.acidenteInvestigacao.groupBy({
+        by: ['tipo'],
+        _count: { id: true },
+      });
+      porTipoInvestigados = invPorTipo.map((t) => ({
+        tipo: t.tipo && t.tipo.trim() !== '' ? t.tipo : 'outros',
+        quantidade: t._count.id,
+      })).sort((a, b) => b.quantidade - a.quantidade);
+    } catch {
+      // Tabela AcidenteInvestigacao pode não existir ou não ter colunas regional/tipo
+    }
+
     return NextResponse.json({
       ok: true,
       totalAno: Number(totalAnoRow?.[0]?.total || 0),
@@ -113,6 +138,9 @@ export async function GET(req: Request) {
       porStatus,
       comAfastamento: Number(comAfastamentoRow?.[0]?.total || 0),
       semAfastamento: Number(semAfastamentoRow?.[0]?.total || 0),
+      totalInvestigados,
+      porRegionalInvestigados,
+      porTipoInvestigados,
     });
   } catch (e: any) {
     console.error('[acidentes/stats] error', e);
