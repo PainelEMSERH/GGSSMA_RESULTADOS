@@ -29,6 +29,9 @@
     "xlsx": "^0.18.5",
     "mssql": "^11.0.1"
   },
+  "optionalDependencies": {
+    "@next/swc-linux-x64-gnu": "14.2.25"
+  },
   "devDependencies": {
     "typescript": "5.6.3",
     "@types/react": "18.3.11",
