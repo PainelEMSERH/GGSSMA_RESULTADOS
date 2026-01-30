@@ -726,6 +726,7 @@ export default function AcidentesView() {
           {statsLoading ? (
             <p className="text-[10px] text-muted">Carregando...</p>
           ) : stats ? (
+            <>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7">
               <div className="rounded border border-border bg-bg px-2 py-1.5">
                 <p className="text-[9px] uppercase text-muted">Total no Ano</p>
@@ -804,6 +805,7 @@ export default function AcidentesView() {
                 </div>
               </div>
             )}
+            </>
           ) : (
             <p className="text-[10px] text-muted">Nenhuma estatística disponível.</p>
           )}
@@ -856,7 +858,7 @@ export default function AcidentesView() {
               </div>
               {tfAnosComDados.length > 0 && (
                 <p className="text-[10px] text-muted">
-                  Anos com acidentes na base: {tfAnosComDados.join(', ')}. Selecione o ano para ver NÂº de Acidentes e TF por mês.
+                  Anos com acidentes na base: {tfAnosComDados.join(', ')}. Selecione o ano para ver Nº de Acidentes e TF por mês.
                 </p>
               )}
 
@@ -946,7 +948,7 @@ export default function AcidentesView() {
 
                   <div className="flex items-center gap-2">
                     <span className="w-36 shrink-0 text-[11px] font-medium text-muted">
-                      NÂº de Acidentes
+                      Nº de Acidentes
                     </span>
                     <div className="grid grid-cols-12 gap-2 flex-1 min-w-0">
                       {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(
