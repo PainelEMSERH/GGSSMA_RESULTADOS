@@ -564,8 +564,7 @@ export default function AcidentesView() {
     }
   };
 
-  const content = (
-    <div className="space-y-4">
+  return (<React.Fragment><div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-medium tracking-wide text-muted uppercase">
@@ -1545,8 +1544,6 @@ export default function AcidentesView() {
           </div>
         </div>
       )}
-    </div>
-  );
-  return content;
+    </div></React.Fragment>);
 }
 
