@@ -312,7 +312,8 @@ export default function AcidentesPage() {
   const [statsLoading, setStatsLoading] = useState(false);
 
   // Taxa de Frequência (TF) - edição anual (12 meses)
-  const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear()));
+  const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear() - 1));
+  const [tfAnosComDados, setTfAnosComDados] = useState<number[]>([]);
   const [tfMeses, setTfMeses] = useState<
     Record<
       string,
@@ -337,17 +338,20 @@ export default function AcidentesPage() {
     const params = new URLSearchParams();
     params.set('ano', tfAno);
     if (regional) params.set('regional', regional);
-    fetchJSON<{ registros: any[]; fonteAtivos?: 'alterdata' | 'manual' }>('/api/acidentes/taxa-frequencia?' + params.toString())
+    fetchJSON<{ registros: any[]; fonteAtivos?: 'alterdata' | 'manual'; anosComDados?: number[] }>('/api/acidentes/taxa-frequencia?' + params.toString())
       .then((d) => {
         setTfFonteAtivos(d.fonteAtivos ?? null);
+        setTfAnosComDados(d.anosComDados ?? []);
         const base: any = {};
         ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
           base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
         });
+        let totalAcidentesNoAno = 0;
         (d.registros || []).forEach((r: any) => {
           const mes = String(r.mes).padStart(2, '0');
           const ativos = r.ativos != null ? String(r.ativos) : '';
           const acidentes = String(r.numeroAcidentes ?? '');
+          totalAcidentesNoAno += Number(r.numeroAcidentes ?? 0) || 0;
           const horas =
             r.horasHomemTrabalhadas != null
               ? String(r.horasHomemTrabalhadas)
@@ -359,6 +363,10 @@ export default function AcidentesPage() {
           base[mes] = { ativos, acidentes, horas, tf };
         });
         setTfMeses(base);
+        if (totalAcidentesNoAno === 0 && (d.anosComDados?.length ?? 0) > 0) {
+          const anoComDados = Math.max(...d.anosComDados!);
+          setTfAno(String(anoComDados));
+        }
       })
       .catch(() => {
         setTfFonteAtivos(null);
@@ -797,17 +805,40 @@ export default function AcidentesPage() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-[11px] font-medium text-muted">
                   Ano de referência
                 </span>
-                <input
-                  type="number"
-                  className="w-28 rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500"
+                <select
+                  className="rounded border border-border bg-card px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-emerald-500 min-w-[6rem]"
                   value={tfAno}
                   onChange={(e) => setTfAno(e.target.value)}
-                />
+                >
+                  {[
+                    ...new Set([
+                      ...tfAnosComDados,
+                      new Date().getFullYear(),
+                      new Date().getFullYear() - 1,
+                      new Date().getFullYear() - 2,
+                      new Date().getFullYear() - 3,
+                      new Date().getFullYear() - 4,
+                    ]),
+                  ]
+                    .filter((y) => !Number.isNaN(y))
+                    .sort((a, b) => b - a)
+                    .map((y) => (
+                      <option key={y} value={String(y)}>
+                        {y}
+                        {tfAnosComDados.includes(y) ? ' (com dados)' : ''}
+                      </option>
+                    ))}
+                </select>
               </div>
+              {tfAnosComDados.length > 0 && (
+                <p className="text-[10px] text-muted">
+                  Anos com acidentes na base: {tfAnosComDados.join(', ')}. Selecione o ano para ver Nº de Acidentes e TF por mês.
+                </p>
+              )}
 
               <div className="space-y-2 rounded-lg border border-border bg-bg/60 p-2 overflow-x-auto">
                 <div className="flex items-center gap-2 px-1">

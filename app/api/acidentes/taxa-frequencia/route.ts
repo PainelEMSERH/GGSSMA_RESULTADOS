@@ -78,8 +78,9 @@ export async function GET(req: Request) {
       whereStg += ` AND "Regional" ILIKE $2`;
     }
     const mesColStg = `COALESCE(mes::int, ${monthExprStg})::int`;
+    const yearColStg = `COALESCE(ano::int, ${yearExpr})::int`;
 
-    const [ativosAlterdata, ativosRows, acidentesPorMesRows] = await Promise.all([
+    const [ativosAlterdata, ativosRows, acidentesPorMesRows, anosComDadosRows] = await Promise.all([
       ativosPorMesAlterdata(ano),
       prisma.ativosMensal.findMany({
         where: { ano },
@@ -91,7 +92,17 @@ export async function GET(req: Request) {
          GROUP BY ${mesColStg} ORDER BY 1`,
         ...params
       ),
+      prisma.$queryRawUnsafe<any[]>(
+        `SELECT DISTINCT ${yearColStg} AS ano FROM stg_acidentes
+         WHERE (ano IS NOT NULL AND ano::text != '') OR (${dataParsedExpr} IS NOT NULL)
+         ORDER BY 1`
+      ),
     ]);
+
+    const anosComDados: number[] = (anosComDadosRows || [])
+      .map((r: any) => Number(r.ano))
+      .filter((y: number) => !Number.isNaN(y) && y > 2000 && y <= new Date().getFullYear() + 1)
+      .sort((a, b) => a - b);
 
     const ativosPorMes: Record<number, number> = {};
     for (let m = 1; m <= 12; m++) ativosPorMes[m] = 0;
@@ -136,6 +147,7 @@ export async function GET(req: Request) {
       ok: true,
       registros,
       fonteAtivos: ativosAlterdata ? 'alterdata' : 'manual',
+      anosComDados,
     });
   } catch (e: any) {
     console.error('[acidentes/taxa-frequencia][GET] error', e);
