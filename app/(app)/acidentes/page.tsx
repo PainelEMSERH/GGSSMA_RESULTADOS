@@ -348,10 +348,11 @@ export default function AcidentesPage() {
         });
         let totalAcidentesNoAno = 0;
         (d.registros || []).forEach((r: any) => {
-          const mes = String(r.mes).padStart(2, '0');
+          const mesKey = String(Number(r.mes)).padStart(2, '0');
           const ativos = r.ativos != null ? String(r.ativos) : '';
-          const acidentes = String(r.numeroAcidentes ?? '');
-          totalAcidentesNoAno += Number(r.numeroAcidentes ?? 0) || 0;
+          const numAcidentes = r.numeroAcidentes ?? r.numero_acidentes ?? 0;
+          const acidentes = String(numAcidentes);
+          totalAcidentesNoAno += Number(numAcidentes) || 0;
           const horas =
             r.horasHomemTrabalhadas != null
               ? String(r.horasHomemTrabalhadas)
@@ -360,7 +361,7 @@ export default function AcidentesPage() {
             r.taxaFrequencia != null
               ? Number(r.taxaFrequencia).toFixed(2)
               : '--';
-          base[mes] = { ativos, acidentes, horas, tf };
+          base[mesKey] = { ativos, accidentes: acidentes, horas, tf };
         });
         setTfMeses(base);
         if (totalAcidentesNoAno === 0 && (d.anosComDados?.length ?? 0) > 0) {
@@ -890,6 +891,7 @@ export default function AcidentesPage() {
                                   [m]: {
                                     ...(prev[m] || { ativos: '', accidentes: '', horas: '', tf: '--' }),
                                     ativos,
+                                    accidentes: String(linha?.accidentes ?? prev[m]?.accidentes ?? '0'),
                                     horas: String(hht),
                                     tf,
                                   },
