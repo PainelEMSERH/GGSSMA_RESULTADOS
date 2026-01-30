@@ -100,7 +100,7 @@ export async function GET(req: Request) {
         NULLIF(TRIM(COALESCE(descricao_situacao_geradora,'')),'') AS "causaImediata",
         NULLIF(TRIM(COALESCE(descricao_natureza_lesao,'')),'') AS "causaRaiz",
         NULLIF(TRIM(COALESCE(observacoes_cat,'')),'') AS "fatoresContrib",
-        COALESCE(NrCPF,'') AS "cpf"
+        COALESCE("NrCPF",'') AS "cpf"
       FROM stg_acidentes
       ${whereSql}
       ORDER BY ${orderDataExpr} DESC NULLS LAST
