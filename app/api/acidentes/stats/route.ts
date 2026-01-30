@@ -14,8 +14,8 @@ export async function GET(req: Request) {
     const ano = filterByYear ? anoParam : String(new Date().getFullYear());
 
     const dataParsedExpr = `(CASE
-      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
-      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(data_acidente), 1, 10), 'DD/MM/YYYY')
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}' THEN to_date(SUBSTRING(TRIM(data_acidente), 1, 10), 'DD/MM/YYYY')
       ELSE NULL END)`;
     const yearExpr = `EXTRACT(YEAR FROM ${dataParsedExpr})::int`;
     const monthExpr = `EXTRACT(MONTH FROM ${dataParsedExpr})::int`;

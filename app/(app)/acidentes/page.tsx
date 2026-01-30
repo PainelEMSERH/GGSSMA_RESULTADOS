@@ -279,6 +279,7 @@ export default function AcidentesPage() {
   const [page, setPage] = useState(1);
   const pageSize = 25;
   const [loading, setLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   // Opções
   const [opts, setOpts] = useState<{ regionais: string[]; unidades: Array<{ unidade: string; regional: string }> }>({
@@ -416,15 +417,17 @@ export default function AcidentesPage() {
     params.set('page', String(page));
     params.set('pageSize', String(pageSize));
 
+    setListError(null);
     fetchJSON<{ rows: AcidenteRow[]; total: number }>(`/api/acidentes/list?${params.toString()}`)
       .then((d) => {
         const list = (d.rows || []).map((r: AcidenteRow) => ({ ...r, id: acidenteRef(r) }));
         setRows(list);
         setTotal(d.total || 0);
       })
-      .catch(() => {
+      .catch((err) => {
         setRows([]);
         setTotal(0);
+        setListError(err?.message || 'Erro ao carregar a lista. Tente recarregar a página.');
       })
       .finally(() => setLoading(false));
   }, [regional, tipo, status, empresa, ano, mes, q, page, listKey]);
@@ -1130,11 +1133,26 @@ export default function AcidentesPage() {
                 {!loading && rows.length === 0 && (
                   <tr>
                     <td colSpan={14} className="px-3 py-6 text-center">
-                      <p className="text-muted">Nenhum acidente encontrado.</p>
-                      {total === 0 && (
-                        <p className="mt-2 text-[11px] text-muted">
-                          Se não aparecer nenhum acidente, selecione <strong>«Todos os anos»</strong> no filtro ou tente outro ano (ex.: 2021, 2022).
-                        </p>
+                      {listError ? (
+                        <>
+                          <p className="text-destructive text-sm">{listError}</p>
+                          <button
+                            type="button"
+                            className="mt-3 rounded bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-700"
+                            onClick={() => setListKey((k) => k + 1)}
+                          >
+                            Recarregar lista
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-muted">Nenhum acidente encontrado.</p>
+                          {total === 0 && (
+                            <p className="mt-2 text-[11px] text-muted">
+                              Se não aparecer nenhum acidente, selecione <strong>«Todos os anos»</strong> no filtro ou tente outro ano (ex.: 2021, 2022).
+                            </p>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>

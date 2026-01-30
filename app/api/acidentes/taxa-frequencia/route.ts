@@ -21,16 +21,16 @@ async function ativosPorMesAlterdata(ano: number): Promise<Record<number, number
         SELECT
           COALESCE(a.cpf, '') AS cpf,
           CASE
-            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^\\d+$' THEN (DATE '1899-12-30' + TRIM(a.admissao)::int)::date
-            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.admissao), 1, 10)::date
-            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.admissao), 1, 10), 'DD/MM/YYYY')
+            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^[0-9]+$' THEN (DATE '1899-12-30' + TRIM(a.admissao)::int)::date
+            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN SUBSTRING(TRIM(a.admissao), 1, 10)::date
+            WHEN TRIM(COALESCE(a.admissao,'')) ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}' THEN to_date(SUBSTRING(TRIM(a.admissao), 1, 10), 'DD/MM/YYYY')
             ELSE NULL
           END AS admissao_d,
           CASE
             WHEN a.demissao IS NULL OR TRIM(COALESCE(a.demissao,'')) = '' THEN NULL
-            WHEN TRIM(a.demissao) ~ '^\\d+$' THEN (DATE '1899-12-30' + TRIM(a.demissao)::int)::date
-            WHEN TRIM(a.demissao) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
-            WHEN TRIM(a.demissao) ~ '^\\d{2}/\\d{2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
+            WHEN TRIM(a.demissao) ~ '^[0-9]+$' THEN (DATE '1899-12-30' + TRIM(a.demissao)::int)::date
+            WHEN TRIM(a.demissao) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN SUBSTRING(TRIM(a.demissao), 1, 10)::date
+            WHEN TRIM(a.demissao) ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}' THEN to_date(SUBSTRING(TRIM(a.demissao), 1, 10), 'DD/MM/YYYY')
             ELSE NULL
           END AS demissao_d
         FROM stg_alterdata_v2 a
@@ -66,8 +66,8 @@ export async function GET(req: Request) {
     const ano = parseInt(url.searchParams.get('ano') || String(new Date().getFullYear()), 10);
 
     const dataParsedExpr = `(CASE
-      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
-      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}' THEN to_date(SUBSTRING(TRIM(data_acidente), 1, 10), 'DD/MM/YYYY')
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN (SUBSTRING(TRIM(data_acidente), 1, 10))::date
+      WHEN TRIM(COALESCE(data_acidente,'')) ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}' THEN to_date(SUBSTRING(TRIM(data_acidente), 1, 10), 'DD/MM/YYYY')
       ELSE NULL END)`;
     const yearExpr = `EXTRACT(YEAR FROM ${dataParsedExpr})::int`;
     const monthExprStg = `EXTRACT(MONTH FROM ${dataParsedExpr})::int`;
