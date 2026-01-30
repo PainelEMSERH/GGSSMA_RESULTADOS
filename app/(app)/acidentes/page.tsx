@@ -564,7 +564,7 @@ export default function AcidentesPage() {
     }
   };
 
-  return (
+  const content = (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -1547,4 +1547,5 @@ export default function AcidentesPage() {
       )}
     </div>
   );
+  return content;
 }
