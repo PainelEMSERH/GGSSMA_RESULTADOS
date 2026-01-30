@@ -532,7 +532,7 @@ export default function AcidentesPage() {
     }
   }
 
-  async function saveInvestigacao() {
+  const saveInvestigacao = async () => {
     if (!investigacaoRow) return;
     const ref = acidenteRef(investigacaoRow);
     setInvestigacaoSaving(true);
@@ -562,7 +562,7 @@ export default function AcidentesPage() {
     } finally {
       setInvestigacaoSaving(false);
     }
-  }
+  };
 
   return (
     <div className="space-y-4">
