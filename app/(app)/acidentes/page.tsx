@@ -319,17 +319,7 @@ export default function AcidentesPage() {
   const [tfAno, setTfAno] = useState<string>(String(new Date().getFullYear() - 1));
   const [tfAnosComDados, setTfAnosComDados] = useState<number[]>([]);
   const [tfLoading, setTfLoading] = useState(false);
-  const [tfMeses, setTfMeses] = useState<
-    Record<
-      string,
-      {
-        ativos: string;
-        accidentes: string;
-        horas: string;
-        tf: string;
-      }
-    >
-  >(() => {
+  const [tfMeses, setTfMeses] = useState<Record<string, { ativos: string; accidentes: string; horas: string; tf: string }>>(() => {
     const base: any = {};
     ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].forEach((m) => {
       base[m] = { ativos: '', accidentes: '', horas: '', tf: '--' };
