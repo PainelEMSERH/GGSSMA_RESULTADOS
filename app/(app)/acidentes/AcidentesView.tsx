@@ -722,60 +722,58 @@ export default function AcidentesView() {
       {/* VISÃO GERAL â€“ blocos institucionais */}
       <div className="space-y-4">
         {/* Bloco 0: Estatísticas â€“ uma linha compacta */}
-        <section className="rounded-xl border border-border bg-panel p-4 shadow-sm">
+        <section className="rounded-xl border border-border bg-panel p-3 shadow-sm">
           {statsLoading ? (
             <p className="text-sm text-muted">Carregando...</p>
           ) : stats ? (
             <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
-                <p className="text-xs uppercase tracking-wide text-muted mb-1">Total no Ano</p>
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{stats.totalAno}</p>
+            <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
+                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Total no Ano</p>
+                <p className="text-[18px] font-bold tabular-nums leading-tight">{stats.totalAno}</p>
               </div>
-              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
-                <p className="text-xs uppercase tracking-wide text-muted mb-1">Total no Mês</p>
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{stats.totalMes}</p>
+              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
+                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Total no Mês</p>
+                <p className="text-[18px] font-bold tabular-nums leading-tight">{stats.totalMes}</p>
               </div>
-              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
-                <p className="text-xs uppercase tracking-wide text-muted mb-1">Com Afast.</p>
-                <p className="text-2xl sm:text-3xl font-bold text-red-500 dark:text-red-400 tabular-nums">{stats.comAfastamento}</p>
+              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
+                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Com Afast.</p>
+                <p className="text-[18px] font-bold text-red-500 dark:text-red-400 tabular-nums leading-tight">{stats.comAfastamento}</p>
               </div>
-              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center">
-                <p className="text-xs uppercase tracking-wide text-muted mb-1">Sem Afast.</p>
-                <p className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{stats.semAfastamento}</p>
+              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
+                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Sem Afast.</p>
+                <p className="text-[18px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums leading-tight">{stats.semAfastamento}</p>
               </div>
-              <div className="rounded-lg border border-border bg-bg px-4 py-3 text-center col-span-2 sm:col-span-1">
-                <p className="text-xs uppercase tracking-wide text-muted mb-1">Investigados</p>
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{stats.totalInvestigados ?? 0}</p>
+              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-[4.5rem] shrink-0 text-left">
+                <p className="text-[11px] uppercase tracking-wide text-muted mb-0.5">Investigados</p>
+                <p className="text-[18px] font-bold tabular-nums leading-tight">{stats.totalInvestigados ?? 0}</p>
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/60 pt-4 mt-4">
-              <div className="rounded-lg border border-border bg-bg px-4 py-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Por Regional</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1.5 min-h-[2rem]">
+              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-0 flex-1 shrink min-w-[10rem]">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Por Regional</p>
+                <div className="flex flex-nowrap gap-x-3 gap-y-0 overflow-x-auto">
                   {!stats.porRegional?.length ? (
                     <span className="text-muted">â€”</span>
                   ) : (
                     (stats.porRegional ?? []).map((r) => (
-                      <div key={r.regional} className="flex items-baseline justify-between gap-2 min-w-[5.5rem]">
-                        <span className="text-sm truncate max-w-[4.5rem]" title={r.regional}>{r.regional}</span>
-                        <span className="text-base font-bold tabular-nums">{r.quantidade}</span>
-                      </div>
+                      <span key={r.regional} className="flex items-baseline gap-1.5 shrink-0 whitespace-nowrap" title={r.regional}>
+                        <span className="text-[12px] text-foreground truncate max-w-[4rem]">{r.regional}</span>
+                        <span className="text-[14px] font-bold tabular-nums">{r.quantidade}</span>
+                      </span>
                     ))
                   )}
                 </div>
               </div>
-              <div className="rounded-lg border border-border bg-bg px-4 py-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Por Tipo</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1.5 min-h-[2rem]">
+              <div className="rounded-lg border border-border bg-bg px-3 py-2.5 min-w-0 flex-1 shrink min-w-[10rem]">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Por Tipo</p>
+                <div className="flex flex-nowrap gap-x-3 gap-y-0 overflow-x-auto">
                   {!stats.porTipo?.length ? (
                     <span className="text-muted">â€”</span>
                   ) : (
                     (stats.porTipo ?? []).map((t) => (
-                      <div key={t.tipo} className="flex items-baseline justify-between gap-2 min-w-[5.5rem]">
-                        <span className="text-sm truncate max-w-[4.5rem]" title={TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}>{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
-                        <span className="text-base font-bold tabular-nums">{t.quantidade}</span>
-                      </div>
+                      <span key={t.tipo} className="flex items-baseline gap-1.5 shrink-0 whitespace-nowrap" title={TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}>
+                        <span className="text-[12px] text-foreground truncate max-w-[4rem]">{TIPOS_ACIDENTE.find((tp) => tp.value === t.tipo)?.label || t.tipo}</span>
+                        <span className="text-[14px] font-bold tabular-nums">{t.quantidade}</span>
+                      </span>
                     ))
                   )}
                 </div>
