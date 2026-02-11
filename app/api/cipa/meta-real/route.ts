@@ -40,26 +40,34 @@ export async function GET(req: NextRequest) {
     const totalMeta = Number(totalMetaResult[0]?.total ?? 0);
 
     // Total concluídas (data_conclusao preenchida)
+    // Para 2026, sempre considerar como não concluído (conclusões devem ser preenchidas manualmente)
     const totalRealResult: any[] = await prisma.$queryRawUnsafe(`
-      SELECT COUNT(*)::int AS total FROM cronograma_cipa ${whereSql} AND data_conclusao IS NOT NULL
+      SELECT COUNT(*)::int AS total FROM cronograma_cipa ${whereSql} 
+      AND data_conclusao IS NOT NULL 
+      ${ano === 2026 ? 'AND FALSE' : ''}
     `);
     const totalReal = Number(totalRealResult[0]?.total ?? 0);
 
     // Meta por mês: atividades cuja data_fim_prevista cai até o fim do mês (acumulado)
+    // IMPORTANTE: Para 2026, considerar apenas atividades com data_fim_prevista no ano 2026
     const metaMeses: Record<string, number> = {};
     for (let m = 1; m <= 12; m++) {
       const mesStr = String(m).padStart(2, '0');
       const lastDay = new Date(ano, m, 0);
       const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+      // Para 2026, garantir que data_fim_prevista seja do ano 2026 (não de 2025)
+      const anoFilter = ano === 2026 ? `AND EXTRACT(YEAR FROM data_fim_prevista::date) = 2026` : '';
       const r: any[] = await prisma.$queryRawUnsafe(`
         SELECT COUNT(*)::int AS total FROM cronograma_cipa
         ${whereSql}
         AND data_fim_prevista::date <= '${lastDayStr}'::date
+        ${anoFilter}
       `);
       metaMeses[mesStr] = Number(r[0]?.total ?? 0);
     }
 
     // Real por mês: atividades com data_conclusao até o fim do mês (acumulado)
+    // Para 2026, sempre considerar como não concluído (conclusões devem ser preenchidas manualmente)
     const realMeses: Record<string, number> = {};
     for (let m = 1; m <= 12; m++) {
       const mesStr = String(m).padStart(2, '0');
@@ -69,6 +77,7 @@ export async function GET(req: NextRequest) {
         SELECT COUNT(*)::int AS total FROM cronograma_cipa
         ${whereSql}
         AND data_conclusao IS NOT NULL AND data_conclusao::date <= '${lastDayStr}'::date
+        ${ano === 2026 ? 'AND FALSE' : ''}
       `);
       realMeses[mesStr] = Number(r[0]?.total ?? 0);
     }

@@ -76,18 +76,22 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const normalized = rows.map((r: any) => ({
-      id: r.id,
-      regional: String(r.regional ?? ''),
-      unidade: String(r.unidade ?? ''),
-      ano_gestao: Number(r.ano_gestao) || 0,
-      atividade_codigo: Number(r.atividade_codigo) || 0,
-      atividade_nome: String(r.atividade_nome ?? ''),
-      data_inicio_prevista: r.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
-      data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
-      data_conclusao: r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null,
-      data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
-    }));
+    const normalized = rows.map((r: any) => {
+      const anoGestao = Number(r.ano_gestao) || 0;
+      return {
+        id: r.id,
+        regional: String(r.regional ?? ''),
+        unidade: String(r.unidade ?? ''),
+        ano_gestao: anoGestao,
+        atividade_codigo: Number(r.atividade_codigo) || 0,
+        atividade_nome: String(r.atividade_nome ?? ''),
+        data_inicio_prevista: r.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
+        data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
+        // 2026 sempre deve ter conclusão em branco para preenchimento
+        data_conclusao: anoGestao === 2026 ? null : (r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null),
+        data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
+      };
+    });
 
     return NextResponse.json({ ok: true, rows: normalized, total });
   } catch (e: any) {
