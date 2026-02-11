@@ -47,9 +47,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Insere ou atualiza
+    // Forçamos o cast explícito de $3 para DATE para evitar o erro:
+    // "column \"data_entrega\" is of type date but expression is of type text"
     const query = `
       INSERT INTO ordem_servico (colaborador_cpf, entregue, data_entrega, responsavel, updated_at)
-      VALUES ($1, $2, $3, $4, NOW())
+      VALUES ($1, $2, $3::date, $4, NOW())
       ON CONFLICT (colaborador_cpf) 
       DO UPDATE SET
         entregue = EXCLUDED.entregue,
