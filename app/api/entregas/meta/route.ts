@@ -138,7 +138,7 @@ export async function GET(req: Request) {
     try {
       kitRows = await prisma.$queryRawUnsafe<any[]>(`
         SELECT
-          COALESCE(codigo_alterdata::text, '') AS pcg,
+          COALESCE(pcg::text, '') AS pcg,
           COALESCE(alterdata_funcao::text, '') AS funcao,
           COALESCE(nome_site::text, '') AS site,
           COALESCE(unidade_hospitalar::text, '') AS unidade_hosp,
@@ -200,10 +200,10 @@ export async function GET(req: Request) {
       const fallbackUnit = findBestUnitMatch(UNIDADE_FALLBACK_PCG, allUnitsList);
       if (fallbackUnit) {
         const fallback: any[] = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(codigo_alterdata::text, '') AS pcg
+          SELECT DISTINCT COALESCE(pcg::text, '') AS pcg
           FROM stg_epi_map
           WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${fallbackUnit.replace(/'/g, "''")}'))
-            AND COALESCE(codigo_alterdata, '') != ''
+            AND COALESCE(pcg, '') != ''
           LIMIT 1
         `);
         if (fallback.length > 0 && fallback[0].pcg) {
@@ -234,10 +234,10 @@ export async function GET(req: Request) {
           const pcgResults: any[] = await prisma.$queryRawUnsafe(`
             SELECT DISTINCT
               UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) AS unidade,
-              COALESCE(codigo_alterdata::text, '') AS pcg
+              COALESCE(pcg::text, '') AS pcg
             FROM stg_epi_map
             WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) IN (${unidadesListSql})
-              AND COALESCE(codigo_alterdata, '') != ''
+              AND COALESCE(pcg, '') != ''
           `);
           
           // Mapeia DB Unit -> PCG

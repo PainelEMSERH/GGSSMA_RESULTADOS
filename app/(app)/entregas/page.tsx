@@ -996,13 +996,8 @@ export default function EntregasPage() {
         // Calcula REAL atual (percentual de entregas realizadas vs meta total)
         const totalEntregue = metaData.total || 0;
         const metaTotal = metaData.meta || 0;
-        // Se a API de meta falhar (500), meta fica 0 mas progresso pode ter total: 216 — não mostrar 0%
         const percentualRealAtual =
-          metaTotal > 0
-            ? Math.min(100, (totalEntregue / metaTotal) * 100)
-            : totalEntregue > 0
-              ? 100
-              : 0;
+          metaTotal > 0 ? Math.min(100, (totalEntregue / metaTotal) * 100) : 0;
         
         // Filtra progresso por mês se selecionado (para os botões)
         const progressoFiltrado = mesSelecionado 
