@@ -76,17 +76,39 @@ export async function GET(req: NextRequest) {
     const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
     const meta: Record<string, number> = {};
     const realAcumulado: Record<string, number> = {};
+    const metaPercent: Record<string, number> = {};
+    const realPercent: Record<string, number> = {};
+    const evolucaoMensal: Record<string, number> = {};
+    
+    let realAnterior = 0;
     meses.forEach((mes) => {
-      meta[mes] = metaMeses[mes] ?? 0;
-      realAcumulado[mes] = realMeses[mes] ?? 0;
+      const metaVal = metaMeses[mes] ?? 0;
+      const realVal = realMeses[mes] ?? 0;
+      meta[mes] = metaVal;
+      realAcumulado[mes] = realVal;
+      
+      // Porcentagem: (valor acumulado / total meta) * 100
+      metaPercent[mes] = totalMeta > 0 ? Math.round((metaVal / totalMeta) * 100) : 0;
+      realPercent[mes] = totalMeta > 0 ? Math.round((realVal / totalMeta) * 100) : 0;
+      
+      // Evolução mês a mês: diferença de porcentagem entre este mês e o anterior
+      evolucaoMensal[mes] = realPercent[mes] - (totalMeta > 0 ? Math.round((realAnterior / totalMeta) * 100) : 0);
+      realAnterior = realVal;
     });
+
+    // Porcentagem total de conclusão
+    const percentTotal = totalMeta > 0 ? Math.round((totalReal / totalMeta) * 100) : 0;
 
     return NextResponse.json({
       ok: true,
       meta,
       realAcumulado,
+      metaPercent,
+      realPercent,
+      evolucaoMensal,
       totalMeta,
       totalReal,
+      percentTotal,
       ano,
     });
   } catch (e: any) {

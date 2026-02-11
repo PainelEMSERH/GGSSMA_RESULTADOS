@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, XCircle, Info, Filter, RefreshCw, Search, CopyPlus } from 'lucide-react';
+import { CheckCircle2, XCircle, Info, Filter, RefreshCw, Search, CopyPlus, Edit, Calendar } from 'lucide-react';
 
 type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
@@ -45,8 +45,12 @@ type Row = {
 type MetaRealData = {
   meta: Record<string, number>;
   realAcumulado: Record<string, number>;
+  metaPercent?: Record<string, number>;
+  realPercent?: Record<string, number>;
+  evolucaoMensal?: Record<string, number>;
   totalMeta: number;
   totalReal: number;
+  percentTotal?: number;
   ano: number;
 };
 
@@ -92,6 +96,9 @@ export default function CipaPage() {
   const [unidades, setUnidades] = useState<Array<{ unidade: string; regional: string }>>([]);
 
   const [replicando, setReplicando] = useState(false);
+  const [modalEdicao, setModalEdicao] = useState<{ open: boolean; row: Row | null }>({ open: false, row: null });
+  const [dataConclusaoEdit, setDataConclusaoEdit] = useState<string>('');
+  const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now().toString() + Math.random().toString(36).slice(2);
@@ -119,6 +126,11 @@ export default function CipaPage() {
   useEffect(() => {
     loadMetaReal();
   }, [regional, anoMetaReal]);
+
+  // Sincroniza anoMetaReal com o filtro de ano quando mudar
+  useEffect(() => {
+    setAnoMetaReal(ano);
+  }, [ano]);
 
   const loadData = async () => {
     setLoading(true);
@@ -175,6 +187,89 @@ export default function CipaPage() {
       showToast(e?.message || 'Erro ao replicar 2026', 'error');
     } finally {
       setReplicando(false);
+    }
+  };
+
+  const abrirModalEdicao = (row: Row) => {
+    setModalEdicao({ open: true, row });
+    // Converte data de YYYY-MM-DD para formato do input date (YYYY-MM-DD)
+    if (row.data_conclusao) {
+      const dt = String(row.data_conclusao).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+        setDataConclusaoEdit(dt);
+      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dt)) {
+        const [dd, mm, yyyy] = dt.split('/');
+        setDataConclusaoEdit(`${yyyy}-${mm}-${dd}`);
+      } else {
+        setDataConclusaoEdit('');
+      }
+    } else {
+      setDataConclusaoEdit(new Date().toISOString().slice(0, 10));
+    }
+  };
+
+  const fecharModalEdicao = () => {
+    setModalEdicao({ open: false, row: null });
+    setDataConclusaoEdit('');
+  };
+
+  const salvarConclusao = async () => {
+    if (!modalEdicao.row) return;
+    setSaving(true);
+    try {
+      const data: any = await fetchJSON('/api/cipa/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          regional: modalEdicao.row.regional,
+          unidade: modalEdicao.row.unidade,
+          ano_gestao: modalEdicao.row.ano_gestao,
+          atividade_codigo: modalEdicao.row.atividade_codigo,
+          data_conclusao: dataConclusaoEdit || null,
+        }),
+      });
+      if (data?.ok) {
+        fecharModalEdicao();
+        loadData();
+        loadMetaReal();
+        showToast('Data de conclusão atualizada com sucesso.', 'success');
+      } else {
+        showToast(data?.error || 'Erro ao salvar', 'error');
+      }
+    } catch (e: any) {
+      showToast(e?.message || 'Erro ao salvar', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removerConclusao = async () => {
+    if (!modalEdicao.row || !confirm('Deseja remover a data de conclusão desta atividade?')) return;
+    setSaving(true);
+    try {
+      const data: any = await fetchJSON('/api/cipa/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          regional: modalEdicao.row.regional,
+          unidade: modalEdicao.row.unidade,
+          ano_gestao: modalEdicao.row.ano_gestao,
+          atividade_codigo: modalEdicao.row.atividade_codigo,
+          data_conclusao: null,
+        }),
+      });
+      if (data?.ok) {
+        fecharModalEdicao();
+        loadData();
+        loadMetaReal();
+        showToast('Data de conclusão removida.', 'success');
+      } else {
+        showToast(data?.error || 'Erro ao remover', 'error');
+      }
+    } catch (e: any) {
+      showToast(e?.message || 'Erro ao remover', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -235,50 +330,79 @@ export default function CipaPage() {
       ) : metaReal ? (
         <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-semibold">Meta vs Real - CIPA</h2>
+            <h2 className="text-sm font-semibold">
+              Meta vs Real - CIPA {regional ? `(${regional})` : '(Consolidado)'}
+            </h2>
             <select
               value={anoMetaReal}
               onChange={(e) => setAnoMetaReal(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-border bg-bg text-xs"
             >
-              {[2024, 2025, 2026, 2027].map((a) => (
+              {[2025, 2026].map((a) => (
                 <option key={a} value={String(a)}>{a}</option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
+            {/* META - Porcentagem do total que deveria estar concluída até aquele mês */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-text">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {mesesKeys.map((mes) => {
                   const q = Number(metaReal.meta?.[mes] ?? 0);
+                  const percent = metaReal.metaPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 100) : 0);
                   const idx = parseInt(mes, 10) - 1;
                   return (
                     <div
                       key={mes}
                       className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                      title={`${mesesNomes[idx]}: ${q} atividades previstas`}
+                      title={`${mesesNomes[idx]}: ${q} atividades previstas (${percent}% do total)`}
                     >
-                      {q}
+                      {percent}%
                     </div>
                   );
                 })}
               </div>
             </div>
+            {/* REAL - Porcentagem do total que foi concluída até aquele mês */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {mesesKeys.map((mes, idx) => {
                   const real = Number(metaReal.realAcumulado?.[mes] || 0);
                   const meta = Number(metaReal.meta?.[mes] ?? metaReal.totalMeta ?? 0);
+                  const percent = metaReal.realPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((real / metaReal.totalMeta) * 100) : 0);
                   const atingiu = meta > 0 && real >= meta;
                   return (
                     <div
                       key={mes}
                       className={`text-center text-xs font-bold py-1.5 rounded ${atingiu ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}
-                      title={`${mesesNomes[idx]}: ${real} concluídas de ${meta} previstas`}
+                      title={`${mesesNomes[idx]}: ${real} concluídas de ${meta} previstas (${percent}% do total)`}
                     >
-                      {real}
+                      {percent}%
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Evolução mês a mês - diferença de porcentagem */}
+            <div className="flex items-center gap-2">
+              <div className="w-20 font-bold text-xs text-blue-600 dark:text-blue-400">EVOL.</div>
+              <div className="flex-1 grid grid-cols-12 gap-1">
+                {mesesKeys.map((mes, idx) => {
+                  const evol = metaReal.evolucaoMensal?.[mes] ?? 0;
+                  const sinal = evol > 0 ? '+' : '';
+                  return (
+                    <div
+                      key={mes}
+                      className={`text-center text-[10px] font-medium py-1 rounded ${
+                        evol > 0 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                        evol === 0 ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400' :
+                        'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                      }`}
+                      title={`${mesesNomes[idx]}: ${sinal}${evol}% de evolução em relação ao mês anterior`}
+                    >
+                      {sinal}{evol}%
                     </div>
                   );
                 })}
@@ -298,6 +422,12 @@ export default function CipaPage() {
               <div>
                 Total: <span className="font-semibold text-text">{Number(metaReal.totalReal ?? 0)}</span> de{' '}
                 <span className="font-semibold text-text">{Number(metaReal.totalMeta ?? 0)}</span> atividades concluídas
+              </div>
+              <div className="text-right">
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  {metaReal.percentTotal ?? (metaReal.totalMeta > 0 ? Math.round((metaReal.totalReal / metaReal.totalMeta) * 100) : 0)}%
+                </span>
+                {' '}de conclusão
               </div>
             </div>
           </div>
@@ -423,6 +553,7 @@ export default function CipaPage() {
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Conclusão</th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Data posse</th>
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Status</th>
+                    <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -449,6 +580,20 @@ export default function CipaPage() {
                               <XCircle className="w-3 h-3 mr-1" />
                               Pendente
                             </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {computed2026 ? (
+                            <span className="text-[10px] text-muted">Replique 2026 para editar</span>
+                          ) : (
+                            <button
+                              onClick={() => abrirModalEdicao(row)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/50 hover:bg-blue-100 dark:hover:bg-blue-500/30 transition-colors"
+                              title={concluida ? 'Editar data de conclusão' : 'Dar baixa na atividade'}
+                            >
+                              <Edit className="w-3 h-3" />
+                              {concluida ? 'Editar' : 'Dar baixa'}
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -483,6 +628,80 @@ export default function CipaPage() {
           </>
         )}
       </div>
+
+      {/* Modal de Edição de Conclusão */}
+      {modalEdicao.open && modalEdicao.row && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={fecharModalEdicao}>
+          <div className="bg-white dark:bg-neutral-950 rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="text-lg font-semibold">Dar baixa na atividade</div>
+              <div className="text-xs opacity-70 mt-1">{modalEdicao.row.atividade_nome}</div>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="text-xs font-medium mb-1.5 text-text">Unidade</div>
+                <div className="text-sm text-muted">{modalEdicao.row.unidade}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium mb-1.5 text-text">Regional</div>
+                <div className="text-sm text-muted">{modalEdicao.row.regional}</div>
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1.5 text-text">
+                  Data de Conclusão <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                  <input
+                    type="date"
+                    value={dataConclusaoEdit}
+                    onChange={(e) => setDataConclusaoEdit(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm text-text"
+                    required
+                  />
+                </div>
+              </div>
+              {modalEdicao.row.data_conclusao && (
+                <div className="pt-2 border-t border-border">
+                  <button
+                    onClick={removerConclusao}
+                    disabled={saving}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                  >
+                    Remover data de conclusão
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
+              <button
+                onClick={fecharModalEdicao}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg border border-border bg-panel hover:bg-bg text-sm font-medium disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarConclusao}
+                disabled={saving || !dataConclusaoEdit}
+                className="px-4 py-2 rounded-lg border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Salvar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -62,15 +62,42 @@ async function fetchJSON(url: string, init?: RequestInit) {
   return json;
 }
 
+/** Converte número serial do Excel (dias desde 1899-12-30) para Date */
+function excelSerialToDate(serial: number): Date {
+  const epoch = new Date(1899, 11, 30);
+  return new Date(epoch.getTime() + serial * 86400000);
+}
+
 function formatDate(iso: string | null | undefined) {
   if (!iso) return '-';
   const s = String(iso).trim();
   if (!s) return '-';
 
+  // DD/MM/AAAA (4 dígitos no ano) — já correto
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
     const [yyyy, mm, dd] = s.split('-');
     return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // DD/MM/ + número serial do Excel (ex: 01/01/43906) — corrige exibição
+  const matchSerialSuffix = s.match(/^(\d{2})\/(\d{2})\/(\d{5,})$/);
+  if (matchSerialSuffix) {
+    const serial = parseInt(matchSerialSuffix[3], 10);
+    if (Number.isFinite(serial)) {
+      const d = excelSerialToDate(serial);
+      if (!Number.isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+    }
+  }
+
+  // Apenas número (serial do Excel)
+  if (/^\d{5,}$/.test(s)) {
+    const serial = parseInt(s, 10);
+    if (Number.isFinite(serial)) {
+      const d = excelSerialToDate(serial);
+      if (!Number.isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+    }
   }
 
   const d = new Date(s);
