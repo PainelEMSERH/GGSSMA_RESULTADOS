@@ -120,30 +120,47 @@ export async function GET(req: Request) {
       );
     `);
 
-    // Busca todas as entregas dos colaboradores
-    // Compara CPF normalizado (só dígitos) para bater com epi_entregas que pode ter CPF com ou sem pontuação
+    // Busca todas as entregas dos colaboradores (CPF normalizado: só dígitos)
+    // IN explícito evita problema de passagem de array no Prisma e garante match com qualquer formato de CPF na tabela
+    const cpfList = cpfs.map((c) => `'${String(c).replace(/'/g, "''")}'`).join(',');
     const entregas = await prisma.$queryRawUnsafe<any[]>(`
-      SELECT cpf, item, deliveries
+      SELECT cpf, item, deliveries, qty_delivered,
+             updated_at::text AS updated_at, created_at::text AS created_at
       FROM epi_entregas
-      WHERE regexp_replace(COALESCE(TRIM(cpf), ''), '[^0-9]', '', 'g') = ANY($1::text[])
-    `, cpfs);
+      WHERE regexp_replace(COALESCE(TRIM(cpf), ''), '[^0-9]', '', 'g') IN (${cpfList})
+    `);
 
     // Processa entregas por mês (apenas EPIs obrigatórios)
     for (const entrega of entregas) {
       const item = String(entrega.item || '').trim();
-      if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
+      if (!item || !isEpiObrigatorio(item)) continue;
 
       const deliveries = Array.isArray(entrega.deliveries) ? entrega.deliveries : [];
-      
+      let contadoNoArray = 0;
+
       for (const del of deliveries) {
         if (!del.date || !del.qty) continue;
-        
         const dateStr = String(del.date).substring(0, 10);
         const [year, month] = dateStr.split('-');
-        
         if (parseInt(year, 10) === ano) {
-          const mesKey = month.padStart(2, '0');
-          meses[mesKey] = (meses[mesKey] || 0) + Number(del.qty || 0);
+          const mesKey = (month || '').padStart(2, '0');
+          const q = Number(del.qty || 0);
+          meses[mesKey] = (meses[mesKey] || 0) + q;
+          contadoNoArray += q;
+        }
+      }
+
+      // Quando qty_delivered > 0 mas deliveries vazio ou sem data no ano, conta pelo updated_at (evita realizado zerado)
+      const qtyDelivered = Number(entrega.qty_delivered || 0);
+      if (qtyDelivered > 0 && contadoNoArray < qtyDelivered) {
+        const falta = qtyDelivered - contadoNoArray;
+        const dtStr = (entrega.updated_at || entrega.created_at || '').toString().substring(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dtStr)) {
+          const [y, m] = dtStr.split('-');
+          if (parseInt(y, 10) === ano) {
+            const mesKey = (m || '').padStart(2, '0');
+            meses[mesKey] = (meses[mesKey] || 0) + falta;
+          }
         }
       }
     }
