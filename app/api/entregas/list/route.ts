@@ -207,9 +207,15 @@ function formatKit(items?: {item:string,qtd:number}[] | undefined): string {
 
 type FastListResult = { rows: Row[]; total: number };
 
+// CPF é considerado "entregue" SOMENTE se tiver pelo menos um lançamento
+// em epi_entregas (deliveries array com tamanho > 0).
 const ENTREGUE_EXISTS = `EXISTS (
-  SELECT 1 FROM epi_entregas e
+  SELECT 1
+  FROM epi_entregas e
   WHERE regexp_replace(COALESCE(TRIM(e.cpf),''), '[^0-9]', '', 'g') = regexp_replace(COALESCE(TRIM(a.cpf),''), '[^0-9]', '', 'g')
+    AND e.deliveries IS NOT NULL
+    AND jsonb_typeof(e.deliveries) = 'array'
+    AND jsonb_array_length(e.deliveries) > 0
 )`;
 
 async function tryFastList(
@@ -703,12 +709,16 @@ export async function GET(req: Request) {
     if (nq)   rows = rows.filter(r => normUp(r.nome).includes(nq) || normUp(r.id).includes(nq));
 
     // 6b) Filtro Pendente/Entregue (epi_entregas) e flag entregue por linha
+    // Considera entregue apenas quem tem AO MENOS UM lançamento registrado
     let cpfsEntregues = new Set<string>();
     try {
       const ent: any[] = await prisma.$queryRawUnsafe<any[]>(`
         SELECT DISTINCT regexp_replace(COALESCE(TRIM(cpf),''), '[^0-9]', '', 'g') AS cpf
         FROM epi_entregas
         WHERE regexp_replace(COALESCE(TRIM(cpf),''), '[^0-9]', '', 'g') != ''
+          AND deliveries IS NOT NULL
+          AND jsonb_typeof(deliveries) = 'array'
+          AND jsonb_array_length(deliveries) > 0
       `);
       for (const x of ent) {
         const c = String(x?.cpf ?? '').replace(/\D/g, '').slice(-11);
