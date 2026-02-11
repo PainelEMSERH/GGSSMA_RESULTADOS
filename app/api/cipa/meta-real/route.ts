@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { compute2026From2025 } from '@/lib/cipa/compute-2026';
 
 /**
  * Meta vs Real CIPA: por mês, quantas atividades estavam previstas (data_fim_prevista)
- * e quantas foram concluídas (data_conclusao). Acumulado mês a mês.
+ * e quantas foram concluídas (data_conclusao). Meta = % acumulada por mês conforme as datas.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -33,53 +34,66 @@ export async function GET(req: NextRequest) {
     if (regional) wh.push(`TRIM(regional) = '${String(regional).replace(/'/g, "''")}'`);
     const whereSql = `WHERE ${wh.join(' AND ')}`;
 
-    // Total de atividades (meta = 12 por unidade)
+    // Total de atividades (meta = quantidade de ações a serem feitas)
+    let totalMeta = 0;
+    let metaMeses: Record<string, number> = {};
+    let realMeses: Record<string, number> = {};
+    let totalReal = 0;
+
     const totalMetaResult: any[] = await prisma.$queryRawUnsafe(`
       SELECT COUNT(*)::int AS total FROM cronograma_cipa ${whereSql}
     `);
-    const totalMeta = Number(totalMetaResult[0]?.total ?? 0);
+    totalMeta = Number(totalMetaResult[0]?.total ?? 0);
 
-    // Total concluídas (data_conclusao preenchida)
-    // Para 2026, sempre considerar como não concluído (conclusões devem ser preenchidas manualmente)
-    const totalRealResult: any[] = await prisma.$queryRawUnsafe(`
-      SELECT COUNT(*)::int AS total FROM cronograma_cipa ${whereSql} 
-      AND data_conclusao IS NOT NULL 
-      ${ano === 2026 ? 'AND FALSE' : ''}
-    `);
-    const totalReal = Number(totalRealResult[0]?.total ?? 0);
-
-    // Meta por mês: atividades cuja data_fim_prevista cai até o fim do mês (acumulado)
-    // IMPORTANTE: Para 2026, considerar apenas atividades com data_fim_prevista no ano 2026
-    const metaMeses: Record<string, number> = {};
-    for (let m = 1; m <= 12; m++) {
-      const mesStr = String(m).padStart(2, '0');
-      const lastDay = new Date(ano, m, 0);
-      const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
-      // Para 2026, garantir que data_fim_prevista seja do ano 2026 (não de 2025)
-      const anoFilter = ano === 2026 ? `AND EXTRACT(YEAR FROM data_fim_prevista::date) = 2026` : '';
-      const r: any[] = await prisma.$queryRawUnsafe(`
-        SELECT COUNT(*)::int AS total FROM cronograma_cipa
-        ${whereSql}
-        AND data_fim_prevista::date <= '${lastDayStr}'::date
-        ${anoFilter}
-      `);
-      metaMeses[mesStr] = Number(r[0]?.total ?? 0);
-    }
-
-    // Real por mês: atividades com data_conclusao até o fim do mês (acumulado)
-    // Para 2026, sempre considerar como não concluído (conclusões devem ser preenchidas manualmente)
-    const realMeses: Record<string, number> = {};
-    for (let m = 1; m <= 12; m++) {
-      const mesStr = String(m).padStart(2, '0');
-      const lastDay = new Date(ano, m, 0);
-      const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
-      const r: any[] = await prisma.$queryRawUnsafe(`
-        SELECT COUNT(*)::int AS total FROM cronograma_cipa
-        ${whereSql}
-        AND data_conclusao IS NOT NULL AND data_conclusao::date <= '${lastDayStr}'::date
+    // 2026 sem dados no banco: usar dados calculados a partir de 2025 para exibir a meta
+    if (ano === 2026 && totalMeta === 0) {
+      const rows2026 = await compute2026From2025(prisma, regional, '');
+      totalMeta = rows2026.length;
+      totalReal = 0;
+      for (let m = 1; m <= 12; m++) {
+        const mesStr = String(m).padStart(2, '0');
+        const lastDay = new Date(ano, m, 0);
+        const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+        metaMeses[mesStr] = rows2026.filter((r) => r.data_fim_prevista && r.data_fim_prevista <= lastDayStr).length;
+        realMeses[mesStr] = 0;
+      }
+    } else {
+      // Total concluídas (data_conclusao preenchida). Para 2026, sempre 0.
+      const totalRealResult: any[] = await prisma.$queryRawUnsafe(`
+        SELECT COUNT(*)::int AS total FROM cronograma_cipa ${whereSql} 
+        AND data_conclusao IS NOT NULL 
         ${ano === 2026 ? 'AND FALSE' : ''}
       `);
-      realMeses[mesStr] = Number(r[0]?.total ?? 0);
+      totalReal = Number(totalRealResult[0]?.total ?? 0);
+
+      // Meta por mês: atividades cuja data_fim_prevista cai até o fim do mês (acumulado)
+      for (let m = 1; m <= 12; m++) {
+        const mesStr = String(m).padStart(2, '0');
+        const lastDay = new Date(ano, m, 0);
+        const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+        const anoFilter = ano === 2026 ? `AND EXTRACT(YEAR FROM data_fim_prevista::date) = 2026` : '';
+        const r: any[] = await prisma.$queryRawUnsafe(`
+          SELECT COUNT(*)::int AS total FROM cronograma_cipa
+          ${whereSql}
+          AND data_fim_prevista::date <= '${lastDayStr}'::date
+          ${anoFilter}
+        `);
+        metaMeses[mesStr] = Number(r[0]?.total ?? 0);
+      }
+
+      // Real por mês: atividades com data_conclusao até o fim do mês (acumulado)
+      for (let m = 1; m <= 12; m++) {
+        const mesStr = String(m).padStart(2, '0');
+        const lastDay = new Date(ano, m, 0);
+        const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+        const r: any[] = await prisma.$queryRawUnsafe(`
+          SELECT COUNT(*)::int AS total FROM cronograma_cipa
+          ${whereSql}
+          AND data_conclusao IS NOT NULL AND data_conclusao::date <= '${lastDayStr}'::date
+          ${ano === 2026 ? 'AND FALSE' : ''}
+        `);
+        realMeses[mesStr] = Number(r[0]?.total ?? 0);
+      }
     }
 
     const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];

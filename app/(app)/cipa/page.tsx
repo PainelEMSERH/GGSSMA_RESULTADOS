@@ -556,19 +556,19 @@ export default function CipaPage() {
                     <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted uppercase">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-border text-[11px]">
                   {rowsFiltered.map((row) => {
                     const concluida = Boolean(row.data_conclusao);
                     return (
                       <tr key={`${row.regional}-${row.unidade}-${row.atividade_codigo}`} className="hover:bg-bg/30">
-                        <td className="px-4 py-3 text-left font-medium">{row.regional}</td>
-                        <td className="px-4 py-3 text-left">{row.unidade}</td>
-                        <td className="px-4 py-3 text-center">{row.atividade_codigo}</td>
-                        <td className="px-4 py-3 text-left">{row.atividade_nome}</td>
-                        <td className="px-4 py-3 text-center">{formatDate(row.data_inicio_prevista)}</td>
-                        <td className="px-4 py-3 text-center">{formatDate(row.data_fim_prevista)}</td>
-                        <td className="px-4 py-3 text-center">{formatDate(row.data_conclusao)}</td>
-                        <td className="px-4 py-3 text-center">{formatDate(row.data_posse_gestao)}</td>
+                        <td className="px-4 py-3 text-left font-medium text-[11px]">{row.regional}</td>
+                        <td className="px-4 py-3 text-left text-[11px]">{row.unidade}</td>
+                        <td className="px-4 py-3 text-center text-[11px]">{row.atividade_codigo}</td>
+                        <td className="px-4 py-3 text-left text-[11px]">{row.atividade_nome}</td>
+                        <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.data_inicio_prevista)}</td>
+                        <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.data_fim_prevista)}</td>
+                        <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.data_conclusao)}</td>
+                        <td className="px-4 py-3 text-center text-[11px]">{formatDate(row.data_posse_gestao)}</td>
                         <td className="px-4 py-3 text-center">
                           {concluida ? (
                             <span className="inline-flex items-center px-2 py-1 rounded text-[11px] font-medium bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/50">
