@@ -121,10 +121,11 @@ export async function GET(req: Request) {
     `);
 
     // Busca todas as entregas dos colaboradores
+    // Compara CPF normalizado (só dígitos) para bater com epi_entregas que pode ter CPF com ou sem pontuação
     const entregas = await prisma.$queryRawUnsafe<any[]>(`
       SELECT cpf, item, deliveries
       FROM epi_entregas
-      WHERE cpf = ANY($1::text[])
+      WHERE regexp_replace(COALESCE(TRIM(cpf), ''), '[^0-9]', '', 'g') = ANY($1::text[])
     `, cpfs);
 
     // Processa entregas por mês (apenas EPIs obrigatórios)

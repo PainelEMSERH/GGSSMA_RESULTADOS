@@ -44,9 +44,12 @@ type Row = {
 
 type MetaRealData = {
   meta: Record<string, number>;
+  real?: Record<string, number>;
   realAcumulado: Record<string, number>;
   metaPercent?: Record<string, number>;
   realPercent?: Record<string, number>;
+  metaPercentAcumulado?: Record<string, number>;
+  realPercentAcumulado?: Record<string, number>;
   evolucaoMensal?: Record<string, number>;
   totalMeta: number;
   totalReal: number;
