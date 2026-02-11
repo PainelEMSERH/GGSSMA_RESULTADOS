@@ -158,11 +158,21 @@ export async function GET(req: NextRequest) {
       metaAcum += metaPercent[mes];
       realAcum += realPercent[mes];
       metaPercentAcumulado[mes] = Math.round(metaAcum * 100) / 100;
-      realPercentAcumulado[mes] = Math.round(realAcum * 100) / 100;
+      // Real acumulado nunca passa de 100%
+      realPercentAcumulado[mes] = Math.min(100, Math.round(realAcum * 100) / 100);
 
       // Evolução = % real do mês (contribuição mensal)
       evolucaoMensal[mes] = realPercent[mes];
     });
+
+    // Garante que o último mês (dezembro) mostre 100% na meta acumulada (evita 99,99% por arredondamento)
+    if (totalMeta > 0 && meses.length > 0) {
+      metaPercentAcumulado['12'] = 100;
+    }
+    // Real acumulado em dezembro: 100% quando total concluído >= meta (evita 100,01%)
+    if (totalMeta > 0 && totalReal >= totalMeta) {
+      realPercentAcumulado['12'] = 100;
+    }
 
     const percentTotal = totalMeta > 0 ? Math.round((totalReal / totalMeta) * 100) : 0;
 

@@ -78,6 +78,11 @@ function formatDate(iso: string | null | undefined) {
   return d.toLocaleDateString('pt-BR');
 }
 
+/** Formata percentual com 2 casas decimais para o card Meta vs Real */
+function fmtPct(n: number): string {
+  return Number(n).toFixed(2);
+}
+
 export default function CipaPage() {
   const [regional, setRegional] = useState<string>('');
   const [unidade, setUnidade] = useState<string>('');
@@ -347,42 +352,48 @@ export default function CipaPage() {
             </select>
           </div>
           <div className="space-y-2">
-            {/* META - % acumulado mês a mês (jan, jan+fev, ... até 100%) */}
+            {/* META - % acumulado mês a mês (jan, jan+fev, ... até 100%). Todos com 2 decimais. */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-text">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {mesesKeys.map((mes) => {
                   const q = Number(metaReal.meta?.[mes] ?? 0);
-                  const percent = metaReal.metaPercentAcumulado?.[mes] ?? metaReal.metaPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 100) : 0);
+                  const percent = metaReal.metaPercentAcumulado?.[mes] ?? metaReal.metaPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 10000) / 100 : 0);
                   const idx = parseInt(mes, 10) - 1;
                   return (
                     <div
                       key={mes}
                       className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                      title={`${mesesNomes[idx]}: ${q} atividades no mês | acumulado ${percent}%`}
+                      title={`${mesesNomes[idx]}: ${q} atividades no mês | acumulado ${fmtPct(percent)}%`}
                     >
-                      {percent}%
+                      {fmtPct(percent)}%
                     </div>
                   );
                 })}
               </div>
             </div>
-            {/* REAL - % acumulado mês a mês */}
+            {/* REAL - % acumulado mês a mês. Verde se real >= meta; cinza se ambos 0%; vermelho só se real < meta. Nunca exibe > 100%. */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {mesesKeys.map((mes, idx) => {
                   const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0);
                   const metaQtd = Number(metaReal.meta?.[mes] ?? 0);
-                  const percent = metaReal.realPercentAcumulado?.[mes] ?? metaReal.realPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 100) : 0);
-                  const atingiu = metaQtd > 0 && realQtd >= metaQtd;
+                  const metaAcum = Number(metaReal.metaPercentAcumulado?.[mes] ?? metaReal.metaPercent?.[mes] ?? 0);
+                  const realAcumRaw = metaReal.realPercentAcumulado?.[mes] ?? metaReal.realPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 10000) / 100 : 0);
+                  const realAcum = Math.min(100, Number(realAcumRaw));
+                  const percent = realAcum;
+                  // Meta 0% e Real 0% → cinza. Real >= Meta → verde. Caso contrário → vermelho
+                  const ambosZero = metaAcum === 0 && realAcum === 0;
+                  const atingiu = realAcum >= metaAcum - 0.01;
+                  const cor = ambosZero ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : atingiu ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white';
                   return (
                     <div
                       key={mes}
-                      className={`text-center text-xs font-bold py-1.5 rounded ${atingiu ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}
-                      title={`${mesesNomes[idx]}: ${realQtd} realizadas no mês (meta ${metaQtd}) | acumulado ${percent}%`}
+                      className={`text-center text-xs font-bold py-1.5 rounded ${cor}`}
+                      title={`${mesesNomes[idx]}: ${realQtd} realizadas no mês (meta ${metaQtd}) | acumulado ${fmtPct(percent)}%`}
                     >
-                      {percent}%
+                      {fmtPct(percent)}%
                     </div>
                   );
                 })}
@@ -393,7 +404,7 @@ export default function CipaPage() {
               <div className="w-20 font-bold text-xs text-blue-600 dark:text-blue-400">EVOL.</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {mesesKeys.map((mes, idx) => {
-                  const evol = metaReal.evolucaoMensal?.[mes] ?? 0;
+                  const evol = Number(metaReal.evolucaoMensal?.[mes] ?? 0);
                   const sinal = evol > 0 ? '+' : '';
                   return (
                     <div
@@ -403,9 +414,9 @@ export default function CipaPage() {
                         evol === 0 ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400' :
                         'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                       }`}
-                      title={`${mesesNomes[idx]}: ${sinal}${evol}% do real no mês`}
+                      title={`${mesesNomes[idx]}: ${sinal}${fmtPct(evol)}% do real no mês`}
                     >
-                      {sinal}{evol}%
+                      {sinal}{fmtPct(evol)}%
                     </div>
                   );
                 })}
@@ -428,7 +439,7 @@ export default function CipaPage() {
               </div>
               <div className="text-right">
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  {metaReal.percentTotal ?? (metaReal.totalMeta > 0 ? Math.round((metaReal.totalReal / metaReal.totalMeta) * 100) : 0)}%
+                  {fmtPct(metaReal.percentTotal ?? (metaReal.totalMeta > 0 ? (Number(metaReal.totalReal ?? 0) / metaReal.totalMeta) * 100 : 0))}%
                 </span>
                 {' '}de conclusão
               </div>
