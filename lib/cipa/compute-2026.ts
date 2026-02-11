@@ -50,17 +50,9 @@ export type Row2026 = {
 };
 
 /**
- * Calcula cronograma 2026 a partir da data de posse da gestão anterior (no banco: 2025 guarda "posse gestão 2024", ex: 28/08/2024).
- * Para 2026 a referência é a posse 2025 = posse do banco + 365 dias (ex: 28/08/2025).
- * Regras:
- * - Posse ano anterior (para 2026) = posse gestão no banco + 365
- * - Reunião de Posse 2026 = posse ano anterior + 364
- * - Ofício = posse ano anterior + 305 (1 ano - 60 dias)
- * - Constituição = posse 2026 + 5 (sábado→sexta, domingo→segunda)
- * - Ata = posse 2026 - 30 | Convocação = Ata - 20
- * - Período de Inscrição = Convocação (início); fim = Convocação + 14
- * - Edital = fim período inscrição + 1 | Campanha = Edital + 1 | Eleição = Campanha
- * - Solicitar Indicados = Ata | Treinamento = Ata + 2 | Emissão = Treinamento + 7
+ * Calcula cronograma 2026 a partir da data de posse do ano anterior.
+ * A data de posse de cada unidade está no banco: item 12 (Reunião de Posse) de 2025, coluna data_conclusao.
+ * Regras: posse 2025 = data_conclusao item 12 | Reunião Posse 2026 = posse 2025 + 364 | Ofício = posse 2025 + 305 | etc.
  */
 export async function compute2026From2025(
   p: Pick<PrismaClient, '$queryRawUnsafe'>,
@@ -72,34 +64,27 @@ export async function compute2026From2025(
   if (filterUnidade) wh.push(`TRIM(unidade) = '${String(filterUnidade).replace(/'/g, "''")}'`);
   const whereSql = `WHERE ${wh.join(' AND ')}`;
 
-  // Uma linha por (regional, unidade) com a data de posse daquela unidade (ex: 2024-05-17 ou 2024-08-28).
-  // Para 2026 usamos a data de posse de cada unidade, não uma data padrão para todas.
+  // Data de posse por unidade: item 12 (Reunião de Posse) de 2025, coluna data_conclusão.
   const posseRows: any[] = await p.$queryRawUnsafe(`
     SELECT DISTINCT TRIM(regional) AS regional, TRIM(unidade) AS unidade,
-           data_posse_gestao::text AS data_posse_gestao
+           data_conclusao::text AS data_conclusao
     FROM cronograma_cipa
     ${whereSql}
-    AND data_posse_gestao IS NOT NULL
+    AND data_conclusao IS NOT NULL
     ORDER BY regional, unidade
   `);
 
-  const ANO_GESTAO = 2026;
   const out: Row2026[] = [];
   for (const row of posseRows) {
     const reg = String(row.regional ?? '').trim();
     const uni = String(row.unidade ?? '').trim();
-    // Data de posse desta unidade (gestão anterior no banco); cada unidade pode ter data diferente.
-    const posseGestaoAnteriorStr = String(row.data_posse_gestao ?? '').slice(0, 10);
-    if (!posseGestaoAnteriorStr || !/^\d{4}-\d{2}-\d{2}$/.test(posseGestaoAnteriorStr)) continue;
-    const [y, mo, d] = posseGestaoAnteriorStr.split('-').map(Number);
-    const posseGestaoAnterior = new Date(y, mo - 1, d);
+    const posse2025Str = String(row.data_conclusao ?? '').slice(0, 10);
+    if (!posse2025Str || !/^\d{4}-\d{2}-\d{2}$/.test(posse2025Str)) continue;
+    const [y, mo, d] = posse2025Str.split('-').map(Number);
+    // data_conclusão do item 12 = data de posse 2025 dessa unidade (ex: 16/05/2025)
+    const posseAnoAnterior = new Date(y, mo - 1, d);
 
-    // No banco, a linha de 2025 guarda "DATA DA POSSE GESTÃO 2024" (ex: 28/08/2024).
-    // Para 2026 usamos "data de posse da CIPA do ano anterior" = posse 2025 = 28/08/2025.
-    // Então: posse 2025 = posse gestão anterior (do banco) + 365 dias.
-    const posseAnoAnterior = addDays(posseGestaoAnterior, 365);
-
-    // Reunião de Posse 2026 = data de posse do ano anterior + 365 - 1 = posse 2025 + 364
+    // Reunião de Posse 2026 = posse 2025 + 364
     const posse = addDays(posseAnoAnterior, 364);
 
     // Constituição = data da posse + 5 dias (sábado→sexta, domingo→segunda)
@@ -124,19 +109,22 @@ export async function compute2026From2025(
     const treinamento = addDays(ata, 2);
     const emissao = addDays(treinamento, 7);
 
-    const activities: { cod: number; nome: string; inicio: Date; fim: Date; posse: Date }[] = [
-      { cod: 1, nome: NOMES_ATIVIDADES[1], inicio: oficio, fim: addDays(oficio, 2), posse },
-      { cod: 2, nome: NOMES_ATIVIDADES[2], inicio: constituicao, fim: addDays(constituicao, 2), posse },
-      { cod: 3, nome: NOMES_ATIVIDADES[3], inicio: convocacao, fim: addDays(convocacao, 1), posse },
-      { cod: 4, nome: NOMES_ATIVIDADES[4], inicio: periodoInicio, fim: periodoFim, posse },
-      { cod: 5, nome: NOMES_ATIVIDADES[5], inicio: edital, fim: addDays(edital, 1), posse },
-      { cod: 6, nome: NOMES_ATIVIDADES[6], inicio: campanha, fim: addDays(campanha, 3), posse },
-      { cod: 7, nome: NOMES_ATIVIDADES[7], inicio: campanha, fim: addDays(campanha, 3), posse },
-      { cod: 8, nome: NOMES_ATIVIDADES[8], inicio: ata, fim: addDays(ata, 1), posse },
-      { cod: 9, nome: NOMES_ATIVIDADES[9], inicio: ata, fim: addDays(ata, 1), posse },
-      { cod: 10, nome: NOMES_ATIVIDADES[10], inicio: treinamento, fim: addDays(treinamento, 26), posse },
-      { cod: 11, nome: NOMES_ATIVIDADES[11], inicio: emissao, fim: addDays(emissao, 26), posse },
-      { cod: 12, nome: NOMES_ATIVIDADES[12], inicio: addDays(posse, -1), fim: posse, posse },
+    // Na coluna DATA POSSE exibimos a referência usada: posse 2025 (data_conclusão do item 12)
+    const dataPosseExibir = dateToYMD(posseAnoAnterior);
+
+    const activities: { cod: number; nome: string; inicio: Date; fim: Date }[] = [
+      { cod: 1, nome: NOMES_ATIVIDADES[1], inicio: oficio, fim: addDays(oficio, 2) },
+      { cod: 2, nome: NOMES_ATIVIDADES[2], inicio: constituicao, fim: addDays(constituicao, 2) },
+      { cod: 3, nome: NOMES_ATIVIDADES[3], inicio: convocacao, fim: addDays(convocacao, 1) },
+      { cod: 4, nome: NOMES_ATIVIDADES[4], inicio: periodoInicio, fim: periodoFim },
+      { cod: 5, nome: NOMES_ATIVIDADES[5], inicio: edital, fim: addDays(edital, 1) },
+      { cod: 6, nome: NOMES_ATIVIDADES[6], inicio: campanha, fim: addDays(campanha, 3) },
+      { cod: 7, nome: NOMES_ATIVIDADES[7], inicio: campanha, fim: addDays(campanha, 3) },
+      { cod: 8, nome: NOMES_ATIVIDADES[8], inicio: ata, fim: addDays(ata, 1) },
+      { cod: 9, nome: NOMES_ATIVIDADES[9], inicio: ata, fim: addDays(ata, 1) },
+      { cod: 10, nome: NOMES_ATIVIDADES[10], inicio: treinamento, fim: addDays(treinamento, 26) },
+      { cod: 11, nome: NOMES_ATIVIDADES[11], inicio: emissao, fim: addDays(emissao, 26) },
+      { cod: 12, nome: NOMES_ATIVIDADES[12], inicio: addDays(posse, -1), fim: posse },
     ];
 
     for (const a of activities) {
@@ -150,7 +138,7 @@ export async function compute2026From2025(
         data_inicio_prevista: dateToYMD(a.inicio),
         data_fim_prevista: dateToYMD(a.fim),
         data_conclusao: null,
-        data_posse_gestao: dateToYMD(a.posse),
+        data_posse_gestao: dataPosseExibir,
       });
     }
   }
