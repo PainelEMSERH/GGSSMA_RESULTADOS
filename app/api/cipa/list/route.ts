@@ -4,8 +4,8 @@ import { compute2026From2025 } from '@/lib/cipa/compute-2026';
 
 /**
  * Lista cronograma CIPA com filtros.
- * 2025 = lê do banco (Neon tem os dados de 2025).
- * 2026 = SEMPRE calculado pelas regras de data (posse por unidade), nunca do banco.
+ * 2025 = lê do banco.
+ * 2026 = se já existir 2026 no banco, lê do banco (permite editar); senão retorna calculado (posse por unidade).
  */
 export async function GET(req: NextRequest) {
   try {
@@ -18,18 +18,55 @@ export async function GET(req: NextRequest) {
     const pageSize = Math.min(200, Math.max(10, parseInt(url.searchParams.get('pageSize') || '50', 10)));
     const offset = (page - 1) * pageSize;
 
-    // 2026: sempre datas calculadas pelas regras (posse do ano anterior por unidade)
+    const hasTable: any[] = await prisma.$queryRawUnsafe(`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'cronograma_cipa'
+      ) AS exists
+    `);
+    if (!hasTable?.[0]?.exists) {
+      return NextResponse.json({ ok: true, rows: [], total: 0, ...(anoNum === 2026 ? { computed: true } : {}) });
+    }
+
+    // 2026: se já tem registros no banco, retorna do banco (edição); senão retorna calculado
     if (anoNum === 2026) {
-      const hasTable: any[] = await prisma.$queryRawUnsafe(`
-        SELECT EXISTS (
-          SELECT 1 FROM pg_catalog.pg_class c
-          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-          WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'cronograma_cipa'
-        ) AS exists
-      `);
-      if (!hasTable?.[0]?.exists) {
-        return NextResponse.json({ ok: true, rows: [], total: 0, computed: true });
+      const wh2026: string[] = ['ano_gestao = 2026'];
+      if (regional) wh2026.push(`TRIM(regional) = '${String(regional).replace(/'/g, "''")}'`);
+      if (unidade) wh2026.push(`TRIM(unidade) = '${String(unidade).replace(/'/g, "''")}'`);
+      const where2026 = `WHERE ${wh2026.join(' AND ')}`;
+      const count2026: any[] = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS total FROM cronograma_cipa ${where2026}`);
+      const total2026Db = Number(count2026?.[0]?.total ?? 0);
+
+      if (total2026Db > 0) {
+        const rowsSql = `
+          SELECT id, regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
+                 data_inicio_prevista::text AS data_inicio_prevista,
+                 data_fim_prevista::text AS data_fim_prevista,
+                 data_conclusao::text AS data_conclusao,
+                 data_posse_gestao::text AS data_posse_gestao
+          FROM cronograma_cipa
+          ${where2026}
+          ORDER BY regional, unidade, atividade_codigo
+          LIMIT ${pageSize} OFFSET ${offset}
+        `;
+        const rowsResult = await prisma.$queryRawUnsafe<any[]>(rowsSql);
+        const rows = Array.isArray(rowsResult) ? rowsResult : [];
+        const normalized = rows.map((r: any) => ({
+          id: r.id,
+          regional: String(r.regional ?? ''),
+          unidade: String(r.unidade ?? ''),
+          ano_gestao: 2026,
+          atividade_codigo: Number(r.atividade_codigo) || 0,
+          atividade_nome: String(r.atividade_nome ?? ''),
+          data_inicio_prevista: r.data_inicio_prevista ? String(r.data_inicio_prevista).slice(0, 10) : null,
+          data_fim_prevista: r.data_fim_prevista ? String(r.data_fim_prevista).slice(0, 10) : null,
+          data_conclusao: r.data_conclusao ? String(r.data_conclusao).slice(0, 10) : null,
+          data_posse_gestao: r.data_posse_gestao ? String(r.data_posse_gestao).slice(0, 10) : null,
+        }));
+        return NextResponse.json({ ok: true, rows: normalized, total: total2026Db });
       }
+
       const rows2026 = await compute2026From2025(prisma, regional, unidade);
       const total2026 = rows2026.length;
       const paged = rows2026.slice(offset, offset + pageSize);
@@ -39,17 +76,6 @@ export async function GET(req: NextRequest) {
         total: total2026,
         computed: true,
       });
-    }
-
-    const hasTable: any[] = await prisma.$queryRawUnsafe(`
-      SELECT EXISTS (
-        SELECT 1 FROM pg_catalog.pg_class c
-        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind IN ('r','v','m') AND n.nspname = 'public' AND c.relname = 'cronograma_cipa'
-      ) AS exists
-    `);
-    if (!hasTable?.[0]?.exists) {
-      return NextResponse.json({ ok: true, rows: [], total: 0 });
     }
 
     const wh: string[] = [`ano_gestao = ${anoNum}`];

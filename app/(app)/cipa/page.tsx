@@ -597,18 +597,34 @@ export default function CipaPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {computed2026 ? (
-                            <span className="text-[10px] text-muted">Replique 2026 para editar</span>
-                          ) : (
-                            <button
-                              onClick={() => abrirModalEdicao(row)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/50 hover:bg-blue-100 dark:hover:bg-blue-500/30 transition-colors"
-                              title={concluida ? 'Editar data de conclusão' : 'Dar baixa na atividade'}
-                            >
-                              <Edit className="w-3 h-3" />
-                              {concluida ? 'Editar' : 'Dar baixa'}
-                            </button>
-                          )}
+                          <button
+                            onClick={async () => {
+                              if (computed2026) {
+                                setReplicando(true);
+                                try {
+                                  const data: any = await fetchJSON('/api/cipa/replicar-2026', { method: 'POST' });
+                                  if (!data?.ok) {
+                                    showToast(data?.error || 'Erro ao replicar 2026', 'error');
+                                    return;
+                                  }
+                                  await loadData();
+                                  loadMetaReal();
+                                } catch (e: any) {
+                                  showToast(e?.message || 'Erro ao replicar 2026', 'error');
+                                  return;
+                                } finally {
+                                  setReplicando(false);
+                                }
+                              }
+                              abrirModalEdicao(row);
+                            }}
+                            disabled={replicando}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/50 hover:bg-blue-100 dark:hover:bg-blue-500/30 transition-colors disabled:opacity-60"
+                            title={concluida ? 'Editar data de conclusão' : 'Dar baixa na atividade'}
+                          >
+                            <Edit className="w-3 h-3" />
+                            {concluida ? 'Editar' : 'Dar baixa'}
+                          </button>
                         </td>
                       </tr>
                     );
