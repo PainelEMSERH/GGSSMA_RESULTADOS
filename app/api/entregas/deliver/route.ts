@@ -208,6 +208,18 @@ export async function PUT(req: Request) {
       .filter((d: any) => Number.isFinite(d.qty) && d.qty > 0)
       .filter((d: any) => parseInt(d.date.slice(0, 4), 10) >= 2026);
 
+    // Se não sobrou nenhum lançamento válido, apagamos o registro inteiro
+    // Isso garante que o status global volte para "pendente" sem precisar
+    // mexer manualmente na tabela.
+    if (deliveries.length === 0) {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM epi_entregas WHERE cpf = $1 AND item = $2`,
+        cpf,
+        item,
+      );
+      return NextResponse.json({ ok: true, row: null });
+    }
+
     const sum = deliveries.reduce((acc: number, d: any) => acc + Number(d.qty || 0), 0);
     const qtyDelivered = Math.min(required, sum);
 
