@@ -59,7 +59,7 @@ export async function GET(req: Request) {
     }
 
     const DEMISSAO_ANO_MINIMO = 2026;
-    wh.push(`(
+    const DEMISSAO_WHERE = `(
       a.demissao IS NULL
       OR a.demissao = ''
       OR TRIM(a.demissao) = ''
@@ -79,7 +79,8 @@ export async function GET(req: Request) {
           ELSE NULL
         END
       ))::int >= ${DEMISSAO_ANO_MINIMO}
-    )`);
+    )`;
+    wh.push(DEMISSAO_WHERE);
 
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 
@@ -94,19 +95,52 @@ export async function GET(req: Request) {
       ${whereSql}
     `;
 
-    const colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
+    let colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
     // CPF sempre 11 dígitos (com zero à esquerda se precisar) para bater com epi_entregas
     const norm = (s: string) => String(s || '').replace(/\D/g, '').padStart(11, '0').slice(-11);
-    const cpfsSet = new Set(
+    let cpfsSet = new Set(
       colaboradores.map((c: any) => norm(String(c.cpf || ''))).filter((x) => x.length === 11)
     );
-    const cpfs = Array.from(cpfsSet);
 
-    if (cpfs.length === 0) {
+    // Fallback: se a query por regional retornou 0 CPFs, busca por unidades (igual ao Diagnóstico)
+    if (cpfsSet.size === 0 && useJoin && regTrim) {
+      try {
+        const unidadesSql = `
+          SELECT DISTINCT COALESCE(NULLIF(TRIM(u.nmdepartamento), ''), NULLIF(TRIM(a.unidade_hospitalar), ''), '') AS unidade
+          FROM stg_alterdata_v2 a
+          LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+          WHERE (UPPER(TRIM(COALESCE(u.regional_responsavel, ''))) = UPPER(TRIM('${regTrim.replace(/'/g, "''")}'))
+                 OR UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) IN (
+                   SELECT UPPER(TRIM(nmdepartamento)) FROM stg_unid_reg WHERE UPPER(TRIM(regional_responsavel)) = UPPER(TRIM('${regTrim.replace(/'/g, "''")}'))
+                 ))
+            AND ${DEMISSAO_WHERE}
+          ORDER BY unidade
+        `;
+        const unidadesRows = await prisma.$queryRawUnsafe<{ unidade: string }[]>(unidadesSql);
+        const unidadesList = (unidadesRows || []).map((r) => String(r.unidade || '').trim()).filter(Boolean);
+        for (const unidadeNome of unidadesList) {
+          const cpfsUnidSql = `
+            SELECT DISTINCT COALESCE(a.cpf, '') AS cpf
+            FROM stg_alterdata_v2 a
+            LEFT JOIN stg_unid_reg u ON UPPER(TRIM(COALESCE(a.unidade_hospitalar, ''))) = UPPER(TRIM(COALESCE(u.nmdepartamento, '')))
+            WHERE (UPPER(TRIM(COALESCE(u.nmdepartamento, a.unidade_hospitalar, ''))) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')) OR UPPER(TRIM(a.unidade_hospitalar)) = UPPER(TRIM('${unidadeNome.replace(/'/g, "''")}')))
+              AND ${DEMISSAO_WHERE}
+          `;
+          const cpfsUnid = await prisma.$queryRawUnsafe<any[]>(cpfsUnidSql).catch(() => []);
+          for (const c of cpfsUnid || []) {
+            const n = norm(String(c.cpf || ''));
+            if (n.length === 11) cpfsSet.add(n);
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (cpfsSet.size === 0) {
       return NextResponse.json({
         ok: true,
         meses,
         total: 0,
+        ano,
       });
     }
 

@@ -515,6 +515,7 @@ export default function EntregasPage() {
       try {
         const params = new URLSearchParams();
         params.set('regional', state.regional);
+        params.set('ano', '2026');
         if (state.unidade) params.set('unidade', state.unidade);
 
         console.log('[Tracker] Buscando meta e progresso para:', state.regional);
@@ -526,7 +527,7 @@ export default function EntregasPage() {
 
         console.log('[Tracker] Meta response:', metaJson);
 
-        // Busca progresso
+        // Busca progresso (ano 2026 para bater com entregas)
         const progResponse = await fetch(`/api/entregas/progresso?${params.toString()}`, { cache: 'no-store' });
         const progJson = await progResponse.json().catch(() => ({}));
         if (!on) return;
