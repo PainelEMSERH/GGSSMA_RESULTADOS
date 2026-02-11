@@ -204,7 +204,8 @@ export async function GET(req: Request) {
       let contadoNoArray = 0;
 
       for (const del of deliveries) {
-        const dateStr = dateToYMD(del.date);
+        const dateVal = del.date ?? (del as any).Date;
+        const dateStr = dateToYMD(dateVal);
         const q = Number(del.qty ?? del.quantity ?? 0);
         if (!dateStr || q <= 0) continue;
         const [year, month] = dateStr.split('-');
@@ -231,12 +232,21 @@ export async function GET(req: Request) {
 
     const total = Object.values(meses).reduce((acc, val) => acc + val, 0);
 
-    return NextResponse.json({
+    const debug = url.searchParams.get('debug') === '1' || url.searchParams.get('debug') === 'true';
+    const body: Record<string, unknown> = {
       ok: true,
       meses,
       total,
       ano,
-    });
+    };
+    if (debug) {
+      body._debug = {
+        cpfsCount: cpfsSet.size,
+        todasEntregasCount: todasEntregas.length,
+        entregasFiltradasCount: entregas.length,
+      };
+    }
+    return NextResponse.json(body);
   } catch (e: any) {
     console.error('Erro ao calcular progresso:', e);
     return NextResponse.json({
