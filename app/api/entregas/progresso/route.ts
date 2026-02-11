@@ -95,8 +95,10 @@ export async function GET(req: Request) {
     `;
 
     const colaboradores = await prisma.$queryRawUnsafe<any[]>(sql);
+    // CPF sempre 11 dígitos (com zero à esquerda se precisar) para bater com epi_entregas
+    const norm = (s: string) => String(s || '').replace(/\D/g, '').padStart(11, '0').slice(-11);
     const cpfsSet = new Set(
-      colaboradores.map((c: any) => String(c.cpf || '').replace(/\D/g, '').slice(-11)).filter(Boolean)
+      colaboradores.map((c: any) => norm(String(c.cpf || ''))).filter((x) => x.length === 11)
     );
     const cpfs = Array.from(cpfsSet);
 
@@ -131,29 +133,51 @@ export async function GET(req: Request) {
     `).catch(() => []);
 
     const entregas = todasEntregas.filter((e: any) => {
-      const eCpf = String(e.cpf || '').replace(/\D/g, '').slice(-11);
-      return cpfsSet.has(eCpf);
+      const eCpf = norm(String(e.cpf || ''));
+      return eCpf.length === 11 && cpfsSet.has(eCpf);
     });
+
+    // Parseia deliveries (pode vir como string JSON do banco)
+    const parseDeliveries = (val: any): Array<{ date?: string; qty?: number }> => {
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string' && val.trim()) {
+        try {
+          const parsed = JSON.parse(val);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    const dateToYMD = (d: any): string | null => {
+      if (!d) return null;
+      if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.substring(0, 10);
+      try {
+        const date = d instanceof Date ? d : new Date(d);
+        if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+      } catch {}
+      return null;
+    };
 
     // Processa entregas por mês (apenas EPIs obrigatórios) — mesma lógica do Diagnóstico
     for (const entrega of entregas) {
       const item = String(entrega.item || '').trim();
       if (!item || !isEpiObrigatorio(item)) continue;
 
-      const deliveries = Array.isArray(entrega.deliveries) ? entrega.deliveries : [];
+      const deliveries = parseDeliveries(entrega.deliveries);
       let contadoNoArray = 0;
 
       for (const del of deliveries) {
-        if (!del.date || !del.qty) continue;
-        const dateStr = String(del.date).substring(0, 10);
+        const dateStr = dateToYMD(del.date);
+        const q = Number(del.qty ?? del.quantity ?? 0);
+        if (!dateStr || q <= 0) continue;
         const [year, month] = dateStr.split('-');
         if (year && month && parseInt(year, 10) === ano) {
           const mesKey = month.padStart(2, '0');
-          const q = Number(del.qty || 0);
-          if (q > 0) {
-            meses[mesKey] = (meses[mesKey] || 0) + q;
-            contadoNoArray += q;
-          }
+          meses[mesKey] = (meses[mesKey] || 0) + q;
+          contadoNoArray += q;
         }
       }
 
