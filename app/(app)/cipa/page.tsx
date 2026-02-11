@@ -344,19 +344,19 @@ export default function CipaPage() {
             </select>
           </div>
           <div className="space-y-2">
-            {/* META - Porcentagem do total que deveria estar concluída até aquele mês */}
+            {/* META - % acumulado mês a mês (jan, jan+fev, ... até 100%) */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-text">META</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {mesesKeys.map((mes) => {
                   const q = Number(metaReal.meta?.[mes] ?? 0);
-                  const percent = metaReal.metaPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 100) : 0);
+                  const percent = metaReal.metaPercentAcumulado?.[mes] ?? metaReal.metaPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((q / metaReal.totalMeta) * 100) : 0);
                   const idx = parseInt(mes, 10) - 1;
                   return (
                     <div
                       key={mes}
                       className="text-center text-xs font-medium text-text bg-muted/30 py-1.5 rounded"
-                      title={`${mesesNomes[idx]}: ${q} atividades previstas (${percent}% do total)`}
+                      title={`${mesesNomes[idx]}: ${q} atividades no mês | acumulado ${percent}%`}
                     >
                       {percent}%
                     </div>
@@ -364,20 +364,20 @@ export default function CipaPage() {
                 })}
               </div>
             </div>
-            {/* REAL - Porcentagem do total que foi concluída até aquele mês */}
+            {/* REAL - % acumulado mês a mês */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {mesesKeys.map((mes, idx) => {
-                  const real = Number(metaReal.realAcumulado?.[mes] || 0);
-                  const meta = Number(metaReal.meta?.[mes] ?? metaReal.totalMeta ?? 0);
-                  const percent = metaReal.realPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((real / metaReal.totalMeta) * 100) : 0);
-                  const atingiu = meta > 0 && real >= meta;
+                  const realQtd = Number(metaReal.real?.[mes] ?? metaReal.realAcumulado?.[mes] ?? 0);
+                  const metaQtd = Number(metaReal.meta?.[mes] ?? 0);
+                  const percent = metaReal.realPercentAcumulado?.[mes] ?? metaReal.realPercent?.[mes] ?? (metaReal.totalMeta > 0 ? Math.round((realQtd / metaReal.totalMeta) * 100) : 0);
+                  const atingiu = metaQtd > 0 && realQtd >= metaQtd;
                   return (
                     <div
                       key={mes}
                       className={`text-center text-xs font-bold py-1.5 rounded ${atingiu ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}
-                      title={`${mesesNomes[idx]}: ${real} concluídas de ${meta} previstas (${percent}% do total)`}
+                      title={`${mesesNomes[idx]}: ${realQtd} realizadas no mês (meta ${metaQtd}) | acumulado ${percent}%`}
                     >
                       {percent}%
                     </div>
@@ -385,7 +385,7 @@ export default function CipaPage() {
                 })}
               </div>
             </div>
-            {/* Evolução mês a mês - diferença de porcentagem */}
+            {/* EVOL. - % do real do mês (contribuição mensal) */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-xs text-blue-600 dark:text-blue-400">EVOL.</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
@@ -400,7 +400,7 @@ export default function CipaPage() {
                         evol === 0 ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400' :
                         'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                       }`}
-                      title={`${mesesNomes[idx]}: ${sinal}${evol}% de evolução em relação ao mês anterior`}
+                      title={`${mesesNomes[idx]}: ${sinal}${evol}% do real no mês`}
                     >
                       {sinal}{evol}%
                     </div>

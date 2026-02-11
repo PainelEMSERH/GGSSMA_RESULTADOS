@@ -3,8 +3,13 @@ import { prisma } from '@/lib/db';
 import { compute2026From2025 } from '@/lib/cipa/compute-2026';
 
 /**
- * Meta vs Real CIPA: por mês, quantas atividades estavam previstas (data_fim_prevista)
- * e quantas foram concluídas (data_conclusao). Meta = % acumulada por mês conforme as datas.
+ * Meta vs Real CIPA:
+ * - Meta do mês = quantidade de atividades programadas para aquele mês (data_fim_prevista no mês)
+ * - Real do mês = quantidade de atividades realizadas naquele mês (data_conclusao no mês)
+ * - % Meta do mês = (meta do mês / total atividades) * 100
+ * - % Real do mês = (real do mês / total atividades) * 100
+ * - Meta acumulada = jan, jan+fev, jan+fev+mar... até 100%
+ * - Real acumulado = idem
  */
 export async function GET(req: NextRequest) {
   try {
@@ -45,17 +50,45 @@ export async function GET(req: NextRequest) {
     `);
     totalMeta = Number(totalMetaResult[0]?.total ?? 0);
 
-    // 2026 sem dados no banco: usar dados calculados a partir de 2025 para exibir a meta
+    // 2026: se não há dados no banco OU se há dados mas nenhum com data_fim_prevista em 2026, usar dados calculados
+    let useComputed = false;
     if (ano === 2026 && totalMeta === 0) {
+      useComputed = true;
+    } else if (ano === 2026 && totalMeta > 0) {
+      // Verifica se há pelo menos uma atividade com data_fim_prevista em 2026
+      const check2026: any[] = await prisma.$queryRawUnsafe(`
+        SELECT COUNT(*)::int AS total FROM cronograma_cipa
+        ${whereSql}
+        AND EXTRACT(YEAR FROM data_fim_prevista::date) = 2026
+      `);
+      if (Number(check2026[0]?.total ?? 0) === 0) {
+        useComputed = true;
+      }
+    }
+
+    if (ano === 2026 && useComputed) {
       const rows2026 = await compute2026From2025(prisma, regional, '');
       totalMeta = rows2026.length;
       totalReal = 0;
+      
+      // Inicializa todos os meses com 0
       for (let m = 1; m <= 12; m++) {
         const mesStr = String(m).padStart(2, '0');
-        const lastDay = new Date(ano, m, 0);
-        const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
-        metaMeses[mesStr] = rows2026.filter((r) => r.data_fim_prevista && r.data_fim_prevista <= lastDayStr).length;
+        metaMeses[mesStr] = 0;
         realMeses[mesStr] = 0;
+      }
+      
+      // Meta por mês = atividades cuja data_fim_prevista cai NAQUELE mês (não acumulado)
+      for (const row of rows2026) {
+        if (!row.data_fim_prevista) continue;
+        const fimPrevistaStr = row.data_fim_prevista.trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fimPrevistaStr)) continue;
+        const [, monthStr] = fimPrevistaStr.split('-');
+        const monthNum = parseInt(monthStr, 10);
+        if (monthNum >= 1 && monthNum <= 12) {
+          const mesStr = String(monthNum).padStart(2, '0');
+          metaMeses[mesStr] = (metaMeses[mesStr] ?? 0) + 1;
+        }
       }
     } else {
       // Total concluídas (data_conclusao preenchida). Para 2026, sempre 0.
@@ -66,30 +99,33 @@ export async function GET(req: NextRequest) {
       `);
       totalReal = Number(totalRealResult[0]?.total ?? 0);
 
-      // Meta por mês: atividades cuja data_fim_prevista cai até o fim do mês (acumulado)
+      // Meta por mês = atividades cuja data_fim_prevista cai NAQUELE mês (não acumulado)
       for (let m = 1; m <= 12; m++) {
         const mesStr = String(m).padStart(2, '0');
+        const firstDay = `${ano}-${mesStr}-01`;
         const lastDay = new Date(ano, m, 0);
-        const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+        const lastDayStr = `${ano}-${mesStr}-${String(lastDay.getDate()).padStart(2, '0')}`;
         const anoFilter = ano === 2026 ? `AND EXTRACT(YEAR FROM data_fim_prevista::date) = 2026` : '';
         const r: any[] = await prisma.$queryRawUnsafe(`
           SELECT COUNT(*)::int AS total FROM cronograma_cipa
           ${whereSql}
-          AND data_fim_prevista::date <= '${lastDayStr}'::date
+          AND data_fim_prevista::date >= '${firstDay}'::date AND data_fim_prevista::date <= '${lastDayStr}'::date
           ${anoFilter}
         `);
         metaMeses[mesStr] = Number(r[0]?.total ?? 0);
       }
 
-      // Real por mês: atividades com data_conclusao até o fim do mês (acumulado)
+      // Real por mês = atividades com data_conclusao NAQUELE mês (não acumulado)
       for (let m = 1; m <= 12; m++) {
         const mesStr = String(m).padStart(2, '0');
+        const firstDay = `${ano}-${mesStr}-01`;
         const lastDay = new Date(ano, m, 0);
-        const lastDayStr = `${ano}-${String(m).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+        const lastDayStr = `${ano}-${mesStr}-${String(lastDay.getDate()).padStart(2, '0')}`;
         const r: any[] = await prisma.$queryRawUnsafe(`
           SELECT COUNT(*)::int AS total FROM cronograma_cipa
           ${whereSql}
-          AND data_conclusao IS NOT NULL AND data_conclusao::date <= '${lastDayStr}'::date
+          AND data_conclusao IS NOT NULL
+          AND data_conclusao::date >= '${firstDay}'::date AND data_conclusao::date <= '${lastDayStr}'::date
           ${ano === 2026 ? 'AND FALSE' : ''}
         `);
         realMeses[mesStr] = Number(r[0]?.total ?? 0);
@@ -98,36 +134,47 @@ export async function GET(req: NextRequest) {
 
     const meses = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
     const meta: Record<string, number> = {};
-    const realAcumulado: Record<string, number> = {};
+    const real: Record<string, number> = {};
     const metaPercent: Record<string, number> = {};
     const realPercent: Record<string, number> = {};
+    const metaPercentAcumulado: Record<string, number> = {};
+    const realPercentAcumulado: Record<string, number> = {};
     const evolucaoMensal: Record<string, number> = {};
-    
-    let realAnterior = 0;
+
+    let metaAcum = 0;
+    let realAcum = 0;
     meses.forEach((mes) => {
       const metaVal = metaMeses[mes] ?? 0;
       const realVal = realMeses[mes] ?? 0;
       meta[mes] = metaVal;
-      realAcumulado[mes] = realVal;
-      
-      // Porcentagem: (valor acumulado / total meta) * 100
-      metaPercent[mes] = totalMeta > 0 ? Math.round((metaVal / totalMeta) * 100) : 0;
-      realPercent[mes] = totalMeta > 0 ? Math.round((realVal / totalMeta) * 100) : 0;
-      
-      // Evolução mês a mês: diferença de porcentagem entre este mês e o anterior
-      evolucaoMensal[mes] = realPercent[mes] - (totalMeta > 0 ? Math.round((realAnterior / totalMeta) * 100) : 0);
-      realAnterior = realVal;
+      real[mes] = realVal;
+
+      // % da meta do mês = (atividades programadas no mês / total atividades) * 100
+      metaPercent[mes] = totalMeta > 0 ? Math.round((metaVal / totalMeta) * 10000) / 100 : 0;
+      // % do real do mês = (atividades executadas no mês / total atividades) * 100
+      realPercent[mes] = totalMeta > 0 ? Math.round((realVal / totalMeta) * 10000) / 100 : 0;
+
+      // Acumulado: fev = fev + jan, mar = mar + anterior... até 100%
+      metaAcum += metaPercent[mes];
+      realAcum += realPercent[mes];
+      metaPercentAcumulado[mes] = Math.round(metaAcum * 100) / 100;
+      realPercentAcumulado[mes] = Math.round(realAcum * 100) / 100;
+
+      // Evolução = % real do mês (contribuição mensal)
+      evolucaoMensal[mes] = realPercent[mes];
     });
 
-    // Porcentagem total de conclusão
     const percentTotal = totalMeta > 0 ? Math.round((totalReal / totalMeta) * 100) : 0;
 
     return NextResponse.json({
       ok: true,
       meta,
-      realAcumulado,
+      real,
+      realAcumulado: real, // compatibilidade
       metaPercent,
       realPercent,
+      metaPercentAcumulado,
+      realPercentAcumulado,
       evolucaoMensal,
       totalMeta,
       totalReal,

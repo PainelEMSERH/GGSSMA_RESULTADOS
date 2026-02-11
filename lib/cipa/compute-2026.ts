@@ -50,7 +50,18 @@ export type Row2026 = {
 };
 
 /**
- * Calcula cronograma 2026 a partir das datas de posse 2025 (atividade 12) por unidade.
+ * Calcula cronograma 2026 a partir da data de posse 2025 por unidade.
+ * Regras:
+ * - Posse 2026 = posse ano anterior + 365 dias - 1
+ * - Ofício = posse ano anterior + 1 ano - 60 dias
+ * - Constituição = posse 2026 + 5 dias (sábado→sexta, domingo→segunda)
+ * - Ata = posse 2026 - 30 dias
+ * - Convocação = Ata - 20 dias
+ * - Período de Inscrição = Convocação (início); fim = Convocação + 14
+ * - Edital = conclusão período inscrição + 1
+ * - Campanha = Edital + 1 | Eleição = Campanha
+ * - Solicitar Indicados = Ata | Treinamento = Ata + 2 | Emissão = Treinamento + 7
+ * - Reunião de Posse = posse ano anterior + 365 - 1
  */
 export async function compute2026From2025(
   p: Pick<PrismaClient, '$queryRawUnsafe'>,
@@ -79,25 +90,38 @@ export async function compute2026From2025(
     if (!posse2025Str || !/^\d{4}-\d{2}-\d{2}$/.test(posse2025Str)) continue;
     const [y, m, d] = posse2025Str.split('-').map(Number);
     const posse2025 = new Date(y, m - 1, d);
+
+    // Reunião de Posse = posse ano anterior + 365 - 1
     const posse2026 = addDays(posse2025, 364);
 
-    const constituicao = toWeekday(addDays(posse2026, 5));
-    const convocacao = addDays(constituicao, 20);
-    const edital = addDays(convocacao, 15);
-    const campanha = addDays(edital, 1);
-    const ata = addDays(posse2026, -30);
-    const treinamento = addDays(ata, 2);
-    const emissao = addDays(treinamento, 7);
+    // Ofício = posse ano anterior + 1 ano - 60 dias
     const oficio = addDays(posse2025, 305);
+
+    // Constituição = posse 2026 + 5 dias (sábado→sexta, domingo→segunda)
+    const constituicao = toWeekday(addDays(posse2026, 5));
+
+    // Ata = posse 2026 - 30 dias
+    const ata = addDays(posse2026, -30);
+    // Convocação = Ata - 20 dias
+    const convocacao = addDays(ata, -20);
+
+    // Período de Inscrição = Convocação (início); fim = Convocação + 14
     const periodoInicio = convocacao;
     const periodoFim = addDays(convocacao, 14);
+    // Edital = conclusão período inscrição + 1
+    const edital = addDays(periodoFim, 1);
+    // Campanha = Edital + 1 | Eleição = Campanha
+    const campanha = addDays(edital, 1);
+
+    const treinamento = addDays(ata, 2);
+    const emissao = addDays(treinamento, 7);
 
     const activities: { cod: number; nome: string; inicio: Date; fim: Date; posse: Date }[] = [
       { cod: 1, nome: NOMES_ATIVIDADES[1], inicio: oficio, fim: addDays(oficio, 2), posse: posse2026 },
       { cod: 2, nome: NOMES_ATIVIDADES[2], inicio: constituicao, fim: addDays(constituicao, 2), posse: posse2026 },
       { cod: 3, nome: NOMES_ATIVIDADES[3], inicio: convocacao, fim: addDays(convocacao, 1), posse: posse2026 },
       { cod: 4, nome: NOMES_ATIVIDADES[4], inicio: periodoInicio, fim: periodoFim, posse: posse2026 },
-      { cod: 5, nome: NOMES_ATIVIDADES[5], inicio: addDays(periodoFim, 1), fim: addDays(periodoFim, 2), posse: posse2026 },
+      { cod: 5, nome: NOMES_ATIVIDADES[5], inicio: edital, fim: addDays(edital, 1), posse: posse2026 },
       { cod: 6, nome: NOMES_ATIVIDADES[6], inicio: campanha, fim: addDays(campanha, 3), posse: posse2026 },
       { cod: 7, nome: NOMES_ATIVIDADES[7], inicio: campanha, fim: addDays(campanha, 3), posse: posse2026 },
       { cod: 8, nome: NOMES_ATIVIDADES[8], inicio: ata, fim: addDays(ata, 1), posse: posse2026 },
