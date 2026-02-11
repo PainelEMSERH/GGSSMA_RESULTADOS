@@ -2013,10 +2013,14 @@ export default function EntregasPage() {
                                     </button>
                                   </div>
                                   <div className="space-y-0.5">
-                                    {d.deliveries.map((x: any, idx: number) => (
+                                    {d.deliveries.map((x: any, idx: number) => {
+                                      const rawDate = String(x?.date || '').substring(0, 10);
+                                      const [yy, mm, dd] = rawDate.split('-');
+                                      const dateLabel = (dd && mm && yy) ? `${dd}/${mm}/${yy}` : rawDate || '-';
+                                      return (
                                       <div key={idx} className="flex items-start justify-between gap-2 text-xs">
                                         <div className="min-w-0">
-                                          <span className="font-medium">{new Date(x.date).toLocaleDateString('pt-BR')}</span>
+                                          <span className="font-medium">{dateLabel}</span>
                                           <span className="ml-1 font-medium">{x.qty} unidade{x.qty !== 1 ? 's' : ''}</span>
                                           {(x.entregue_por || x.entregue_em) && (
                                             <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -2030,7 +2034,8 @@ export default function EntregasPage() {
                                           )}
                                         </div>
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
