@@ -138,7 +138,7 @@ export async function GET(req: Request) {
     });
 
     // Parseia deliveries (pode vir como string JSON do banco)
-    const parseDeliveries = (val: any): Array<{ date?: string; qty?: number }> => {
+    const parseDeliveries = (val: any): Array<{ date?: string; qty?: number; quantity?: number }> => {
       if (Array.isArray(val)) return val;
       if (typeof val === 'string' && val.trim()) {
         try {
