@@ -988,23 +988,29 @@ export default function EntregasPage() {
         const mesAtual = new Date().getMonth(); // 0-11
         const mesAtualKey = String(mesAtual + 1).padStart(2, '0');
         
-        // Calcula metas incrementais (8,33%, 16,67%, etc.)
+        // Calcula metas incrementais cumulativas (8,33%, 16,67%, ... 100%)
         const metasIncrementais = meses.map((_, idx) => {
           return ((idx + 1) / 12) * 100;
         });
-        
-        // Calcula REAL atual (percentual de entregas realizadas vs meta total)
-        const totalEntregue = metaData.total || 0;
+
+        // Progresso por mês (vindo da API: meses['01'], meses['02'], ...)
+        const progressoMeses = metaData.progresso || {};
         const metaTotal = metaData.meta || 0;
-        const percentualRealAtual =
-          metaTotal > 0 ? Math.min(100, (totalEntregue / metaTotal) * 100) : 0;
-        
+
+        // REAL por mês: percentual cumulativo (entregue até aquele mês / meta cumulativa até aquele mês)
+        const percentualRealPorMes = meses.map((mes, idx) => {
+          const entregueAteMes = meses
+            .slice(0, idx + 1)
+            .reduce((acc, m) => acc + (Number(progressoMeses[m]) || 0), 0);
+          const metaAteMes = metaTotal * ((idx + 1) / 12);
+          if (metaAteMes <= 0) return 0;
+          return Math.min(100, (entregueAteMes / metaAteMes) * 100);
+        });
+
         // Filtra progresso por mês se selecionado (para os botões)
-        const progressoFiltrado = mesSelecionado 
+        const progressoFiltrado = mesSelecionado
           ? { [mesSelecionado]: metaData.progresso[mesSelecionado] || 0 }
           : metaData.progresso;
-        
-        const totalFiltrado = Object.values(progressoFiltrado).reduce((acc, val) => acc + val, 0);
 
         return (
           <div className="rounded-xl border border-border bg-panel p-4 space-y-3">
@@ -1020,14 +1026,15 @@ export default function EntregasPage() {
               </div>
             </div>
 
-            {/* Linha REAL */}
+            {/* Linha REAL — um percentual por mês (cumulativo até aquele mês) */}
             <div className="flex items-center gap-2">
               <div className="w-20 font-bold text-sm text-emerald-600 dark:text-emerald-400">REAL</div>
               <div className="flex-1 grid grid-cols-12 gap-1">
                 {meses.map((mes, idx) => {
                   const metaIncremental = metasIncrementais[idx];
-                  const estaAcima = percentualRealAtual >= metaIncremental;
-                  
+                  const percentualReal = percentualRealPorMes[idx];
+                  const estaAcima = percentualReal >= metaIncremental;
+
                   return (
                     <div
                       key={mes}
@@ -1036,9 +1043,9 @@ export default function EntregasPage() {
                           ? 'bg-emerald-500 text-white'
                           : 'bg-red-500 text-white'
                       }`}
-                      title={`${mesesNomes[idx]}: ${percentualRealAtual.toFixed(2)}% (Meta: ${metaIncremental.toFixed(2)}%)`}
+                      title={`${mesesNomes[idx]}: ${percentualReal.toFixed(2)}% (Meta: ${metaIncremental.toFixed(2)}%) · ${progressoMeses[mes] ?? 0} itens`}
                     >
-                      {percentualRealAtual.toFixed(2)}%
+                      {percentualReal.toFixed(2)}%
                     </div>
                   );
                 })}
