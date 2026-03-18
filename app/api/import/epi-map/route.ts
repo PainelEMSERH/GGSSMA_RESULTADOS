@@ -99,8 +99,18 @@ export async function POST(req: Request) {
       const xlsx = await import('xlsx');
       const wb = xlsx.read(buf, { type: 'buffer' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      rawRows = xlsx.utils.sheet_to_json(sheet, { defval: '' }) as Record<string, unknown>[];
-      headers = Array.from(new Set(rawRows.flatMap((r) => Object.keys(r || {})).map((h) => String(h).trim())));
+      const rowsRaw = xlsx.utils.sheet_to_json(sheet, { defval: '' }) as Record<string, unknown>[];
+      // Normaliza chaves do JSON (ex.: "ALTERDATA " -> "ALTERDATA") para que o acesso por chave funcione.
+      rawRows = rowsRaw.map((r) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(r || {})) {
+          out[String(k).trim()] = v;
+        }
+        return out;
+      });
+      headers = Array.from(
+        new Set(rawRows.flatMap((r) => Object.keys(r || {})).map((h) => String(h).trim())),
+      );
     } else {
       // CSV (simples) - tenta detectar separador
       const text = buf.toString('utf8');
@@ -158,14 +168,22 @@ export async function POST(req: Request) {
 
     // Esperamos (nomes podem variar): função (alterdata), normalizada (opcional),
     // setor (unidade_hospitalar), kit (epi_item), pcg (pgr) e qtd (quantidade).
+    // Suporta 2 formatos comuns do seu Excel:
+    // 1) ALTERDATA + NORMALIZADO + SETOR + KIT + PCG + QTD
+    // 2) FUNÇÃO/ALTERDATA + (opcional) FUNÇÃO NORMALIZADA + ...
     const funcaoAlterdataKey =
+      pickHeader(headers, (hNorm) => hNorm === 'ALTERDATA') ||
+      pickHeader(headers, (hNorm) => hNorm.includes('ALTERDATA') && !hNorm.includes('NORMAL')) ||
       pickHeader(headers, (hNorm) => hNorm.includes('ALTERDATA') && hNorm.includes('FUN')) ||
       pickHeader(headers, (hNorm) => hNorm.includes('FUNCAO') && !hNorm.includes('NORMAL')) ||
       pickHeader(headers, (hNorm) => hNorm === 'FUNCAO' || hNorm === 'FUNCAOENFERMEIRO') ||
       null;
 
     const funcaoNormalizadaKey =
-      pickHeader(headers, (hNorm) => (hNorm.includes('NORMAL') || hNorm.includes('NORM')) && hNorm.includes('FUN')) || null;
+      pickHeader(headers, (hNorm) => hNorm === 'NORMALIZADO') ||
+      pickHeader(headers, (hNorm) => hNorm.includes('NORMAL') && !hNorm.includes('ALTERDATA')) ||
+      pickHeader(headers, (hNorm) => (hNorm.includes('NORMAL') || hNorm.includes('NORM')) && hNorm.includes('FUN')) ||
+      null;
 
     const setorKey =
       pickHeader(headers, (hNorm) => hNorm.includes('SETOR')) ||
