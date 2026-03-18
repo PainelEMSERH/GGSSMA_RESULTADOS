@@ -39,6 +39,13 @@ const IMPORT_MODULES: ImportModule[] = [
     icon: '🔧',
     endpoint: '/api/import/ordens-servico',
   },
+  {
+    id: 'epi_map',
+    name: 'EPI Map (stg_epi_map)',
+    description: 'Substitui o mapeamento de EPIs (Função x Setor x PCG x Kit).',
+    icon: '🧩',
+    endpoint: '/api/import/epi-map',
+  },
 ];
 
 export default function ImportarBasesPage() {
@@ -194,6 +201,12 @@ export default function ImportarBasesPage() {
                     {selectedModule === 'ordens_servico' && (
                       <>
                         <p>Colunas esperadas: Número OS, Data Abertura, Data Fechamento, Unidade, Regional, Tipo de Serviço, Descrição, Solicitante, Status, Prioridade</p>
+                      </>
+                    )}
+                    {selectedModule === 'epi_map' && (
+                      <>
+                        <p><strong>Mapa EPI (stg_epi_map):</strong> Função (alterdata), Setor (unidade_hospitalar), Kit/EPI (epi_item), PCG/PGR e Qtd.</p>
+                        <p className="mt-1">A importação detecta os cabeçalhos pelo nome (ex.: “SETOR”, “KIT”, “PCG/PGR”, “QTD”, “ALTERDATA/FUNÇÃO”).</p>
                       </>
                     )}
                   </div>

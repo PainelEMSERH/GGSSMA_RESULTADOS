@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { isEpiObrigatorio } from '@/data/epiObrigatorio';
 import { Settings, Package, Info, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
+import { findBestUnitMatch } from '@/lib/unitMatcher';
 
 type Row = { id: string; nome: string; funcao: string; unidade: string; regional: string; entregue?: boolean; nome_site?: string | null; };
 type KitItem = { item: string; quantidade: number; nome_site?: string | null; };
@@ -234,6 +235,8 @@ export default function EntregasPage() {
 
   const [modal, setModal] = useState<{ open: boolean; row?: Row | null }>({ open: false });
   const [kit, setKit] = useState<KitItem[]>([]);
+  const [kitSectors, setKitSectors] = useState<string[]>([]);
+  const [kitSector, setKitSector] = useState<string>('');
   const [deliv, setDeliv] = useState<Deliver[]>([]);
   const [editLaunch, setEditLaunch] = useState<{
     open: boolean;
@@ -710,14 +713,36 @@ export default function EntregasPage() {
     setModal({ open: true, row });
     setSelectedEpis({});
 
-    // monta query string com função + unidade
+    setKitSectors([]);
+    setKitSector('');
+
+    // 1) Carrega setores disponíveis para essa função (stg_epi_map)
+    let sectors: string[] = [];
+    try {
+      const { json: secJ } = await fetchJSON(
+        `/api/entregas/kit-sectors?funcao=${encodeURIComponent(row.funcao || '')}`,
+        { cache: 'no-store' },
+      );
+      sectors = secJ?.sectors || [];
+    } catch (e) {
+      // se falhar, cai no comportamento antigo
+      sectors = [];
+    }
+    setKitSectors(sectors);
+
+    // 2) Seleciona setor inicial (se houver mais de um, tenta usar a unidade do colaborador como “match”)
+    let selectedSector = '';
+    if (sectors.length === 1) selectedSector = sectors[0] || '';
+    else if (sectors.length > 1) selectedSector = findBestUnitMatch(row.unidade || '', sectors) || sectors[0] || '';
+    else selectedSector = row.unidade || '';
+    setKitSector(selectedSector);
+
+    // 3) monta query string com função + unidade/setor escolhido
     const params = new URLSearchParams();
     params.set('funcao', row.funcao || '');
-    if (row.unidade) {
-      params.set('unidade', row.unidade);
-    }
+    if (selectedSector) params.set('unidade', selectedSector);
 
-    // kit esperado (considerando função + unidade hospitalar)
+    // kit esperado (considerando função + unidade hospitalar/setor)
     const { json: kitJ } = await fetchJSON('/api/entregas/kit?' + params.toString(), { cache: 'no-store' });
     const items: KitItem[] = (kitJ?.items || kitJ?.itens || []).map((r: any) => ({
       item: r.item ?? r.epi ?? r.epi_item ?? '',
@@ -1668,6 +1693,50 @@ export default function EntregasPage() {
                       <span className="ml-1 font-medium">{modal.row.regional || '—'}</span>
                     </div>
                   </div>
+                  
+                  {/* Se existir mais de 1 setor para a função, permite selecionar (kit muda automaticamente) */}
+                  {kitSectors.length > 1 && (
+                    <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-text">Setor</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Selecionado: {kitSector || '—'}
+                        </span>
+                      </div>
+                      <select
+                        value={kitSector}
+                        onChange={async (e) => {
+                          const nextSector = e.target.value;
+                          setKitSector(nextSector);
+                          setSelectedEpis({});
+
+                          const params = new URLSearchParams();
+                          params.set('funcao', modal.row?.funcao || '');
+                          if (nextSector) params.set('unidade', nextSector);
+
+                          const { json: kitJ } = await fetchJSON('/api/entregas/kit?' + params.toString(), {
+                            cache: 'no-store',
+                          });
+
+                          const items: KitItem[] = (kitJ?.items || kitJ?.itens || []).map((r: any) => ({
+                            item: r.item ?? r.epi ?? r.epi_item ?? '',
+                            quantidade: Number(r.quantidade ?? 1) || 1,
+                            nome_site: r.nome_site ?? null,
+                          })).filter((x: any) => x.item);
+
+                          setKit(items);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-card text-sm text-text shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                        aria-label="Selecionar setor"
+                      >
+                        {kitSectors.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   
                   {/* Barra de progresso de entregas */}
                   {kit.length > 0 && (
