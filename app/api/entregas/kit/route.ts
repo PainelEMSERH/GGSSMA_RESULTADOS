@@ -173,8 +173,12 @@ export async function GET(req: NextRequest) {
       if (!funcMatch) continue;
 
       // Determina se é PCG UNIVERSAL baseado na coluna pcg
-      const isPcgUniversal = pcg === 'PCG UNIVERSAL';
-      const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
+      const pcgNorm = pcg
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase();
+      const isPcgUniversal = pcgNorm.includes('PCG UNIVERSAL');
+      const isSemMapeamento = pcgNorm.includes('SEM MAPEAMENTO') && pcgNorm.includes('PCG');
       
       // Se pcg tem um nome de unidade (não é PCG UNIVERSAL nem SEM MAPEAMENTO), 
       // então unidade_hospitalar também deve ter esse valor
@@ -207,9 +211,19 @@ export async function GET(req: NextRequest) {
       // Prioridade 2: PCG UNIVERSAL (fallback global) - SÓ se não encontrou unidade específica
       // IMPORTANTE: Só adiciona PCG UNIVERSAL se:
       // 1. É realmente PCG UNIVERSAL (pcg === 'PCG UNIVERSAL')
-      // 2. E unidade_hospitalar está NULL ou vazio (não é de outra unidade)
+      // 2. E unidade_hospitalar representa "sem setor específico" (ou vazio)
       // 3. E NÃO encontrou nenhum item de unidade específica (porUnidadeEspecifica.length === 0)
-      if (isPcgUniversal && (!unidadeHosp || unidadeHosp === '' || unidadeHosp === 'PCG UNIVERSAL')) {
+      const unidadeHospNorm = String(unidadeHosp || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+      const isSemSetorEspecifico =
+        unidadeHospNorm === '' ||
+        unidadeHospNorm === 'PCGUNIVERSAL' ||
+        unidadeHospNorm.includes('SEMSETOR');
+
+      if (isPcgUniversal && isSemSetorEspecifico) {
         // Só adiciona PCG UNIVERSAL se NÃO encontrou itens de unidade específica
         // Isso garante que não mistura itens de unidades diferentes
         porPcgUniversal.push({
