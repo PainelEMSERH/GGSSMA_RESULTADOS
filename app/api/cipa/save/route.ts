@@ -45,43 +45,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Atualiza ou insere (se não existir ainda)
-    const updateSql = dataConclusaoDate
-      ? `
-        UPDATE cronograma_cipa
-        SET data_conclusao = '${dataConclusaoDate}'::date,
-            updated_at = NOW()
-        WHERE TRIM(regional) = '${regEsc}'
-          AND TRIM(unidade) = '${uniEsc}'
-          AND ano_gestao = ${anoNum}
-          AND atividade_codigo = ${codNum}
-      `
-      : `
-        UPDATE cronograma_cipa
-        SET data_conclusao = NULL,
-            updated_at = NOW()
-        WHERE TRIM(regional) = '${regEsc}'
-          AND TRIM(unidade) = '${uniEsc}'
-          AND ano_gestao = ${anoNum}
-          AND atividade_codigo = ${codNum}
-      `;
-
-    await prisma.$executeRawUnsafe(updateSql);
+    // Atualiza registro existente.
+    // Observação: a tabela `cronograma_cipa` no Neon não tem `updated_at`, então não devemos setar esse campo.
+    if (dataConclusaoDate) {
+      await prisma.$executeRawUnsafe(
+        `
+          UPDATE cronograma_cipa
+          SET data_conclusao = $1::date
+          WHERE TRIM(regional) = $2
+            AND TRIM(unidade) = $3
+            AND ano_gestao = $4
+            AND atividade_codigo = $5
+        `,
+        dataConclusaoDate,
+        regEsc,
+        uniEsc,
+        anoNum,
+        codNum,
+      );
+    } else {
+      await prisma.$executeRawUnsafe(
+        `
+          UPDATE cronograma_cipa
+          SET data_conclusao = NULL
+          WHERE TRIM(regional) = $1
+            AND TRIM(unidade) = $2
+            AND ano_gestao = $3
+            AND atividade_codigo = $4
+        `,
+        regEsc,
+        uniEsc,
+        anoNum,
+        codNum,
+      );
+    }
 
     // Retorna o registro atualizado
-    const result: any[] = await prisma.$queryRawUnsafe(`
-      SELECT id, regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
-             data_inicio_prevista::text AS data_inicio_prevista,
-             data_fim_prevista::text AS data_fim_prevista,
-             data_conclusao::text AS data_conclusao,
-             data_posse_gestao::text AS data_posse_gestao
-      FROM cronograma_cipa
-      WHERE TRIM(regional) = '${regEsc}'
-        AND TRIM(unidade) = '${uniEsc}'
-        AND ano_gestao = ${anoNum}
-        AND atividade_codigo = ${codNum}
-      LIMIT 1
-    `);
+    const result: any[] = await prisma.$queryRawUnsafe(
+      `
+        SELECT id, regional, unidade, ano_gestao, atividade_codigo, atividade_nome,
+               data_inicio_prevista::text AS data_inicio_prevista,
+               data_fim_prevista::text AS data_fim_prevista,
+               data_conclusao::text AS data_conclusao,
+               data_posse_gestao::text AS data_posse_gestao
+        FROM cronograma_cipa
+        WHERE TRIM(regional) = $1
+          AND TRIM(unidade) = $2
+          AND ano_gestao = $3
+          AND atividade_codigo = $4
+        LIMIT 1
+      `,
+      regEsc,
+      uniEsc,
+      anoNum,
+      codNum,
+    );
 
     return NextResponse.json({
       ok: true,
