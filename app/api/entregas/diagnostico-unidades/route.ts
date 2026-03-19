@@ -217,7 +217,26 @@ export async function GET(req: Request) {
       }
       
       // Cache de kits por função+unidade (para performance)
-      const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey" -> soma de itens obrigatórios
+      const kitCache = new Map<string, number>(); // chave: "funcaoKey" -> soma de itens obrigatórios (kit-base sem setor)
+
+      const isSemSetorBase = (s: any) => {
+        const v = String(s ?? '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+        return v.includes('SEM SETOR');
+      };
+      const isPcgUniversal = (s: any) => {
+        const v = String(s ?? '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+        return v.includes('PCG UNIVERSAL');
+      };
 
       // Busca todas as unidades do mapa para comparar
       let allUnitsList: string[] = [];
@@ -255,101 +274,38 @@ export async function GET(req: Request) {
           }
         }
         
-        // Busca unidade correspondente no EPI Map
-        let matchedUnit: string | null = null;
-        if (unidadeHosp) {
-          matchedUnit = findBestUnitMatch(unidadeHosp, allUnitsList);
-        }
-        
-        const cacheKey = `${finalFuncKey}|${matchedUnit || 'null'}`;
+        const cacheKey = `${finalFuncKey}`;
         
         // Busca soma do kit (usa cache)
         let somaKit = 0;
         if (kitCache.has(cacheKey)) {
           somaKit = kitCache.get(cacheKey)!;
         } else {
-          // Busca kit da função (mesma lógica do /api/entregas/kit)
-          // REGRA CRÍTICA: Só usa itens da unidade específica OU PCG UNIVERSAL
-          // NUNCA mistura itens de unidades diferentes
-          const porUnidadeEspecifica: Array<{ item: string; qtd: number }> = [];
-          const porPcgUniversal: Array<{ item: string; qtd: number }> = [];
-          
+          // Previsto (diagnóstico): setor ainda desconhecido -> usa kit-base SEM SETOR ESPECÍFICO do PCG UNIVERSAL
+          const byItem = new Map<string, number>();
+
           for (const r of kitRows) {
             const rFuncNorm = normFuncKey(r.funcao_norm || r.funcao);
             const rFuncAlt = normFuncKey(r.funcao);
-            
-            // Verifica se a função bate
-            const funcMatch = 
+            const funcMatch =
               (rFuncNorm && rFuncNorm === finalFuncKey) ||
               (rFuncAlt && rFuncAlt === finalFuncKey);
-            
             if (!funcMatch) continue;
-            
+
             const item = String(r.item || '').trim();
-            if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
-            
+            if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue;
+
+            if (!isPcgUniversal(r.pcg)) continue;
+            if (!isSemSetorBase(r.unidade_hosp)) continue;
+
             const qtd = Number(r.qtd || 1) || 1;
             if (qtd <= 0) continue;
-            
-            const pcg = String(r.pcg || '').trim();
-            const unidadeHospMap = String(r.unidade_hosp || '').trim();
-            
-            // Determina se é PCG UNIVERSAL baseado na coluna pcg
-            const isPcgUniversal = pcg === 'PCG UNIVERSAL';
-            const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
-            
-            // Se pcg tem um nome de unidade (não é PCG UNIVERSAL nem SEM MAPEAMENTO), 
-            // então unidade_hospitalar também deve ter esse valor
-            // Isso significa que é um kit específico para aquela unidade
-            const pcgIsUnitName = !isPcgUniversal && !isSemMapeamento && pcg && pcg.trim() !== '';
-            
-            // Prioridade 1: Unidade específica (se unidade foi informada e bate EXATAMENTE)
-            // Verifica tanto unidade_hospitalar quanto pcg (quando pcg é nome de unidade)
-            if (matchedUnit) {
-              const unidadeHospMatch = unidadeHospMap && normUnidKey(unidadeHospMap) === normUnidKey(matchedUnit);
-              const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === normUnidKey(matchedUnit);
-              
-              // SÓ adiciona se bater EXATAMENTE com a unidade do colaborador
-              if ((unidadeHospMatch || pcgMatch) && !isPcgUniversal && !isSemMapeamento) {
-                porUnidadeEspecifica.push({ item, qtd });
-                continue; // Pula para próximo item, não verifica PCG UNIVERSAL
-              }
-            }
-            
-            // Prioridade 2: PCG UNIVERSAL (fallback global) - SÓ se não encontrou unidade específica
-            // IMPORTANTE: Só adiciona PCG UNIVERSAL se:
-            // 1. É realmente PCG UNIVERSAL (pcg === 'PCG UNIVERSAL')
-            // 2. E unidade_hospitalar está NULL ou vazio (não é de outra unidade)
-            if (isPcgUniversal && (!unidadeHospMap || unidadeHospMap === '' || unidadeHospMap === 'PCG UNIVERSAL')) {
-              porPcgUniversal.push({ item, qtd });
-            }
-            // Se não é PCG UNIVERSAL e não bateu com a unidade, IGNORA (não adiciona em lugar nenhum)
-          }
-          
-          // Escolhe a fonte conforme prioridade
-          // ORDEM: Unidade específica > PCG UNIVERSAL
-          // NUNCA mistura itens de unidades diferentes
-          let fonte: Array<{ item: string; qtd: number }> = [];
-          if (porUnidadeEspecifica.length > 0) {
-            // Se encontrou itens de unidade específica, USA APENAS ELES
-            // IGNORA completamente PCG UNIVERSAL para evitar misturar
-            fonte = porUnidadeEspecifica;
-          } else if (porPcgUniversal.length > 0) {
-            // Só usa PCG UNIVERSAL se NÃO encontrou nenhum item de unidade específica
-            fonte = porPcgUniversal;
-          }
-          
-          // Remove duplicatas de item (pega maior quantidade)
-          const byItem = new Map<string, number>();
-          for (const itemData of fonte) {
-            const itemKey = normKey(itemData.item);
+
+            const itemKey = normKey(item);
             const existing = byItem.get(itemKey);
-            if (!existing || itemData.qtd > existing) {
-              byItem.set(itemKey, itemData.qtd);
-            }
+            if (!existing || qtd > existing) byItem.set(itemKey, qtd);
           }
-          
-          // Soma todos os itens obrigatórios do kit
+
           somaKit = Array.from(byItem.values()).reduce((acc, qtd) => acc + qtd, 0);
           kitCache.set(cacheKey, somaKit);
         }

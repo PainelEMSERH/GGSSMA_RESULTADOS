@@ -141,12 +141,10 @@ export async function GET(req: Request) {
     // Para cada colaborador, calcula os EPIs previstos
     for (const colab of colaboradores) {
       const funcao = String(colab.funcao || '').trim();
-      const unidadeHosp = String(colab.unidade_hospitalar || '').trim();
       
       if (!funcao) continue;
       
       const funcKey = normFuncKey(funcao);
-      const unidadeKey = normUnidKey(unidadeHosp);
       
       // Resolve a melhor função
       let finalFuncKey = funcKey;
@@ -157,56 +155,69 @@ export async function GET(req: Request) {
         }
       }
       
-      // Busca kit da função
-      const porUnidadeEspecifica: Array<{ item: string; qtd: number }> = [];
-      const porPcgUniversal: Array<{ item: string; qtd: number }> = [];
+      const isSemSetorBase = (s: any) => {
+        const v = String(s ?? '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+        return v.includes('SEM SETOR');
+      };
+      const isPcgUniversal = (s: any) => {
+        const v = String(s ?? '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+        return v.includes('PCG UNIVERSAL');
+      };
       
       for (const r of kitRows) {
-        const rFuncKey = normFuncKey(r.funcao);
-        if (rFuncKey !== finalFuncKey) continue;
+        const rFuncKey = normFuncKey(r.funcao_norm || r.funcao || '');
+        const rFuncAlt = normFuncKey(r.funcao || '');
+        if (rFuncKey !== finalFuncKey && rFuncAlt !== finalFuncKey) continue;
         
         const item = String(r.item || '').trim();
         if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue;
         
         const qtd = Number(r.qtd || 1) || 1;
-        const pcg = String(r.pcg || '').trim();
         const unidadeHospMap = String(r.unidade_hosp || '').trim();
         
-        const isPcgUniversal = pcg === 'PCG UNIVERSAL';
-        const isSemMapeamento = pcg === 'SEM MAPEAMENTO NO PCG';
-        const pcgIsUnitName = !isPcgUniversal && !isSemMapeamento && pcg && pcg.trim() !== '';
-        
-        if (unidadeKey) {
-          const unidadeHospMatch = unidadeHospMap && normUnidKey(unidadeHospMap) === unidadeKey;
-          const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === unidadeKey;
-          
-          if ((unidadeHospMatch || pcgMatch) && !isPcgUniversal && !isSemMapeamento) {
-            porUnidadeEspecifica.push({ item, qtd });
-            continue;
-          }
-        }
-        
-        if (isPcgUniversal && (!unidadeHospMap || unidadeHospMap === '' || unidadeHospMap === 'PCG UNIVERSAL')) {
-          porPcgUniversal.push({ item, qtd });
-        }
+        // Previsto: setor ainda desconhecido => usa kit-base SEM SETOR ESPECÍFICO do PCG UNIVERSAL
+        if (!isPcgUniversal(r.pcg)) continue;
+        if (!isSemSetorBase(unidadeHospMap)) continue;
+
+        const itemKey = normKey(item);
+        const existing = previstosPorTipo.get(item) || 0;
+        // Dedup: aqui o resumo soma por colaborador, então a dedup acontece por colaborador no byItem abaixo.
+        // Vamos manter a mesma estratégia (maior qtd por item) para o colaborador.
+        // (o acumulado por tipo é aplicado depois)
+        void existing;
       }
-      
-      const fonte = porUnidadeEspecifica.length > 0 ? porUnidadeEspecifica : porPcgUniversal;
-      
-      // Remove duplicatas
+
+      // Remove duplicatas e soma por colaborador (maior qtd por item)
       const byItem = new Map<string, number>();
-      for (const itemData of fonte) {
-        const itemKey = normKey(itemData.item);
-        const existing = byItem.get(itemKey);
-        if (!existing || itemData.qtd > existing) {
-          byItem.set(itemKey, itemData.qtd);
-        }
+      for (const r of kitRows) {
+        const rFuncKey = normFuncKey(r.funcao_norm || r.funcao || '');
+        const rFuncAlt = normFuncKey(r.funcao || '');
+        if (rFuncKey !== finalFuncKey && rFuncAlt !== finalFuncKey) continue;
+        const item = String(r.item || '').trim();
+        if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue;
+        if (!isPcgUniversal(r.pcg)) continue;
+        if (!isSemSetorBase(r.unidade_hosp)) continue;
+        const qtd = Number(r.qtd || 1) || 1;
+        const k = normKey(item);
+        const existing = byItem.get(k);
+        if (!existing || qtd > existing) byItem.set(k, qtd);
       }
       
       // Adiciona ao mapa de previstos
       for (const [itemKey, qtd] of byItem.entries()) {
-        // Busca o nome original do item
-        const itemOriginal = fonte.find(i => normKey(i.item) === itemKey)?.item || itemKey;
+        // Busca o nome original do item a partir do próprio kitRows
+        const itemOriginal =
+          kitRows.find((x: any) => normKey(String(x.item || '').trim()) === itemKey)?.item || itemKey;
         const current = previstosPorTipo.get(itemOriginal) || 0;
         previstosPorTipo.set(itemOriginal, current + qtd);
       }

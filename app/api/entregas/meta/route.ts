@@ -149,121 +149,52 @@ export async function GET(req: Request) {
       return withoutStops.replace(/[^a-z0-9]/gi, '');
     }
 
-    const pcgPorUnidade = new Map<string, string | null>();
-    let pcgHospitalIlha: string | null = null;
-    const unidadesUnicas = new Set<string>();
-    for (const colab of colaboradores) {
-      const unidadeHosp = String(colab.unidade_hospitalar || '').trim();
-      if (unidadeHosp) unidadesUnicas.add(unidadeHosp);
-    }
-    
-    // Busca PCG de todas as unidades de uma vez usando Match Inteligente
-    const UNIDADE_FALLBACK_PCG = 'HOSPITAL DA ILHA';
-    
-    // Busca todas as unidades do mapa para comparar
-    let allUnitsList: string[] = [];
-    try {
-      const allUnits = await prisma.$queryRawUnsafe<any[]>(`
-        SELECT DISTINCT unidade_hospitalar FROM stg_epi_map WHERE unidade_hospitalar IS NOT NULL
-      `);
-      allUnitsList = allUnits.map(u => u.unidade_hospitalar);
-    } catch (e) {
-      console.warn('[Meta API] Erro ao carregar lista de unidades:', e);
-    }
+    // ===== REGRA NOVA (2026): Setor ainda é desconhecido no previsto/meta =====
+    // O `stg_epi_map.unidade_hospitalar` agora representa SETOR. Então não dá para
+    // usar a unidade do Alterdata para escolher um setor automaticamente.
+    // Para não “quebrar” a meta, o previsto deve usar o kit-base:
+    // - pcg = PCG UNIVERSAL
+    // - setor/unidade_hospitalar = "SEM SETOR ESPECÍFICO"
+    const isSemSetorBase = (s: any) => {
+      const v = String(s ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+      return v.includes('SEM SETOR');
+    };
+    const isPcgUniversal = (s: any) => {
+      const v = String(s ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+      return v.includes('PCG UNIVERSAL');
+    };
 
-    // Busca PCG do fallback sempre (usando match inteligente)
-    try {
-      const fallbackUnit = findBestUnitMatch(UNIDADE_FALLBACK_PCG, allUnitsList);
-      if (fallbackUnit) {
-        const fallback: any[] = await prisma.$queryRawUnsafe(`
-          SELECT DISTINCT COALESCE(pcg::text, '') AS pcg
-          FROM stg_epi_map
-          WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) = UPPER(TRIM('${fallbackUnit.replace(/'/g, "''")}'))
-            AND COALESCE(pcg, '') != ''
-          LIMIT 1
-        `);
-        if (fallback.length > 0 && fallback[0].pcg) {
-          pcgHospitalIlha = String(fallback[0].pcg).trim();
-          console.log(`[Meta API] PCG do Hospital da Ilha encontrado: ${pcgHospitalIlha} (${fallbackUnit})`);
-        }
-      }
-    } catch (pcgError) {
-      console.warn('[Meta API] Erro ao buscar PCG fallback:', pcgError);
-    }
+    // Base de funções do mapa (ALTERDATA + NORMALIZADO)
+    const allFunctionsList = Array.from(
+      new Set(
+        kitRows
+          .flatMap((r: any) => [r.funcao, r.funcao_norm, r.funcao_normalizada])
+          .map((x: any) => String(x || '').trim())
+          .filter(Boolean),
+      ),
+    );
 
-    if (unidadesUnicas.size > 0 && allUnitsList.length > 0) {
-      try {
-        // Para cada unidade única da lista, encontra o match e busca o PCG
-        const matchedUnits = new Set<string>();
-        const mapSystemToDbUnit = new Map<string, string>(); // SystemName -> DbName
-
-        for (const systemUnit of Array.from(unidadesUnicas)) {
-          const match = findBestUnitMatch(systemUnit, allUnitsList);
-          if (match) {
-            matchedUnits.add(match);
-            mapSystemToDbUnit.set(systemUnit.toUpperCase().trim(), match);
-          }
-        }
-
-        if (matchedUnits.size > 0) {
-          const unidadesListSql = Array.from(matchedUnits).map(u => `'${u.replace(/'/g, "''")}'`).join(',');
-          const pcgResults: any[] = await prisma.$queryRawUnsafe(`
-            SELECT DISTINCT
-              UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) AS unidade,
-              COALESCE(pcg::text, '') AS pcg
-            FROM stg_epi_map
-            WHERE UPPER(TRIM(COALESCE(unidade_hospitalar, ''))) IN (${unidadesListSql})
-              AND COALESCE(pcg, '') != ''
-          `);
-          
-          // Mapeia DB Unit -> PCG
-          const dbUnitToPcg = new Map<string, string>();
-          for (const r of pcgResults) {
-            const unid = String(r.unidade || '').trim();
-            const pcg = String(r.pcg || '').trim();
-            if (unid && pcg) dbUnitToPcg.set(unid, pcg);
-          }
-
-          // Preenche pcgPorUnidade (System Unit -> PCG)
-          for (const [sysUnitUpper, dbUnit] of mapSystemToDbUnit.entries()) {
-            const pcg = dbUnitToPcg.get(dbUnit.toUpperCase().trim());
-            if (pcg) pcgPorUnidade.set(sysUnitUpper, pcg);
-          }
-        }
-      } catch (pcgError) {
-        console.warn('[Meta API] Erro ao buscar PCGs das unidades:', pcgError);
-      }
-    }
-
-    // Busca todas as funções do mapa para comparar (cache de funções)
-    let allFunctionsList: string[] = [];
-    try {
-      const allFuncs = await prisma.$queryRawUnsafe<any[]>(`
-        SELECT DISTINCT alterdata_funcao FROM stg_epi_map WHERE alterdata_funcao IS NOT NULL
-      `);
-      allFunctionsList = allFuncs.map(f => f.alterdata_funcao);
-    } catch (e) {
-      console.warn('[Meta API] Erro ao carregar lista de funções:', e);
-    }
-
-    // Cache de kits por função+unidade+PCG (para performance)
-    const kitCache = new Map<string, number>(); // chave: "funcaoKey|unidadeKey|pcg" -> soma de itens obrigatórios
+    // Cache por função (previsto base), soma de itens obrigatórios
+    const kitCache = new Map<string, number>(); // chave: finalFuncKey -> soma de itens obrigatórios
     let totalMeta = 0;
 
     // Para cada colaborador (mesmo CPF pode aparecer 2x se demitido e voltou em 2026)
     for (const colab of colaboradores) {
       const funcao = String(colab.funcao || '').trim();
-      const unidadeHosp = String(colab.unidade_hospitalar || '').trim();
       
       if (!funcao) continue;
       
       const funcKey = normFuncKey(funcao);
-      const unidadeKey = normUnidKey(unidadeHosp);
-      
-      // Busca PCG da unidade (usa cache). Se não houver, considera HOSPITAL DA ILHA.
-      const unidadeHospUpper = unidadeHosp.toUpperCase().trim();
-      const pcgUnidade = pcgPorUnidade.get(unidadeHospUpper);
-      const targetPcg = pcgUnidade || pcgHospitalIlha;
       
       // Resolve a melhor função usando Matcher Inteligente (Alias, Motorista, etc)
       let finalFuncKey = funcKey;
@@ -274,74 +205,31 @@ export async function GET(req: Request) {
         }
       }
       
-      const cacheKey = `${finalFuncKey}|${unidadeKey}|${targetPcg || 'null'}`;
-      
       // Busca soma do kit (usa cache)
       let somaKit = 0;
-      if (kitCache.has(cacheKey)) {
-        somaKit = kitCache.get(cacheKey)!;
+      if (kitCache.has(finalFuncKey)) {
+        somaKit = kitCache.get(finalFuncKey)!;
       } else {
-        // Busca kit da função considerando PCG (mesma lógica do /api/entregas/kit)
-        // Prioridade 1: Função + PCG alvo + unidade específica
-        const porUnidadeComPcg: Array<{ item: string; qtd: number }> = [];
-        // Prioridade 2: Função + PCG alvo (genérico do PCG)
-        const porPcgGenerico: Array<{ item: string; qtd: number }> = [];
-        // Prioridade 3: Função + PCG Hospital da Ilha (se diferente do alvo)
-        const porPcgFallback: Array<{ item: string; qtd: number }> = [];
-        
-        for (const r of kitRows) {
-          const rFuncKey = normFuncKey(r.funcao);
-          if (rFuncKey !== finalFuncKey) continue;
-          
-          const item = String(r.item || '').trim();
-          if (!item || !isEpiObrigatorio(item)) continue; // Apenas obrigatórios
-          
-          const qtd = Number(r.qtd || 1) || 1;
-          const pcg = String(r.pcg || '').trim();
-          const site = String(r.site || '').trim();
-          const unidadeHospMap = String(r.unidade_hosp || '').trim();
-          const siteKey = site ? normUnidKey(site) : '';
-          const unidadeHospKey = unidadeHospMap ? normUnidKey(unidadeHospMap) : '';
-          
-          const itemData = { item, qtd };
-          
-          // Prioridade 1: Unidade específica (Ignora PCG, pois a unidade pode ter multiplos PCGs)
-          if (unidadeKey && (siteKey === unidadeKey || unidadeHospKey === unidadeKey)) {
-            porUnidadeComPcg.push(itemData);
-          }
-          // Prioridade 2: PCG alvo (genérico, para outras unidades usarem este PCG)
-          else if (targetPcg && pcg === targetPcg) {
-            porPcgGenerico.push(itemData);
-          }
-          // Prioridade 3: PCG Hospital da Ilha (fallback)
-          else if (pcgHospitalIlha && pcg === pcgHospitalIlha) {
-            porPcgFallback.push(itemData);
-          }
-        }
-        
-        // Escolhe a fonte conforme prioridade
-        let fonte: Array<{ item: string; qtd: number }> = [];
-        if (porUnidadeComPcg.length > 0) {
-          fonte = porUnidadeComPcg;
-        } else if (porPcgGenerico.length > 0) {
-          fonte = porPcgGenerico;
-        } else if (porPcgFallback.length > 0) {
-          fonte = porPcgFallback;
-        }
-        
-        // Remove duplicatas de item (pega maior quantidade)
         const byItem = new Map<string, number>();
-        for (const itemData of fonte) {
-          const itemKey = normKey(itemData.item);
+        for (const r of kitRows) {
+          const rFuncKey = normFuncKey(r.funcao_norm || r.funcao || '');
+          const rFuncAlt = normFuncKey(r.funcao || '');
+          if (rFuncKey !== finalFuncKey && rFuncAlt !== finalFuncKey) continue;
+
+          const item = String(r.item || '').trim();
+          if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue;
+
+          if (!isPcgUniversal(r.pcg)) continue;
+          if (!isSemSetorBase(r.unidade_hosp || r.site || r.unidade_hospitalar)) continue;
+
+          const qtd = Number(r.qtd || 1) || 1;
+          const itemKey = normKey(item);
           const existing = byItem.get(itemKey);
-          if (!existing || itemData.qtd > existing) {
-            byItem.set(itemKey, itemData.qtd);
-          }
+          if (!existing || qtd > existing) byItem.set(itemKey, qtd);
         }
-        
-        // Soma todos os itens obrigatórios do kit
+
         somaKit = Array.from(byItem.values()).reduce((acc, qtd) => acc + qtd, 0);
-        kitCache.set(cacheKey, somaKit);
+        kitCache.set(finalFuncKey, somaKit);
       }
       
       // Adiciona à meta (conta cada linha, mesmo se CPF duplicado)
