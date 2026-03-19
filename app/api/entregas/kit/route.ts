@@ -52,7 +52,25 @@ export async function GET(req: NextRequest) {
   try {
     const funcKey = normFuncKey(funcaoRaw);
     const unidadeKey = unidadeRaw ? normUnidKey(unidadeRaw) : '';
-    const pcgKey = pcgRaw ? normUnidKey(pcgRaw) : '';
+    // `pcg` no mapa pode vir abreviado (ex.: "SVO - TIMON") enquanto a unidade do Alterdata vem longa.
+    // Então resolvemos o melhor match do PCG a partir dos valores existentes no `stg_epi_map`.
+    let pcgKey = '';
+    let pcgMatched: string | null = null;
+    if (pcgRaw) {
+      try {
+        const pcgRows = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT DISTINCT TRIM(COALESCE(pcg::text, '')) AS pcg
+          FROM stg_epi_map
+          WHERE TRIM(COALESCE(pcg::text, '')) <> ''
+            AND TRIM(COALESCE(pcg::text, '')) NOT IN ('PCG UNIVERSAL', 'SEM MAPEAMENTO NO PCG')
+        `);
+        const pcgList = (pcgRows || []).map((r) => String(r?.pcg || '').trim()).filter(Boolean);
+        pcgMatched = findBestUnitMatch(pcgRaw, pcgList);
+        pcgKey = normUnidKey(pcgMatched || pcgRaw);
+      } catch (e) {
+        pcgKey = normUnidKey(pcgRaw);
+      }
+    }
 
     if (!funcKey) {
       return NextResponse.json({ ok: true, items: [] });
@@ -281,7 +299,7 @@ export async function GET(req: NextRequest) {
     if (porSetorPcgAlvo.length > 0) {
       fonte = porSetorPcgAlvo;
       console.log(
-        `[Kit API] Usando kit do setor "${matchedUnit}" com PCG alvo "${pcgRaw}" (${porSetorPcgAlvo.length} itens)`,
+        `[Kit API] Usando kit do setor "${matchedUnit}" com PCG alvo "${pcgMatched || pcgRaw}" (${porSetorPcgAlvo.length} itens)`,
       );
     } else if (porUnidadeEspecifica.length > 0) {
       // Se encontrou itens de unidade específica, USA APENAS ELES
