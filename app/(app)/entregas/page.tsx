@@ -740,6 +740,8 @@ export default function EntregasPage() {
     // 3) monta query string com função + unidade/setor escolhido
     const params = new URLSearchParams();
     params.set('funcao', row.funcao || '');
+    // PCG/PGR base (unidade do colaborador) para não misturar kits de programas diferentes
+    if (row.unidade) params.set('pcg', row.unidade);
     if (selectedSector) params.set('unidade', selectedSector);
 
     // kit esperado (considerando função + unidade hospitalar/setor)
@@ -1718,6 +1720,7 @@ export default function EntregasPage() {
 
                           const params = new URLSearchParams();
                           params.set('funcao', modal.row?.funcao || '');
+                          if (modal.row?.unidade) params.set('pcg', modal.row.unidade);
                           if (nextSector) params.set('unidade', nextSector);
 
                           const { json: kitJ } = await fetchJSON('/api/entregas/kit?' + params.toString(), {

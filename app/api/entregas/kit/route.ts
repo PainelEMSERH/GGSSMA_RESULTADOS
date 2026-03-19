@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const funcaoRaw = (searchParams.get('funcao') || '').trim();
   const unidadeRaw = (searchParams.get('unidade') || '').trim();
+  const pcgRaw = (searchParams.get('pcg') || '').trim();
 
   if (!funcaoRaw) {
     return NextResponse.json(
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
   try {
     const funcKey = normFuncKey(funcaoRaw);
     const unidadeKey = unidadeRaw ? normUnidKey(unidadeRaw) : '';
+    const pcgKey = pcgRaw ? normUnidKey(pcgRaw) : '';
 
     if (!funcKey) {
       return NextResponse.json({ ok: true, items: [] });
@@ -170,6 +172,7 @@ export async function GET(req: NextRequest) {
     // NUNCA mistura itens de unidades diferentes
     const porUnidadeEspecifica: KitRow[] = [];
     const porPcgUniversal: KitRow[] = [];
+    const porSetorPcgAlvo: KitRow[] = [];
 
     for (const r of rows) {
       const itemName = String(r.item || '').trim();
@@ -209,16 +212,32 @@ export async function GET(req: NextRequest) {
         const unidadeHospMatch = unidadeHosp && normUnidKey(unidadeHosp) === normUnidKey(matchedUnit);
         const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === normUnidKey(matchedUnit);
         
-        // SÓ adiciona se bater EXATAMENTE com o setor/unidade selecionado.
-        // Importante (2026): `pcg` agora representa o programa (PGR/PCG), e o setor está em `unidade_hospitalar`.
-        // Então, mesmo com `pcg = PCG UNIVERSAL`, se o setor bate, esse é o kit específico daquele setor.
+        // Se o setor bate, este item é candidato.
         if ((unidadeHospMatch || pcgMatch) && !isSemMapeamento) {
+          // Se recebemos um PCG alvo (unidade do colaborador), evita misturar programas.
+          // Ex.: SVO TIMON vs SVO SÃO LUÍS (mesmo setor NECROPSIA, kits diferentes).
+          if (pcgKey) {
+            const rowPcgKey = pcg ? normUnidKey(pcg) : '';
+            if (rowPcgKey && rowPcgKey === pcgKey) {
+              porSetorPcgAlvo.push({ item: itemName, quantidade: qtd, nome_site: null });
+              continue;
+            }
+            // Fallback para PCG UNIVERSAL caso não exista item no PCG alvo
+            if (isPcgUniversal) {
+              porPcgUniversal.push({ item: itemName, quantidade: qtd, nome_site: null });
+              continue;
+            }
+            // Ignora outros PCGs diferentes do alvo
+            continue;
+          }
+
+          // Sem PCG alvo informado: mantém comportamento antigo (setor bate => entra)
           porUnidadeEspecifica.push({
             item: itemName,
             quantidade: qtd,
             nome_site: null,
           });
-          console.log(`[Kit API] Item "${itemName}" adicionado à unidade específica "${matchedUnit}" (pcg="${pcg}", unidade_hosp="${unidadeHosp}")`);
+          console.log(`[Kit API] Item "${itemName}" adicionado ao setor "${matchedUnit}" (pcg="${pcg}", unidade_hosp="${unidadeHosp}")`);
           continue; // Pula para próximo item, não verifica PCG UNIVERSAL
         } else {
           // Log para debug: por que não entrou na unidade específica
@@ -256,10 +275,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Escolhe a fonte conforme prioridade
-    // ORDEM: Unidade específica > PCG UNIVERSAL
+    // ORDEM: (Setor + PCG alvo) > Setor > PCG UNIVERSAL
     // NUNCA mistura itens de unidades diferentes
     let fonte: KitRow[];
-    if (porUnidadeEspecifica.length > 0) {
+    if (porSetorPcgAlvo.length > 0) {
+      fonte = porSetorPcgAlvo;
+      console.log(
+        `[Kit API] Usando kit do setor "${matchedUnit}" com PCG alvo "${pcgRaw}" (${porSetorPcgAlvo.length} itens)`,
+      );
+    } else if (porUnidadeEspecifica.length > 0) {
       // Se encontrou itens de unidade específica, USA APENAS ELES
       // IGNORA completamente PCG UNIVERSAL para evitar misturar
       fonte = porUnidadeEspecifica;
