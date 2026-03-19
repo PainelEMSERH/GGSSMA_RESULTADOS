@@ -4,12 +4,23 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { findBestFunctionMatch } from '@/lib/functionMatcher';
+import { resolveFuncaoNormalizadaFromMap } from '@/lib/epiMapFunctionResolver';
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const funcaoRaw = (searchParams.get('funcao') || '').trim();
     if (!funcaoRaw) return NextResponse.json({ ok: true, sectors: [] });
+
+    // 0) Primeiro tenta resolver Alterdata -> NORMALIZADO diretamente do mapa
+    // Isso cobre casos como "ENFERMEIRO(A) UTI ADULTO" -> "ENFERMEIRO"
+    let funcaoBase: string | null = null;
+    try {
+      funcaoBase = await resolveFuncaoNormalizadaFromMap(prisma as any, funcaoRaw);
+    } catch (e) {
+      // Não falha por causa disso; cai no matcher atual
+      console.warn('[kit-sectors] erro ao resolver funcao_normalizada:', e);
+    }
 
     // Base de funções para usar a mesma lógica do /api/entregas/kit
     const allFunctionsRaw: any[] = await prisma.$queryRawUnsafe<any[]>(`
@@ -19,7 +30,7 @@ export async function GET(req: Request) {
     `);
 
     const allFunctions = (allFunctionsRaw || []).map((r) => r?.func_name).filter(Boolean);
-    const matchedFunc = findBestFunctionMatch(funcaoRaw, allFunctions) || funcaoRaw;
+    const matchedFunc = funcaoBase || findBestFunctionMatch(funcaoRaw, allFunctions) || funcaoRaw;
 
     // “Setores” = unidade_hospitalar no EPI map, excluindo universal e sentinelas.
     const sectorsRows: any[] = await prisma.$queryRawUnsafe<any[]>(

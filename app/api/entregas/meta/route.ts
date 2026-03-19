@@ -210,7 +210,12 @@ export async function GET(req: Request) {
       if (kitCache.has(finalFuncKey)) {
         somaKit = kitCache.get(finalFuncKey)!;
       } else {
-        const byItem = new Map<string, number>();
+        // Kit-base (setor desconhecido):
+        // - prioridade: PCG UNIVERSAL + "SEM SETOR ESPECÍFICO"
+        // - fallback: PCG UNIVERSAL em QUALQUER setor (pega o maior por item)
+        const semSetorRows: any[] = [];
+        const anySetorRows: any[] = [];
+
         for (const r of kitRows) {
           const rFuncKey = normFuncKey(r.funcao_norm || r.funcao || '');
           const rFuncAlt = normFuncKey(r.funcao || '');
@@ -218,11 +223,19 @@ export async function GET(req: Request) {
 
           const item = String(r.item || '').trim();
           if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue;
-
           if (!isPcgUniversal(r.pcg)) continue;
-          if (!isSemSetorBase(r.unidade_hosp || r.site || r.unidade_hospitalar)) continue;
 
+          const setor = r.unidade_hosp || r.site || r.unidade_hospitalar;
+          if (isSemSetorBase(setor)) semSetorRows.push(r);
+          anySetorRows.push(r);
+        }
+
+        const baseRows = semSetorRows.length > 0 ? semSetorRows : anySetorRows;
+        const byItem = new Map<string, number>();
+        for (const r of baseRows) {
+          const item = String(r.item || '').trim();
           const qtd = Number(r.qtd || 1) || 1;
+          if (!item || qtd <= 0) continue;
           const itemKey = normKey(item);
           const existing = byItem.get(itemKey);
           if (!existing || qtd > existing) byItem.set(itemKey, qtd);

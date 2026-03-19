@@ -22,12 +22,31 @@ const RAW_OBRIGATORIOS = [
   'Máscara 6200',
 ];
 
-const UPPER_SET = new Set(
-  RAW_OBRIGATORIOS.map((s) =>
-    s
-      .toUpperCase()
-      .trim(),
-  ),
+function norm(nome: string): string {
+  return String(nome || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[^A-Z0-9 ]/g, ''); // remove pontuação (mantém espaço)
+}
+
+// Adiciona aliases comuns (planilhas costumam variar a nomenclatura)
+const ALIASES = [
+  'AVENTAL DE CHUMBO',
+  'AVENTAL PLUMBIFERO',
+  'AVENTAL PLUMBIFERO OU DE CHUMBO',
+  'OCULOS PLUMBIFERO',
+  'OCULOS PLUMBIFEROS',
+  'PROTETOR DE GONADAS',
+  'PROTETORES DE GONADAS',
+  'PROTETOR DE TIREOIDE',
+  'PROTETORES DE TIREOIDE',
+];
+
+const NORM_SET = new Set(
+  [...RAW_OBRIGATORIOS, ...ALIASES].map((s) => norm(s)),
 );
 
 /**
@@ -36,11 +55,7 @@ const UPPER_SET = new Set(
  */
 export function isEpiObrigatorio(nome: string | null | undefined): boolean {
   if (!nome) return false;
-  const key = nome
-    .toString()
-    .toUpperCase()
-    .trim();
-  return UPPER_SET.has(key);
+  return NORM_SET.has(norm(String(nome)));
 }
 
 /**
@@ -53,7 +68,11 @@ export function isEpiObrigatorio(nome: string | null | undefined): boolean {
  *   const sql = `SELECT ... FROM ... WHERE ${whereObrig}`;
  */
 export function obrigatoriosWhereSql(column: string): string {
-  const list = Array.from(UPPER_SET)
+  // Observação: aqui ainda é match exato em UPPER/TRIM (sem normalização de acento).
+  // Para itens com acento/variação, a checagem principal deve ser feita via JS com isEpiObrigatorio.
+  const list = Array.from(
+    new Set(RAW_OBRIGATORIOS.map((s) => String(s).toUpperCase().trim())),
+  )
     .map((v) => `'${v.replace(/'/g, "''")}'`)
     .join(', ');
   return `UPPER(TRIM(${column})) IN (${list})`;

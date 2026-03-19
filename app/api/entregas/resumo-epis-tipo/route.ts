@@ -173,41 +173,32 @@ export async function GET(req: Request) {
           .trim();
         return v.includes('PCG UNIVERSAL');
       };
-      
+
+      // Kit-base (setor desconhecido):
+      // - prioridade: PCG UNIVERSAL + "SEM SETOR ESPECÍFICO"
+      // - fallback: PCG UNIVERSAL em QUALQUER setor (pega o maior por item)
+      const semSetorRows: any[] = [];
+      const anySetorRows: any[] = [];
       for (const r of kitRows) {
         const rFuncKey = normFuncKey(r.funcao_norm || r.funcao || '');
         const rFuncAlt = normFuncKey(r.funcao || '');
         if (rFuncKey !== finalFuncKey && rFuncAlt !== finalFuncKey) continue;
-        
+
         const item = String(r.item || '').trim();
         if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue;
-        
-        const qtd = Number(r.qtd || 1) || 1;
-        const unidadeHospMap = String(r.unidade_hosp || '').trim();
-        
-        // Previsto: setor ainda desconhecido => usa kit-base SEM SETOR ESPECÍFICO do PCG UNIVERSAL
         if (!isPcgUniversal(r.pcg)) continue;
-        if (!isSemSetorBase(unidadeHospMap)) continue;
 
-        const itemKey = normKey(item);
-        const existing = previstosPorTipo.get(item) || 0;
-        // Dedup: aqui o resumo soma por colaborador, então a dedup acontece por colaborador no byItem abaixo.
-        // Vamos manter a mesma estratégia (maior qtd por item) para o colaborador.
-        // (o acumulado por tipo é aplicado depois)
-        void existing;
+        if (isSemSetorBase(r.unidade_hosp)) semSetorRows.push(r);
+        anySetorRows.push(r);
       }
 
-      // Remove duplicatas e soma por colaborador (maior qtd por item)
+      const baseRows = semSetorRows.length > 0 ? semSetorRows : anySetorRows;
       const byItem = new Map<string, number>();
-      for (const r of kitRows) {
-        const rFuncKey = normFuncKey(r.funcao_norm || r.funcao || '');
-        const rFuncAlt = normFuncKey(r.funcao || '');
-        if (rFuncKey !== finalFuncKey && rFuncAlt !== finalFuncKey) continue;
+      for (const r of baseRows) {
         const item = String(r.item || '').trim();
-        if (!item || item.toUpperCase() === 'SEM EPI' || !isEpiObrigatorio(item)) continue;
-        if (!isPcgUniversal(r.pcg)) continue;
-        if (!isSemSetorBase(r.unidade_hosp)) continue;
+        if (!item) continue;
         const qtd = Number(r.qtd || 1) || 1;
+        if (qtd <= 0) continue;
         const k = normKey(item);
         const existing = byItem.get(k);
         if (!existing || qtd > existing) byItem.set(k, qtd);
