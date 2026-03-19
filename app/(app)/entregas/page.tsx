@@ -1013,23 +1013,29 @@ export default function EntregasPage() {
         const mesAtual = new Date().getMonth(); // 0-11
         const mesAtualKey = String(mesAtual + 1).padStart(2, '0');
         
-        // Calcula metas incrementais cumulativas (8,33%, 16,67%, ... 100%)
+        // Calcula metas incrementais cumulativas com início em MAIO (Maio–Dezembro = 8 meses)
+        // Jan–Abr: 0%
+        // Mai: 12,5% ... Dez: 100%
+        const START_MONTH_INDEX = 4; // 0=Jan ... 4=Mai
+        const MONTHS_IN_WINDOW = 8;
         const metasIncrementais = meses.map((_, idx) => {
-          return ((idx + 1) / 12) * 100;
+          if (idx < START_MONTH_INDEX) return 0;
+          const pos = idx - START_MONTH_INDEX + 1; // 1..8
+          return (pos / MONTHS_IN_WINDOW) * 100;
         });
 
         // Progresso por mês (vindo da API: meses['01'], meses['02'], ...)
         const progressoMeses = metaData.progresso || {};
         const metaTotal = metaData.meta || 0;
 
-        // REAL por mês: percentual cumulativo (entregue até aquele mês / meta cumulativa até aquele mês)
+        // REAL por mês: percentual cumulativo do ANO (entregue até aquele mês / meta anual)
+        // Assim o percentual não “diminui” ao longo do ano (não existe devolução no sistema).
         const percentualRealPorMes = meses.map((mes, idx) => {
           const entregueAteMes = meses
             .slice(0, idx + 1)
             .reduce((acc, m) => acc + (Number(progressoMeses[m]) || 0), 0);
-          const metaAteMes = metaTotal * ((idx + 1) / 12);
-          if (metaAteMes <= 0) return 0;
-          return Math.min(100, (entregueAteMes / metaAteMes) * 100);
+          if (metaTotal <= 0) return 0;
+          return Math.min(100, (entregueAteMes / metaTotal) * 100);
         });
 
         // Filtra progresso por mês se selecionado (para os botões)
