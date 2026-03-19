@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { findBestUnitMatch } from '@/lib/unitMatcher';
 import { findBestFunctionMatch } from '@/lib/functionMatcher';
+import { resolveFuncaoNormalizadaFromMap } from '@/lib/epiMapFunctionResolver';
 
 type KitRow = { item: string; quantidade: number; nome_site: string | null };
 
@@ -58,6 +59,23 @@ export async function GET(req: NextRequest) {
     // Resolve a melhor função usando Matcher Inteligente (Alias, Motorista, etc)
     let finalFuncKey = funcKey;
     let targetFuncName = funcaoRaw; // Nome da função para buscar no banco
+
+    // 0) Primeiro tenta resolver Alterdata -> NORMALIZADO diretamente do mapa
+    // Ex.: "ENFERMEIRO(A) UTI ADULTO" -> "ENFERMEIRO"
+    let funcaoBase: string | null = null;
+    try {
+      funcaoBase = await resolveFuncaoNormalizadaFromMap(prisma as any, funcaoRaw);
+      if (funcaoBase) {
+        targetFuncName = funcaoBase;
+        finalFuncKey = normFuncKey(funcaoBase);
+        if (finalFuncKey !== funcKey) {
+          console.log(`[Kit API] Função base (map): "${funcaoRaw}" -> "${funcaoBase}"`);
+        }
+      }
+    } catch (e) {
+      console.warn('[Kit API] Erro ao resolver funcao_normalizada via mapa:', e);
+    }
+
     try {
       const allFunctionsRaw = await prisma.$queryRawUnsafe<any[]>(`
         SELECT DISTINCT COALESCE(funcao_normalizada, alterdata_funcao) AS func_name 
@@ -191,8 +209,10 @@ export async function GET(req: NextRequest) {
         const unidadeHospMatch = unidadeHosp && normUnidKey(unidadeHosp) === normUnidKey(matchedUnit);
         const pcgMatch = pcgIsUnitName && normUnidKey(pcg) === normUnidKey(matchedUnit);
         
-        // SÓ adiciona se bater EXATAMENTE com a unidade do colaborador
-        if ((unidadeHospMatch || pcgMatch) && !isPcgUniversal && !isSemMapeamento) {
+        // SÓ adiciona se bater EXATAMENTE com o setor/unidade selecionado.
+        // Importante (2026): `pcg` agora representa o programa (PGR/PCG), e o setor está em `unidade_hospitalar`.
+        // Então, mesmo com `pcg = PCG UNIVERSAL`, se o setor bate, esse é o kit específico daquele setor.
+        if ((unidadeHospMatch || pcgMatch) && !isSemMapeamento) {
           porUnidadeEspecifica.push({
             item: itemName,
             quantidade: qtd,
