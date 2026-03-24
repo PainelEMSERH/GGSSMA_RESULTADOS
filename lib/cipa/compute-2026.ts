@@ -87,8 +87,11 @@ export async function compute2026From2025(
     // Reunião de Posse 2026 = posse 2025 + 364
     const posse = addDays(posseAnoAnterior, 364);
 
-    // Constituição = data da posse + 5 dias (sábado→sexta, domingo→segunda)
-    const constituicao = toWeekday(addDays(posse, 5));
+    // Ofício = posse do ano anterior + 1 ano - 60 dias (posse 2025 + 305)
+    const oficio = addDays(posseAnoAnterior, 305);
+    // Constituição da comissão deve seguir o início do cronograma (logo após o Ofício),
+    // não ficar próxima da posse. Regra prática: Ofício + 5 dias úteis.
+    const constituicao = toWeekday(addDays(oficio, 5));
 
     // Ata = data da posse + um ano - 30 dias
     const ata = addDays(posse, -30);
@@ -102,9 +105,6 @@ export async function compute2026From2025(
     const edital = addDays(periodoFim, 1);
     // Campanha = Edital + 1 | Eleição = Campanha
     const campanha = addDays(edital, 1);
-
-    // Ofício = posse do ano anterior + 1 ano - 60 dias (posse 2025 + 305)
-    const oficio = addDays(posseAnoAnterior, 305);
 
     const treinamento = addDays(ata, 2);
     const emissao = addDays(treinamento, 7);
