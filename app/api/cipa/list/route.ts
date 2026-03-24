@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
     // 2026: se já tem registros no banco, retorna do banco (edição); senão retorna calculado
     if (anoNum === 2026) {
       const wh2026: string[] = ['ano_gestao = 2026'];
-      if (regional) wh2026.push(`TRIM(regional) = '${String(regional).replace(/'/g, "''")}'`);
-      if (unidade) wh2026.push(`TRIM(unidade) = '${String(unidade).replace(/'/g, "''")}'`);
+      if (regional) wh2026.push(`UPPER(TRIM(regional)) = UPPER('${String(regional).replace(/'/g, "''")}')`);
+      if (unidade) wh2026.push(`UPPER(TRIM(unidade)) = UPPER('${String(unidade).replace(/'/g, "''")}')`);
       const where2026 = `WHERE ${wh2026.join(' AND ')}`;
       const count2026: any[] = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS total FROM cronograma_cipa ${where2026}`);
       const total2026Db = Number(count2026?.[0]?.total ?? 0);
@@ -79,8 +79,8 @@ export async function GET(req: NextRequest) {
     }
 
     const wh: string[] = [`ano_gestao = ${anoNum}`];
-    if (regional) wh.push(`TRIM(regional) = '${String(regional).replace(/'/g, "''")}'`);
-    if (unidade) wh.push(`TRIM(unidade) = '${String(unidade).replace(/'/g, "''")}'`);
+    if (regional) wh.push(`UPPER(TRIM(regional)) = UPPER('${String(regional).replace(/'/g, "''")}')`);
+    if (unidade) wh.push(`UPPER(TRIM(unidade)) = UPPER('${String(unidade).replace(/'/g, "''")}')`);
     const whereSql = wh.length ? `WHERE ${wh.join(' AND ')}` : '';
 
     const rowsSql = `

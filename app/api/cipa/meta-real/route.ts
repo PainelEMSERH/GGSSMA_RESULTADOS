@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const ano = parseInt(url.searchParams.get('ano') || '2025', 10);
 
     const wh: string[] = [`ano_gestao = ${ano}`];
-    if (regional) wh.push(`TRIM(regional) = '${String(regional).replace(/'/g, "''")}'`);
+    if (regional) wh.push(`UPPER(TRIM(regional)) = UPPER('${String(regional).replace(/'/g, "''")}')`);
     const whereSql = `WHERE ${wh.join(' AND ')}`;
 
     // Total de atividades (meta = quantidade de ações a serem feitas)

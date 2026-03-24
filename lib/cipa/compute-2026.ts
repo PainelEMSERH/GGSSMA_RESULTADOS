@@ -60,8 +60,8 @@ export async function compute2026From2025(
   filterUnidade: string
 ): Promise<Row2026[]> {
   const wh: string[] = ['ano_gestao = 2025', 'atividade_codigo = 12'];
-  if (filterRegional) wh.push(`TRIM(regional) = '${String(filterRegional).replace(/'/g, "''")}'`);
-  if (filterUnidade) wh.push(`TRIM(unidade) = '${String(filterUnidade).replace(/'/g, "''")}'`);
+  if (filterRegional) wh.push(`UPPER(TRIM(regional)) = UPPER('${String(filterRegional).replace(/'/g, "''")}')`);
+  if (filterUnidade) wh.push(`UPPER(TRIM(unidade)) = UPPER('${String(filterUnidade).replace(/'/g, "''")}')`);
   const whereSql = `WHERE ${wh.join(' AND ')}`;
 
   // Data de posse por unidade: item 12 (Reunião de Posse) de 2025, coluna data_conclusão.

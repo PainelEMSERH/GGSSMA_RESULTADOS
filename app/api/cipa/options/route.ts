@@ -18,7 +18,7 @@ export async function GET() {
     }
 
     const regionaisResult: any[] = await prisma.$queryRawUnsafe(`
-      SELECT DISTINCT COALESCE(TRIM(regional), '') AS regional
+      SELECT DISTINCT UPPER(COALESCE(TRIM(regional), '')) AS regional
       FROM cronograma_cipa
       WHERE COALESCE(TRIM(regional), '') != ''
       ORDER BY regional
@@ -26,7 +26,7 @@ export async function GET() {
     const regionais = regionaisResult.map((r) => String(r?.regional ?? '').trim()).filter(Boolean);
 
     const unidadesResult: any[] = await prisma.$queryRawUnsafe(`
-      SELECT DISTINCT COALESCE(TRIM(regional), '') AS regional, COALESCE(TRIM(unidade), '') AS unidade
+      SELECT DISTINCT UPPER(COALESCE(TRIM(regional), '')) AS regional, COALESCE(TRIM(unidade), '') AS unidade
       FROM cronograma_cipa
       WHERE COALESCE(TRIM(unidade), '') != ''
       ORDER BY regional, unidade
