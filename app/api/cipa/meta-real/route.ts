@@ -91,11 +91,10 @@ export async function GET(req: NextRequest) {
         }
       }
     } else {
-      // Total concluídas (data_conclusao preenchida). Para 2026, sempre 0.
+      // Total concluídas (data_conclusao preenchida).
       const totalRealResult: any[] = await prisma.$queryRawUnsafe(`
         SELECT COUNT(*)::int AS total FROM cronograma_cipa ${whereSql} 
         AND data_conclusao IS NOT NULL 
-        ${ano === 2026 ? 'AND FALSE' : ''}
       `);
       totalReal = Number(totalRealResult[0]?.total ?? 0);
 
@@ -126,7 +125,6 @@ export async function GET(req: NextRequest) {
           ${whereSql}
           AND data_conclusao IS NOT NULL
           AND data_conclusao::date >= '${firstDay}'::date AND data_conclusao::date <= '${lastDayStr}'::date
-          ${ano === 2026 ? 'AND FALSE' : ''}
         `);
         realMeses[mesStr] = Number(r[0]?.total ?? 0);
       }
