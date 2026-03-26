@@ -4,76 +4,379 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("NEON_GGSSMA_DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
-// --- Modelos de Usuário e Estrutura ---
+enum Role {
+  admin
+  regional
+  unidade
+  operador
+}
+
+enum StatusColaborador {
+  ativo
+  inativo
+}
+
+enum StatusPendencia {
+  aberta
+  atendida
+  cancelada
+}
+
+enum EscopoMeta {
+  regional
+  unidade
+}
+
+enum PeriodoMeta {
+  mensal
+  anual
+}
+
+enum IndicadorMeta {
+  entregas
+  itens
+  colab_atendidos
+}
+
+enum EntidadeArquivo {
+  ficha_epi
+}
+
+enum TipoAcidente {
+  biologico
+  trajeto
+  tipico
+  de_trabalho
+  outros
+}
+
+enum StatusAcidente {
+  aberto
+  em_analise
+  concluido
+  cancelado
+}
+
+enum EmpresaAcidente {
+  IADVH
+  EMSERH
+}
+
+model Regional {
+  id       String   @id @default(cuid())
+  nome     String
+  sigla    String   @unique
+  unidades Unidade[]
+  metas    Meta[]
+  usuarios Usuario[]
+}
+
+model Unidade {
+  id            String   @id @default(cuid())
+  regionalId    String
+  regional      Regional @relation(fields: [regionalId], references: [id])
+  nome          String
+  sigla         String
+  estoque       Estoque[]
+  colaboradores Colaborador[]
+  entregas      Entrega[]
+  metas         Meta[]
+  usuarios      Usuario[]
+
+  @@unique([regionalId, sigla])
+  @@index([regionalId])
+  @@index([sigla])
+}
+
+model Funcao {
+  id            String  @id @default(cuid())
+  nome          String  @unique
+  descricao     String?
+  kits          Kit[]
+  colaboradores Colaborador[]
+}
+
+model Kit {
+  id        String  @id @default(cuid())
+  funcaoId  String  @unique
+  funcao    Funcao  @relation(fields: [funcaoId], references: [id])
+  nome      String
+  descricao String?
+  itens     KitItem[]
+}
+
+model KitItem {
+  kitId      String
+  itemId     String
+  quantidade Int
+  kit        Kit   @relation(fields: [kitId], references: [id])
+  item       Item  @relation(fields: [itemId], references: [id])
+
+  @@id([kitId, itemId])
+}
+
+model Item {
+  id            String      @id @default(cuid())
+  nome          String
+  categoria     String
+  ca            String?
+  descricao     String?
+  unidadeMedida String
+  validadeDias  Int?
+  ativo         Boolean     @default(true)
+  estoque       Estoque[]
+  entregaItens  EntregaItem[]
+  pendencias    Pendencia[]
+  kitItems      KitItem[]   // <-- opposite relation for KitItem.item
+
+  @@index([categoria])
+  @@unique([nome, categoria])
+}
+
+model Estoque {
+  id         String  @id @default(cuid())
+  unidadeId  String
+  itemId     String
+  quantidade Int     @default(0)
+  minimo     Int     @default(0)
+  maximo     Int?
+  unidade    Unidade @relation(fields: [unidadeId], references: [id])
+  item       Item    @relation(fields: [itemId], references: [id])
+
+  @@unique([unidadeId, itemId])
+  @@index([unidadeId])
+  @@index([itemId])
+}
+
+model Colaborador {
+  id          String  @id @default(cuid())
+  unidadeId   String
+  funcaoId    String
+  nome        String
+  matricula   String
+  email       String?
+  telefone    String?
+  status      StatusColaborador @default(ativo)
+  unidade     Unidade @relation(fields: [unidadeId], references: [id])
+  funcao      Funcao  @relation(fields: [funcaoId], references: [id])
+  entregas    Entrega[]
+  pendencias  Pendencia[]
+
+  @@unique([unidadeId, matricula])
+  @@index([funcaoId])
+}
+
+model Entrega {
+  id                String   @id @default(cuid())
+  unidadeId         String
+  colaboradorId     String
+  data              DateTime @default(now())
+  responsavelUserId String
+  observacao        String?
+
+  unidade     Unidade    @relation(fields: [unidadeId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+  itens       EntregaItem[]
+  pendencias  Pendencia[]
+  arquivos    Arquivo[]
+
+  @@index([unidadeId, data])
+  @@index([colaboradorId])
+}
+
+model EntregaItem {
+  entregaId     String
+  itemId        String
+  qtdSolicitada Int
+  qtdEntregue   Int
+  qtdPendente   Int
+  validadeLote  DateTime?
+  lote          String?
+
+  entrega Entrega @relation(fields: [entregaId], references: [id])
+  item    Item    @relation(fields: [itemId], references: [id])
+
+  @@id([entregaId, itemId])
+}
+
+model Pendencia {
+  id            String @id @default(cuid())
+  entregaId     String?
+  colaboradorId String
+  itemId        String
+  quantidade    Int
+  status        StatusPendencia @default(aberta)
+  abertaEm      DateTime @default(now())
+  prazo         DateTime?
+  atendidaEm    DateTime?
+
+  entrega     Entrega?    @relation(fields: [entregaId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+  item        Item        @relation(fields: [itemId], references: [id])
+
+  @@index([status])
+  @@index([colaboradorId])
+  @@index([itemId])
+}
+
+model Meta {
+  id             String @id @default(cuid())
+  escopo         EscopoMeta
+  regionalId     String?
+  unidadeId      String?
+  periodo        PeriodoMeta
+  ano            Int
+  mes            Int?
+  indicador      IndicadorMeta
+  valorMeta      Int
+  valorRealizado Int      @default(0)
+  atualizadoEm   DateTime @updatedAt
+
+  regional       Regional? @relation(fields: [regionalId], references: [id])
+  unidade        Unidade?  @relation(fields: [unidadeId], references: [id])
+
+  @@index([escopo, periodo, ano, mes])
+  @@index([regionalId])
+  @@index([unidadeId])
+  @@unique([escopo, regionalId, unidadeId, periodo, ano, mes, indicador])
+}
 
 model Usuario {
-  id          String    @id @default(cuid())
-  email       String    @unique
-  nome        String?
-  ativo       Boolean   @default(true)
-  role        String    @default("user")
-  clerkUserId String?   @unique
+  id          String @id @default(cuid())
+  clerkUserId String @unique
+  nome        String
+  email       String @unique
+  role        Role
+  regionalId  String?
+  unidadeId   String?
+  ativo       Boolean @default(true)
 
-  @@map("usuarios")
+  regional    Regional? @relation(fields: [regionalId], references: [id])
+  unidade     Unidade?  @relation(fields: [unidadeId], references: [id])
+
+  @@index([role])
+}
+
+model Arquivo {
+  id           String @id @default(cuid())
+  entidade     EntidadeArquivo
+  entidadeId   String
+  driveFileId  String
+  driveUrl     String
+  nomeArquivo  String
+  criadoEm     DateTime @default(now())
+
+  entrega      Entrega? @relation(fields: [entidadeId], references: [id])
+
+  @@index([entidade, entidadeId])
 }
 
 model AuditLog {
   id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
+  actorId   String
   action    String
-  actor     String?
-  details   String?
+  entity    String
+  entityId  String
+  diff      Json?
+  createdAt DateTime @default(now())
 
-  @@map("audit_logs")
+  @@index([entity, entityId])
 }
 
+model Acidente {
+  id                String          @id @default(cuid())
+  nome              String
+  empresa           EmpresaAcidente
+  unidadeHospitalar String
+  regional          String?
+  tipo              TipoAcidente
+  comAfastamento    Boolean         @default(false)
+  data              DateTime
+  hora              String?
+  mes               Int
+  ano               Int
+  numeroCAT         String?
+  riat              String?
+  sinan             String?
+  status            StatusAcidente  @default(aberto)
+  descricao         String?         @db.Text
+  setor             String?
+  funcaoTrabalhador String?
+  tipoVinculo       String?
+  causaImediata     String?         @db.Text
+  causaRaiz         String?         @db.Text
+  fatoresContrib    String?         @db.Text
+  criadoEm          DateTime        @default(now())
+  atualizadoEm      DateTime        @updatedAt
+  criadoPor         String?
 
-// --- Modelos do GGSSMA ---
-
-enum AreaGGSSMA {
-  SAUDE_OCUPACIONAL
-  SEGURANCA_TRABALHO
-  MEIO_AMBIENTE
+  @@index([empresa])
+  @@index([unidadeHospitalar])
+  @@index([regional])
+  @@index([tipo])
+  @@index([status])
+  @@index([ano, mes])
+  @@index([data])
 }
 
-enum PolaridadeIndicador {
-  MAIOR_MELHOR
-  MENOR_MELHOR
+model TaxaFrequenciaAcidente {
+  id                 String   @id @default(cuid())
+  ano                Int
+  mes                Int
+  numeroAcidentes    Int
+  horasHomemTrabalhadas Float
+  taxaFrequencia     Float
+  criadoEm           DateTime @default(now())
+
+  @@unique([ano, mes], name: "ano_mes")
+  @@index([ano, mes])
 }
 
-model IndicadorGGSSMA {
-  id              String        @id @default(cuid())
-  nome            String
-  descricao       String?
-  area            AreaGGSSMA
-  regional        String?
-  responsavel     String?
-  macroProcesso   String?
-  unidadeMedida   String?
-  polaridade      PolaridadeIndicador
-  formulaCalculo  String?
+// Colaboradores ativos por mês (ano/mes). HHT = ativos * 150.
+model AtivosMensal {
+  id        String   @id @default(cuid())
+  ano       Int
+  mes       Int
+  ativos    Int      // colaboradores ativos no mês
+  criadoEm  DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
-  resultados ResultadoMensalGGSSMA[]
-
-  @@unique([nome, regional])
-  @@map("ggssma_indicadores")
+  @@unique([ano, mes], name: "ativos_ano_mes")
+  @@index([ano, mes])
 }
 
-model ResultadoMensalGGSSMA {
-  id            String      @id @default(cuid())
-  indicadorId   String
-  indicador     IndicadorGGSSMA @relation(fields: [indicadorId], references: [id])
+// Investigação do acidente (conforme RIAT): anexos RIAT, CAT, SINAN e observações.
+// Ligado ao acidente da planilha (stg_acidentes) por acidenteRef = numeroCAT|data|nome.
+model AcidenteInvestigacao {
+  id                 String   @id @default(cuid())
+  acidenteRef        String   @unique  // chave estável: numeroCAT|dataISO|nome (identifica o acidente na planilha)
+  numeroCAT          String?
+  regional           String?  // para breakdown "investigados por regional"
+  tipo               String?  // para breakdown "investigados por tipo"
+  statusInvestigacao String?  // em_andamento | concluida
+  riatUrl            String?  // link ou URL do documento RIAT
+  riatNome           String?
+  catUrl             String?
+  catNome            String?
+  sinanUrl           String?
+  sinanNome          String?
+  observacoes        String?  @db.Text
+  criadoEm           DateTime @default(now())
+  atualizadoEm       DateTime @updatedAt
 
-  ano           Int
-  mes           Int
+  @@index([acidenteRef])
+}
 
-  valorMeta     Float?
-  valorReal     Float?
-  observacao    String?
+model PreferenciaUsuario {
+  id              String   @id @default(cuid())
+  clerkUserId     String   @unique
+  regionalPadrao  String?
+  unidadePadrao   String?
+  itensPorPagina  Int?     // 25, 50, 100
+  atualizadoEm    DateTime @updatedAt
 
-  @@unique([indicadorId, ano, mes])
-  @@map("ggssma_resultados_mensais")
+  @@index([clerkUserId])
 }

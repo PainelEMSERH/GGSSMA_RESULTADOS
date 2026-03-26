@@ -35,11 +35,15 @@ const NAV_GROUPS: NavGroup[] = [
     label: "VISÃO GERAL",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
+      { label: "Estoque SESMT", href: "/estoque", icon: Boxes },
     ],
   },
   {
     label: "Indicadores",
     items: [
+      { label: "Acidentes", href: "/acidentes", icon: AlertTriangle },
+      { label: "Extintores", href: "/spci-extintores", icon: Flame },
       { label: "Entregas", href: "/entregas", icon: PackageCheck },
       { label: "Ordens de Serviço", href: "/ordens-de-servico", icon: FileText },
       { label: "CIPA", href: "/cipa", icon: Users },

@@ -34,6 +34,7 @@ async function ensureAdmin() {
     }
   } catch (e) {
     console.error('[admin/users/list.ensureAdmin] erro ao consultar Usuario', e);
+    // se der erro, apenas o root admin tem acesso garantido
   }
 
   return { ok: false as const, status: 403, reason: 'FORBIDDEN' as const };
@@ -49,9 +50,21 @@ export async function GET() {
   }
 
   try {
-    const users = await prisma.usuario.findMany({
-      orderBy: { nome: 'asc' },
-    });
+    const [users, regionais, unidades] = await Promise.all([
+      prisma.usuario.findMany({
+        orderBy: { nome: 'asc' },
+        include: {
+          regional: true,
+          unidade: true,
+        },
+      }),
+      prisma.regional.findMany({
+        orderBy: { nome: 'asc' },
+      }),
+      prisma.unidade.findMany({
+        orderBy: { nome: 'asc' },
+      }),
+    ]);
 
     const usersOut = users.map((u) => ({
       id: u.id,
@@ -60,20 +73,36 @@ export async function GET() {
       email: u.email,
       role: u.role,
       ativo: u.ativo,
-      regionalId: null,
-      regionalNome: null,
-      unidadeId: null,
-      unidadeNome: null,
+      regionalId: u.regionalId,
+      regionalNome: u.regional ? u.regional.nome : null,
+      regionalSigla: u.regional ? u.regional.sigla : null,
+      unidadeId: u.unidadeId,
+      unidadeNome: u.unidade ? u.unidade.nome : null,
+      unidadeSigla: u.unidade ? u.unidade.sigla : null,
+    }));
+
+    const regionaisOut = regionais.map((r) => ({
+      id: r.id,
+      nome: r.nome,
+      sigla: r.sigla,
+    }));
+
+    const unidadesOut = unidades.map((u) => ({
+      id: u.id,
+      nome: u.nome,
+      sigla: u.sigla,
+      regionalId: u.regionalId,
     }));
 
     return NextResponse.json({
       ok: true,
       users: usersOut,
-      regionais: [],
-      unidades: [],
+      regionais: regionaisOut,
+      unidades: unidadesOut,
     });
   } catch (e) {
     console.error('[admin/users/list] erro ao carregar dados', e);
+    // Em caso de erro, não quebramos a tela: retornamos listas vazias
     return NextResponse.json({
       ok: true,
       users: [],

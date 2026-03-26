@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, XCircle, Info } from 'lucide-react';
 
 type Toast = { id: string; message: string; type: 'success' | 'error' | 'info' };
@@ -29,7 +29,7 @@ function ToastList({ toasts, remove }: { toasts: Toast[]; remove: (id: string) =
   );
 }
 
-type Role = 'admin' | 'user';
+type Role = 'admin' | 'regional' | 'unidade' | 'operador';
 
 type UsuarioRow = {
   id: string;
@@ -38,20 +38,41 @@ type UsuarioRow = {
   email: string;
   role: Role;
   ativo: boolean;
+  regionalId: string | null;
+  regionalNome: string | null;
+  regionalSigla: string | null;
+  unidadeId: string | null;
+  unidadeNome: string | null;
+  unidadeSigla: string | null;
+};
+
+type Regional = {
+  id: string;
+  nome: string;
+  sigla: string;
+};
+
+type Unidade = {
+  id: string;
+  nome: string;
+  sigla: string;
+  regionalId: string;
 };
 
 type ListResponse =
   | {
       ok: true;
       users: UsuarioRow[];
-      regionais: []; // Always empty
-      unidades: []; // Always empty
+      regionais: Regional[];
+      unidades: Unidade[];
     }
   | { ok: false; error?: string };
 
 const roleLabels: Record<Role, string> = {
   admin: 'Admin',
-  user: 'Usuário',
+  regional: 'Gestor regional',
+  unidade: 'Gestor de unidade',
+  operador: 'Operador',
 };
 
 const fieldClass =
@@ -59,6 +80,8 @@ const fieldClass =
 
 export default function AdminUsersClient() {
   const [users, setUsers] = useState<UsuarioRow[]>([]);
+  const [regionais, setRegionais] = useState<Regional[]>([]);
+  const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
@@ -86,6 +109,8 @@ export default function AdminUsersClient() {
         }
         if (!cancelled) {
           setUsers(json.users || []);
+          setRegionais(json.regionais || []);
+          setUnidades(json.unidades || []);
         }
       } catch (e) {
         if (!cancelled)
@@ -99,6 +124,18 @@ export default function AdminUsersClient() {
       cancelled = true;
     };
   }, []);
+
+  const unitsByRegional = useMemo(() => {
+    const map: Record<string, Unidade[]> = {};
+    for (const u of unidades) {
+      if (!map[u.regionalId]) map[u.regionalId] = [];
+      map[u.regionalId].push(u);
+    }
+    Object.values(map).forEach((arr) =>
+      arr.sort((a, b) => a.nome.localeCompare(b.nome)),
+    );
+    return map;
+  }, [unidades]);
 
   function updateUser(id: string, patch: Partial<UsuarioRow>) {
     setUsers((prev) =>
@@ -118,6 +155,8 @@ export default function AdminUsersClient() {
       id: row.id,
       role: row.role,
       ativo: row.ativo,
+      regionalId: row.regionalId,
+      unidadeId: row.unidadeId,
     };
     const newSet = new Set(savingIds);
     newSet.add(row.id);
@@ -225,11 +264,11 @@ export default function AdminUsersClient() {
       <div className="mt-6">
         <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
         <p className="text-xs text-muted mb-3">
-          Assim que novos usuários fizerem login, eles aparecerão aqui para que você
-          consiga definir o papel (admin ou usuário).
+          Assim que novos usuários fizerem login com o Clerk, eles aparecerão aqui para que você
+          consiga definir o papel (admin, regional, unidade, operador) e o escopo de acesso.
         </p>
         <div className="rounded-xl border border-border bg-panel p-4 text-xs text-muted">
-          Nenhum usuário encontrado ainda. Peça para os usuários acessarem o sistema pelo menos
+          Nenhum usuário encontrado ainda. Peça para os gestores acessarem o sistema pelo menos
           uma vez para aparecerem aqui.
         </div>
       </div>
@@ -240,7 +279,7 @@ export default function AdminUsersClient() {
     <div className="mt-6">
       <h2 className="text-sm font-semibold mb-1">Usuários &amp; permissões</h2>
       <p className="text-xs text-muted mb-3">
-        Defina o papel de cada pessoa. As permissões
+        Defina o papel de cada pessoa e qual Regional/Unidade ela pode visualizar. As permissões
         passam a valer em todas as telas após o salvamento.
       </p>
       <ToastList toasts={toasts} remove={removeToast} />
@@ -251,6 +290,8 @@ export default function AdminUsersClient() {
               <th className="px-2 py-1 text-left">Nome</th>
               <th className="px-2 py-1 text-left">E-mail</th>
               <th className="px-2 py-1 text-left">Papel</th>
+              <th className="px-2 py-1 text-left">Regional</th>
+              <th className="px-2 py-1 text-left">Unidade</th>
               <th className="px-2 py-1 text-center">Ativo</th>
               <th className="px-2 py-1 text-center">Ações</th>
             </tr>
@@ -258,6 +299,14 @@ export default function AdminUsersClient() {
           <tbody>
             {users.map((u) => {
               const isSaving = savingIds.has(u.id);
+              const allowedUnits =
+                u.regionalId && unitsByRegional[u.regionalId]
+                  ? unitsByRegional[u.regionalId]
+                  : [];
+
+              const disableRegional = u.role === 'admin';
+              const disableUnidade = u.role === 'admin' || u.role === 'regional';
+
               return (
                 <tr
                   key={u.id}
@@ -278,12 +327,65 @@ export default function AdminUsersClient() {
                       className={fieldClass}
                       value={u.role}
                       onChange={(e) =>
-                        updateUser(u.id, { role: e.target.value as Role })
+                        updateUser(u.id, {
+                          role: e.target.value as Role,
+                          // Limpa escopos incoerentes ao mudar papel
+                          regionalId:
+                            e.target.value === 'admin'
+                              ? null
+                              : u.regionalId,
+                          unidadeId:
+                            e.target.value === 'admin' ||
+                            e.target.value === 'regional'
+                              ? null
+                              : u.unidadeId,
+                        })
                       }
                     >
                       {Object.entries(roleLabels).map(([value, label]) => (
                         <option key={value} value={value}>
                           {label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1 min-w-[160px]">
+                    <select
+                      className={fieldClass}
+                      disabled={disableRegional}
+                      value={u.regionalId || ''}
+                      onChange={(e) => {
+                        const newRegionalId = e.target.value || null;
+                        updateUser(u.id, {
+                          regionalId: newRegionalId,
+                          // Ao trocar a regional, limpamos a unidade
+                          unidadeId: null,
+                        });
+                      }}
+                    >
+                      <option value="">(nenhuma)</option>
+                      {regionais.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.sigla} - {r.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1 min-w-[180px]">
+                    <select
+                      className={fieldClass}
+                      disabled={disableUnidade}
+                      value={u.unidadeId || ''}
+                      onChange={(e) =>
+                        updateUser(u.id, {
+                          unidadeId: e.target.value || null,
+                        })
+                      }
+                    >
+                      <option value="">(nenhuma)</option>
+                      {allowedUnits.map((un) => (
+                        <option key={un.id} value={un.id}>
+                          {un.sigla} - {un.nome}
                         </option>
                       ))}
                     </select>
