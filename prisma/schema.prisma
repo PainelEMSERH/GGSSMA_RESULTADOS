@@ -40,6 +40,16 @@ model Unidade {
   @@map("unidades")
 }
 
+model AuditLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  action    String
+  actor     String?
+  details   String?
+
+  @@map("audit_logs")
+}
+
 
 // --- Modelos do GGSSMA ---
 
