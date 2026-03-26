@@ -17,27 +17,7 @@ model Usuario {
   role        String    @default("user")
   clerkUserId String?   @unique
 
-  regional   Regional? @relation(fields: [regionalId], references: [id])
-  regionalId String?
-
-  unidade    Unidade?  @relation(fields: [unidadeId], references: [id])
-  unidadeId  String?
-
   @@map("usuarios")
-}
-
-model Regional {
-  id       String    @id @default(cuid())
-  nome     String    @unique
-  usuarios Usuario[]
-  @@map("regionais")
-}
-
-model Unidade {
-  id       String    @id @default(cuid())
-  nome     String    @unique
-  usuarios Usuario[]
-  @@map("unidades")
 }
 
 model AuditLog {
