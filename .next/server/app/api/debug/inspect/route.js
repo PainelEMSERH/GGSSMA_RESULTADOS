@@ -1,0 +1,9 @@
+"use strict";(()=>{var e={};e.id=9609,e.ids=[9609],e.modules={53524:e=>{e.exports=require("@prisma/client")},20399:e=>{e.exports=require("next/dist/compiled/next-server/app-page.runtime.prod.js")},30517:e=>{e.exports=require("next/dist/compiled/next-server/app-route.runtime.prod.js")},72513:(e,t,r)=>{r.r(t),r.d(t,{originalPathname:()=>h,patchFetch:()=>R,requestAsyncStorage:()=>m,routeModule:()=>c,serverHooks:()=>g,staticGenerationAsyncStorage:()=>l});var a={};r.r(a),r.d(a,{GET:()=>d,dynamic:()=>u});var n=r(87916),i=r(49930),s=r(2169),p=r(4389),o=r(27191);let u="force-dynamic";async function d(){try{let e=await o.Z.$queryRawUnsafe(`
+      SELECT DISTINCT unidade_hospitalar 
+      FROM stg_epi_map 
+      ORDER BY unidade_hospitalar ASC
+    `),t=await o.Z.$queryRawUnsafe(`
+      SELECT DISTINCT nmdepartamento 
+      FROM stg_unid_reg 
+      ORDER BY nmdepartamento ASC
+    `).catch(()=>[]);return p.NextResponse.json({ok:!0,epi_map:e.map(e=>e.unidade_hospitalar),unid_reg:t.map(e=>e.nmdepartamento)},{status:200})}catch(e){return p.NextResponse.json({ok:!1,error:e.message},{status:500})}}let c=new n.AppRouteRouteModule({definition:{kind:i.x.APP_ROUTE,page:"/api/debug/inspect/route",pathname:"/api/debug/inspect",filename:"route",bundlePath:"app/api/debug/inspect/route"},resolvedPagePath:"/home/user/GGSSMA_RESULTADOS/app/api/debug/inspect/route.ts",nextConfigOutput:"",userland:a}),{requestAsyncStorage:m,staticGenerationAsyncStorage:l,serverHooks:g}=c,h="/api/debug/inspect/route";function R(){return(0,s.patchFetch)({serverHooks:g,staticGenerationAsyncStorage:l})}},27191:(e,t,r)=>{r.d(t,{Z:()=>n});var a=r(53524);let n=globalThis.prisma??new a.PrismaClient({log:["error"]})},87916:(e,t,r)=>{e.exports=r(30517)}};var t=require("../../../../webpack-runtime.js");t.C(e);var r=e=>t(t.s=e),a=t.X(0,[2035,4389],()=>r(72513));module.exports=a})();

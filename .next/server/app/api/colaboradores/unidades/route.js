@@ -1,0 +1,12 @@
+"use strict";(()=>{var e={};e.id=3171,e.ids=[3171],e.modules={53524:e=>{e.exports=require("@prisma/client")},20399:e=>{e.exports=require("next/dist/compiled/next-server/app-page.runtime.prod.js")},30517:e=>{e.exports=require("next/dist/compiled/next-server/app-route.runtime.prod.js")},33925:(e,a,r)=>{r.r(a),r.d(a,{originalPathname:()=>E,patchFetch:()=>g,requestAsyncStorage:()=>l,routeModule:()=>m,serverHooks:()=>R,staticGenerationAsyncStorage:()=>c});var t={};r.r(t),r.d(t,{GET:()=>p,dynamic:()=>s,revalidate:()=>u,runtime:()=>i});var n=r(87916),o=r(49930),d=r(2169);let i="nodejs",s="force-dynamic",u=0;async function p(e){let{prisma:a}=await r.e(5892).then(r.bind(r,65892)),t=new URL(e.url).searchParams.get("regionalId")||"";try{let e,r=!1;try{let e=await a.$queryRaw`SELECT COUNT(*)::int c FROM unidade`;r=Number(e?.[0]?.c||0)>0}catch{r=!1}if(r){if(t){let e=await a.$queryRaw`SELECT id, nome FROM unidade WHERE regionalId = ${t} ORDER BY nome`;return Response.json({ok:!0,unidades:e})}{let e=await a.$queryRaw`SELECT id, nome FROM unidade ORDER BY nome`;return Response.json({ok:!0,unidades:e})}}if(t){let r=t.replace(/'/g,"''");e=await a.$queryRawUnsafe(`
+        SELECT md5(nmddepartamento) AS id, nmddepartamento AS nome
+        FROM stg_unid_reg
+        WHERE md5(COALESCE(regional_responsavel,'')) = '${r}'
+        GROUP BY nmddepartamento
+        ORDER BY nmddepartamento
+      `)}else e=await a.$queryRawUnsafe(`
+        SELECT md5(nmddepartamento) AS id, nmddepartamento AS nome
+        FROM stg_unid_reg
+        GROUP BY nmddepartamento
+        ORDER BY nmddepartamento
+      `);return Response.json({ok:!0,unidades:e})}catch(e){return console.error("[colaboradores/unidades] error",e),Response.json({ok:!1,unidades:[]})}}let m=new n.AppRouteRouteModule({definition:{kind:o.x.APP_ROUTE,page:"/api/colaboradores/unidades/route",pathname:"/api/colaboradores/unidades",filename:"route",bundlePath:"app/api/colaboradores/unidades/route"},resolvedPagePath:"/home/user/GGSSMA_RESULTADOS/app/api/colaboradores/unidades/route.ts",nextConfigOutput:"",userland:t}),{requestAsyncStorage:l,staticGenerationAsyncStorage:c,serverHooks:R}=m,E="/api/colaboradores/unidades/route";function g(){return(0,d.patchFetch)({serverHooks:R,staticGenerationAsyncStorage:c})}},87916:(e,a,r)=>{e.exports=r(30517)}};var a=require("../../../../webpack-runtime.js");a.C(e);var r=e=>a(a.s=e),t=a.X(0,[2035],()=>r(33925));module.exports=t})();

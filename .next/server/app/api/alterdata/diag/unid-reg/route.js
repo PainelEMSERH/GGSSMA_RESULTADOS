@@ -1,0 +1,10 @@
+"use strict";(()=>{var e={};e.id=2327,e.ids=[2327],e.modules={53524:e=>{e.exports=require("@prisma/client")},20399:e=>{e.exports=require("next/dist/compiled/next-server/app-page.runtime.prod.js")},30517:e=>{e.exports=require("next/dist/compiled/next-server/app-route.runtime.prod.js")},28904:(e,r,t)=>{t.r(r),t.d(r,{originalPathname:()=>m,patchFetch:()=>_,requestAsyncStorage:()=>l,routeModule:()=>p,serverHooks:()=>c,staticGenerationAsyncStorage:()=>g});var a={};t.r(a),t.d(a,{GET:()=>d});var n=t(87916),i=t(49930),o=t(2169),s=t(4389),u=t(27191);async function d(){try{let e=await u.Z.$queryRawUnsafe(`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'stg_unid_reg'
+      ORDER BY ordinal_position
+    `),r=await u.Z.$queryRawUnsafe("SELECT * FROM stg_unid_reg LIMIT 3"),t=await u.Z.$queryRawUnsafe(`
+      SELECT jsonb_object_keys(to_jsonb(ur)) AS key
+      FROM stg_unid_reg ur
+      LIMIT 1
+    `);return s.NextResponse.json({ok:!0,columns:e,sample:r,probeKeys:t})}catch(e){return s.NextResponse.json({ok:!1,error:String(e?.message||e)},{status:500})}}let p=new n.AppRouteRouteModule({definition:{kind:i.x.APP_ROUTE,page:"/api/alterdata/diag/unid-reg/route",pathname:"/api/alterdata/diag/unid-reg",filename:"route",bundlePath:"app/api/alterdata/diag/unid-reg/route"},resolvedPagePath:"/home/user/GGSSMA_RESULTADOS/app/api/alterdata/diag/unid-reg/route.ts",nextConfigOutput:"",userland:a}),{requestAsyncStorage:l,staticGenerationAsyncStorage:g,serverHooks:c}=p,m="/api/alterdata/diag/unid-reg/route";function _(){return(0,o.patchFetch)({serverHooks:c,staticGenerationAsyncStorage:g})}},27191:(e,r,t)=>{t.d(r,{Z:()=>n});var a=t(53524);let n=globalThis.prisma??new a.PrismaClient({log:["error"]})},87916:(e,r,t)=>{e.exports=t(30517)}};var r=require("../../../../../webpack-runtime.js");r.C(e);var t=e=>r(r.s=e),a=r.X(0,[2035,4389],()=>t(28904));module.exports=a})();
