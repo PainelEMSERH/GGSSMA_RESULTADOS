@@ -7,8 +7,42 @@ datasource db {
   url      = env("NEON_GGSSMA_DATABASE_URL")
 }
 
+// --- Modelos de Usuário e Estrutura ---
 
-// Enums para GGSSMA
+model Usuario {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  nome        String?
+  ativo       Boolean   @default(true)
+  role        String    @default("user")
+  clerkUserId String?   @unique
+
+  regional   Regional? @relation(fields: [regionalId], references: [id])
+  regionalId String?
+
+  unidade    Unidade?  @relation(fields: [unidadeId], references: [id])
+  unidadeId  String?
+
+  @@map("usuarios")
+}
+
+model Regional {
+  id       String    @id @default(cuid())
+  nome     String    @unique
+  usuarios Usuario[]
+  @@map("regionais")
+}
+
+model Unidade {
+  id       String    @id @default(cuid())
+  nome     String    @unique
+  usuarios Usuario[]
+  @@map("unidades")
+}
+
+
+// --- Modelos do GGSSMA ---
+
 enum AreaGGSSMA {
   SAUDE_OCUPACIONAL
   SEGURANCA_TRABALHO
@@ -20,15 +54,13 @@ enum PolaridadeIndicador {
   MENOR_MELHOR
 }
 
-
-// GGSSMA Models
 model IndicadorGGSSMA {
   id              String        @id @default(cuid())
-  nome            String        
+  nome            String
   descricao       String?
   area            AreaGGSSMA
   regional        String?
-  responsavel     String? 
+  responsavel     String?
   macroProcesso   String?
   unidadeMedida   String?
   polaridade      PolaridadeIndicador
@@ -47,7 +79,7 @@ model ResultadoMensalGGSSMA {
 
   ano           Int
   mes           Int
-  
+
   valorMeta     Float?
   valorReal     Float?
   observacao    String?
