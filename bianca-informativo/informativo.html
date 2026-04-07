@@ -341,15 +341,6 @@
       background: rgba(44, 34, 30, 0.08);
     }
 
-    .bloco.portfolio .bloco-cab {
-      background: var(--papel);
-      border-left: 4px solid var(--ouro);
-    }
-
-    .bloco.portfolio .sim {
-      background: rgba(201, 147, 69, 0.15);
-    }
-
     .txt-curto {
       margin: 0;
       font-size: 0.88rem;
@@ -500,33 +491,66 @@
       border-left: 3px solid var(--ouro);
     }
 
-    .galeria-tit {
-      font-size: 0.55rem;
-      font-weight: 700;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: var(--ouro);
-      margin: 0 0 0.5rem;
-    }
-
-    .galeria {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-    }
-
-    .galeria figure {
-      margin: 0;
-      aspect-ratio: 3 / 4;
+    /* Imagem editorial — penteado / maquiagem */
+    .prep-visual {
+      margin: -0.75rem -0.9rem 0.85rem;
+      width: calc(100% + 1.8rem);
+      position: relative;
       overflow: hidden;
-      border-radius: 4px;
+      background: linear-gradient(145deg, rgba(44, 34, 30, 0.06), rgba(201, 147, 69, 0.06));
     }
 
-    .galeria img {
+    .prep-visual::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 40%;
+      background: linear-gradient(to top, rgba(15, 12, 11, 0.35), transparent);
+      pointer-events: none;
+    }
+
+    .prep-visual img {
+      display: block;
       width: 100%;
-      height: 100%;
+      aspect-ratio: 16 / 11;
       object-fit: cover;
-      filter: saturate(1.06) contrast(1.03);
+      vertical-align: middle;
+      filter: saturate(1.04) contrast(1.02);
+    }
+
+    .prep-visual figcaption {
+      position: absolute;
+      left: 0.65rem;
+      bottom: 0.5rem;
+      z-index: 1;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-style: italic;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      color: rgba(255, 252, 249, 0.95);
+      text-shadow: 0 1px 8px rgba(15, 12, 11, 0.5);
+    }
+
+    .prep-visual.prep-visual--cabelo {
+      border-bottom: 2px solid rgba(196, 160, 144, 0.65);
+    }
+
+    .prep-visual.prep-visual--maquiagem {
+      border-bottom: 2px solid rgba(143, 168, 154, 0.55);
+    }
+
+    @media print {
+      .prep-visual img {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .prep-visual,
+      .bloco.prep-cabelo,
+      .bloco.prep-pele {
+        break-inside: avoid;
+      }
     }
 
     .nota-mini {
@@ -568,9 +592,6 @@
       .capa {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
-      }
-      .galeria figure {
-        break-inside: avoid;
       }
     }
 
@@ -637,7 +658,8 @@
 <body class="has-barra">
   <div class="barra-edicao no-print" role="region" aria-label="Ferramentas">
     <span class="hint">
-      <strong style="color: var(--ouro-claro);">Edição:</strong> ative abaixo, edite na página → <strong>PDF</strong> ou <strong>HTML</strong>. Fotos: pasta <code style="color:var(--champagne);">galeria/</code>.
+      <strong style="color: var(--ouro-claro);">Edição:</strong> ative abaixo, edite na página → <strong>PDF</strong> ou <strong>HTML</strong>.
+      Imagens: coloque <code style="color:var(--champagne);">galeria/cabelo.jpg</code> e <code style="color:var(--champagne);">galeria/maquiagem.jpg</code> (mesma pasta deste HTML).
     </span>
     <label style="display:flex;align-items:center;gap:0.4rem;color:#e8d5b8;">
       <input type="checkbox" id="toggle-edicao" /> Editar
@@ -675,7 +697,6 @@
       <a href="#preparo"><span class="ico" aria-hidden="true">✦</span> Dia do evento</a>
       <a href="#valores"><span class="ico" aria-hidden="true">$</span> Valores</a>
       <a href="#regras"><span class="ico" aria-hidden="true">!</span> Regras</a>
-      <a href="#portfolio"><span class="ico" aria-hidden="true">◎</span> Trabalhos</a>
     </nav>
 
     <div class="resumo" aria-label="Em resumo">
@@ -729,7 +750,7 @@
               <span class="tag">Instagram</span>
               <a href="https://www.instagram.com/biancabrito.makeup/">@biancabrito.makeup</a>
             </div>
-            <p class="nota-mini">WhatsApp = agendamento e dúvidas · Instagram = referências e novidades.</p>
+            <p class="nota-mini">WhatsApp = agendamento e dúvidas · Instagram = portfólio completo e referências.</p>
           </div>
         </article>
 
@@ -759,6 +780,10 @@
                 No dia — cabelo
               </div>
               <div class="bloco-corpo">
+                <figure class="prep-visual prep-visual--cabelo">
+                  <img src="galeria/cabelo.jpg" alt="Referência visual — penteado" width="800" height="550" loading="lazy" />
+                  <figcaption>Penteado</figcaption>
+                </figure>
                 <ul class="lista-check">
                   <li>Lavar, em geral, no <strong>dia anterior</strong> (exceto se ela orientar outra coisa).</li>
                   <li>Chegar com cabelo <strong>seco</strong> · sem chapinha pesada no dia.</li>
@@ -772,9 +797,13 @@
             <article class="bloco prep-pele">
               <div class="bloco-cab">
                 <span class="sim" aria-hidden="true">○</span>
-                No dia — pele
+                No dia — pele &amp; maquiagem
               </div>
               <div class="bloco-corpo">
+                <figure class="prep-visual prep-visual--maquiagem">
+                  <img src="galeria/maquiagem.jpg" alt="Referência visual — maquiagem" width="800" height="550" loading="lazy" />
+                  <figcaption>Maquiagem</figcaption>
+                </figure>
                 <ul class="lista-check">
                   <li>Hidratar nos dias anteriores · esfoliar <strong>1–2 dias antes</strong>, não no dia.</li>
                   <li>Sem produto novo na véspera.</li>
@@ -830,27 +859,6 @@
               <li>Atendimento social = <strong>horário fechado</strong>. Sem tolerância para atraso — respeita você e a agenda das outras clientes.</li>
               <li>Imprevisto? Avise o quanto antes pelo WhatsApp.</li>
             </ul>
-          </div>
-        </article>
-
-        <article class="bloco portfolio" id="portfolio">
-          <div class="bloco-cab">
-            <span class="sim" aria-hidden="true">▣</span>
-            Portfólio
-          </div>
-          <div class="bloco-corpo">
-            <p class="galeria-tit">Seleção de trabalhos</p>
-            <p class="nota-mini" style="margin-top: 0;">Substitua pelas fotos autorizadas (<code>galeria/</code> ou URLs no HTML).</p>
-            <div class="galeria">
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=1" alt="" width="400" height="530" /></figure>
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=2" alt="" width="400" height="530" /></figure>
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=3" alt="" width="400" height="530" /></figure>
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=4" alt="" width="400" height="530" /></figure>
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=5" alt="" width="400" height="530" /></figure>
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=6" alt="" width="400" height="530" /></figure>
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=7" alt="" width="400" height="530" /></figure>
-              <figure><img src="https://placehold.co/400x530/2c221e/f0e6df?text=8" alt="" width="400" height="530" /></figure>
-            </div>
           </div>
         </article>
       </main>
