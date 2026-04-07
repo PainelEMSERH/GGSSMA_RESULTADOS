@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bianca Brito — Informações para clientes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --marrom-escuro: #2c1f1a;
+      --marrom: #4a372f;
+      --marrom-medio: #6b5348;
+      --creme: #faf7f3;
+      --branco: #ffffff;
+      --borda: #d4c4b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Source Sans 3", system-ui, sans-serif;
+      font-size: 11pt;
+      line-height: 1.55;
+      color: var(--marrom-escuro);
+      background: var(--creme);
+    }
+
+    .pagina {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 14mm 16mm 18mm;
+      background: var(--branco);
+      min-height: 100vh;
+    }
+
+    @media print {
+      body {
+        background: var(--branco);
+      }
+      .pagina {
+        max-width: none;
+        margin: 0;
+        padding: 12mm 14mm;
+        min-height: auto;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+
+    .topo {
+      text-align: center;
+      padding-bottom: 1.25rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid var(--marrom);
+    }
+
+    .logo-bb {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 2.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--marrom);
+      line-height: 1;
+      margin-bottom: 0.35rem;
+    }
+
+    .logo-sub {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--marrom-medio);
+    }
+
+    h1 {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--marrom);
+      margin: 1.75rem 0 0.5rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--borda);
+    }
+
+    h1:first-of-type {
+      margin-top: 0.5rem;
+    }
+
+    p {
+      margin: 0.5rem 0;
+    }
+
+    ul {
+      margin: 0.4rem 0 0.6rem;
+      padding-left: 1.15rem;
+    }
+
+    li {
+      margin: 0.25rem 0;
+    }
+
+    .destaque {
+      background: linear-gradient(180deg, transparent 60%, rgba(107, 83, 72, 0.12) 60%);
+      padding: 0 0.15em;
+    }
+
+    .grid-contato {
+      display: grid;
+      gap: 0.35rem 1rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (min-width: 480px) {
+      .grid-contato {
+        grid-template-columns: auto 1fr;
+      }
+    }
+
+    .rotulo {
+      font-weight: 600;
+      color: var(--marrom);
+    }
+
+    a {
+      color: var(--marrom-medio);
+      word-break: break-all;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.6rem 0 0.8rem;
+      font-size: 10.5pt;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--borda);
+      padding: 0.45rem 0.55rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(74, 55, 47, 0.08);
+      font-weight: 600;
+      color: var(--marrom);
+    }
+
+    .nota {
+      font-size: 10pt;
+      color: var(--marrom-medio);
+      font-style: italic;
+      margin-top: 0.35rem;
+    }
+
+    .galeria {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 0.75rem;
+    }
+
+    .galeria figure {
+      margin: 0;
+      aspect-ratio: 4 / 3;
+      overflow: hidden;
+      border-radius: 4px;
+      border: 1px solid var(--borda);
+      background: var(--creme);
+    }
+
+    .galeria img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    @media print {
+      .galeria {
+        break-inside: avoid;
+      }
+    }
+
+    .rodape {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--borda);
+      text-align: center;
+      font-size: 9.5pt;
+      color: var(--marrom-medio);
+    }
+
+    .aviso-edicao {
+      font-size: 10pt;
+      color: var(--marrom-medio);
+      background: rgba(107, 83, 72, 0.1);
+      padding: 0.65rem 0.85rem;
+      border-radius: 6px;
+      margin-bottom: 1.25rem;
+      border-left: 4px solid var(--marrom-medio);
+    }
+  </style>
+</head>
+<body>
+  <div class="pagina">
+    <!-- ========== EDITE ABAIXO: textos, tabela de valores e links ========== -->
+
+    <p class="aviso-edicao no-print">
+      <strong>Onde está este arquivo:</strong> pasta <code>bianca-informativo/informativo.html</code> no repositório de resultados (não é o projeto Emserh).<br />
+      <strong>Como gerar o PDF:</strong> abra este arquivo no Chrome ou Edge → Ctrl+P → Destino “Salvar como PDF”.<br />
+      <strong>Fotos:</strong> coloque as imagens em <code>bianca-informativo/galeria/</code> e ajuste o <code>src</code> de cada <code>&lt;img&gt;</code> (ex.: <code>galeria/foto-01.jpg</code>).
+    </p>
+
+    <header class="topo">
+      <div class="logo-bb" aria-hidden="true">BB</div>
+      <div class="logo-sub">Bianca Brito</div>
+      <p style="margin: 0.75rem 0 0; font-size: 0.95rem; color: var(--marrom-medio);">
+        Maquiagem &amp; penteados
+      </p>
+    </header>
+
+    <section>
+      <h1>Quem é a Bianca Brito?</h1>
+      <p>
+        A Bianca é <span class="destaque">maquiadora e penteadista</span>, especializada em produções para eventos sociais — formaturas, casamentos, aniversários e ocasiões que pedem um visual harmônico e elegante. O trabalho une técnica, escuta do que a cliente imagina para o dia e cuidado com a durabilidade da maquiagem e da estrutura do cabelo ao longo do evento.
+      </p>
+      <p>
+        Cada atendimento é pensado para valorizar traços e tipo de fio, sempre com produtos adequados ao protocolo profissional e às necessidades da sua pele e do seu cabelo.
+      </p>
+    </section>
+
+    <section>
+      <h1>Local de atendimento</h1>
+      <p>
+        <strong>Endereço do espaço:</strong> Rua Guarani, nº 556 — Vila Redenção II.<br />
+        O atendimento no espaço da Bianca é indicado para quem busca conforto, iluminação adequada para maquiagem e todos os materiais à mão. Se tiver dúvida de acesso, estacionamento ou ponto de referência, envie uma mensagem no WhatsApp antes do dia.
+      </p>
+    </section>
+
+    <section>
+      <h1>Contato</h1>
+      <div class="grid-contato">
+        <span class="rotulo">WhatsApp</span>
+        <span><a href="https://wa.me/5599981452008">(99) 98145-2008</a></span>
+        <span class="rotulo">Instagram</span>
+        <span><a href="https://www.instagram.com/biancabrito.makeup/">instagram.com/biancabrito.makeup</a></span>
+      </div>
+      <p class="nota">Prefira o WhatsApp para agendamento e dúvidas rápidas; o Instagram serve também para referências de trabalho e novidades.</p>
+    </section>
+
+    <section>
+      <h1>Como agendar?</h1>
+      <p>Para reservar data e horário, envie uma mensagem no <strong>WhatsApp</strong> com as informações abaixo (pode copiar e preencher):</p>
+      <ul>
+        <li><strong>Nome completo</strong></li>
+        <li><strong>Data do evento</strong> e <strong>horário</strong> em que precisa estar pronta</li>
+        <li><strong>Serviços desejados:</strong> só maquiagem, só penteado ou combo (e se precisa de atendimento <em>no espaço</em> ou <em>domicílio</em>)</li>
+        <li><strong>Endereço</strong> (se for domicílio), com bairro e ponto de referência</li>
+        <li>Se tiver, <strong>fotos de referência</strong> de maquiagem e/ou penteado (ajudam no alinhamento de expectativa)</li>
+        <li><strong>Alergias</strong> a cosméticos ou informações importantes sobre a pele e o cabelo</li>
+      </ul>
+      <p>
+        Após combinarem data e serviços, será enviado o valor e as instruções para o <strong>sinal de 30%</strong> (veja política de agendamento). O horário só fica efetivamente reservado após a confirmação do sinal.
+      </p>
+    </section>
+
+    <section>
+      <h1>Preparo do cabelo (antes do penteado)</h1>
+      <p>Seguir essas orientações ajuda o penteado a fixar melhor e a manter o acabamento por mais tempo:</p>
+      <ul>
+        <li><strong>Lavagem:</strong> em geral, lave o cabelo no <strong>dia anterior</strong> ao penteado (a menos que a Bianca oriente o contrário para o seu tipo de fio ou estilo). Cabelo muito “escorregadio” no dia pode dificultar a estrutura de presos; cabelo levemente sujo do dia anterior costuma segurar melhor presilhas e grampos.</li>
+        <li><strong>Chegue com o cabelo seco</strong> (salvo orientação específica). Secador e chapinha só se combinado antes, para não comprometer o tempo do atendimento.</li>
+        <li><strong>Não use óleos pesados ou leave-in na raiz</strong> no dia do penteado, para não deixar o fio oleoso demais na raiz.</li>
+        <li><strong>Traga os acessórios</strong> que quiser usar (grampos, tiara, flores, etc.), se já tiver definido.</li>
+        <li><strong>Alongamentos e mega hair:</strong> avise com antecedência; o tempo e a técnica podem variar.</li>
+        <li><strong>Penteado com ondas:</strong> para <strong>cabelos muito longos</strong> pode haver <strong>acréscimo no valor</strong> das ondas — combine no agendamento.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h1>Preparo da pele (antes da maquiagem)</h1>
+      <p>Uma pele bem cuidada nos dias anteriores faz diferença no acabamento e na durabilidade da maquiagem:</p>
+      <ul>
+        <li><strong>Hidratação:</strong> mantenha a rotina de hidratação nos dias que antecedem o evento.</li>
+        <li><strong>Esfoliação:</strong> se fizer parte da sua rotina, prefira <strong>1 a 2 dias antes</strong>, e não na hora do evento, para evitar vermelhidão.</li>
+        <li><strong>Evite testar produtos novos</strong> (skincare, autobronzeador, tratamentos agressivos) na véspera ou no dia — risco de reação ou descamação.</li>
+        <li><strong>No dia:</strong> chegue com o rosto <strong>limpo</strong>, sem maquiagem. Se sua pele for muito seca, pode usar apenas o hidratante de costume com antecedência; evite filtros com muito brilho na área dos olhos se for combinado outro tipo de preparo.</li>
+        <li><strong>Depilação/sobrancelha:</strong> ideal com pelo menos <strong>48 horas</strong> de antecedência para a pele “acalmar”.</li>
+        <li><strong>Informe:</strong> alergias, dermatites, uso de ácidos ou tratamentos recentes, gestação (se quiser compartilhar para escolha de produtos), e uso de <strong>lentes de contato</strong> (pode colocar antes ou depois, conforme combinado no dia).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h1>Pacotes e valores</h1>
+      <p>Valores referentes aos serviços combinados individualmente ou em conjunto. Tempos médios ajudam a organizar sua agenda no dia do evento.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Serviço</th>
+            <th>Valor</th>
+            <th>Observações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Maquiagem no espaço da Bianca</td>
+            <td>R$ 130,00</td>
+            <td>Produção com cerca de <strong>1 hora</strong>.</td>
+          </tr>
+          <tr>
+            <td>Maquiagem a domicílio</td>
+            <td>R$ 170,00</td>
+            <td>Inclui deslocamento conforme combinado no agendamento.</td>
+          </tr>
+          <tr>
+            <td>Penteado</td>
+            <td>R$ 90,00</td>
+            <td>Previsão de <strong>1 hora a 1 hora e meia</strong>, conforme complexidade.</td>
+          </tr>
+          <tr>
+            <td>Só ondas</td>
+            <td>R$ 60,00</td>
+            <td><strong>Cabelos muito longos:</strong> pode haver acréscimo — consulte no agendamento.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="nota">
+        Valores e condições podem ser atualizados; em caso de dúvida, confirme sempre pelo WhatsApp no momento do agendamento.
+      </p>
+    </section>
+
+    <section>
+      <h1>Política de agendamento</h1>
+      <ul>
+        <li>Para <strong>confirmar o agendamento</strong>, é necessário o pagamento de <strong>30% do valor do serviço</strong> como sinal.</li>
+        <li>O <strong>restante (70%)</strong> é pago <strong>no dia do atendimento</strong>, conforme combinado (forma de pagamento alinhada no WhatsApp).</li>
+        <li>O horário só fica reservado após a confirmação do sinal e dos dados combinados.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h1>Política de atendimento</h1>
+      <p>
+        Os <strong>atendimentos sociais</strong> são realizados <strong>exclusivamente dentro do horário agendado</strong>. <strong>Não há tolerância para atraso:</strong> chegar fora do horário pode comprometer o tempo da produção e o encaixe com outras clientes. Organize-se para chegar no horário combinado e, se houver imprevisto, avise com a maior antecedência possível pelo WhatsApp.
+      </p>
+    </section>
+
+    <section>
+      <h1>Galeria</h1>
+      <p class="nota" style="font-style: normal;">
+        Substitua as imagens abaixo pelas fotos autorizadas das clientes (edite o atributo <code>src</code> de cada <code>img</code>).
+      </p>
+      <div class="galeria">
+        <!-- Troque src: use arquivos em galeria/ ao lado deste HTML, ex.: galeria/foto-01.jpg -->
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+1" alt="Trabalho 1 — substitua pela foto real" width="400" height="300" /></figure>
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+2" alt="Trabalho 2 — substitua pela foto real" width="400" height="300" /></figure>
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+3" alt="Trabalho 3 — substitua pela foto real" width="400" height="300" /></figure>
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+4" alt="Trabalho 4 — substitua pela foto real" width="400" height="300" /></figure>
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+5" alt="Trabalho 5 — substitua pela foto real" width="400" height="300" /></figure>
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+6" alt="Trabalho 6 — substitua pela foto real" width="400" height="300" /></figure>
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+7" alt="Trabalho 7 — substitua pela foto real" width="400" height="300" /></figure>
+        <figure><img src="https://placehold.co/400x300/4a372f/faf7f3?text=Foto+8" alt="Trabalho 8 — substitua pela foto real" width="400" height="300" /></figure>
+      </div>
+    </section>
+
+    <footer class="rodape">
+      Bianca Brito — Maquiagem &amp; penteados · Rua Guarani, 556 — Vila Redenção II<br />
+      WhatsApp (99) 98145-2008 · @biancabrito.makeup
+    </footer>
+  </div>
+</body>
+</html>
