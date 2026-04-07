@@ -15,9 +15,11 @@
       --terroso: #4a3b34;
       --muted: #7a6a62;
       --areia: #d4c4b5;
-      --champagne: #c4a574;
-      --ouro: #b8956a;
-      --ouro-claro: #e8d5b8;
+      --champagne: #d4a968;
+      /* Antes #b8956a — mesmo tom, mais saturado e contrastante na página */
+      --ouro: #c99345;
+      --ouro-escuro: #a6742e;
+      --ouro-claro: #edd4b4;
       --blush: #f0e6df;
       --papel: #faf6f1;
       --branco: #fffcf9;
@@ -271,7 +273,7 @@
     a {
       color: var(--terroso);
       text-decoration: none;
-      border-bottom: 1px solid rgba(184, 149, 106, 0.45);
+      border-bottom: 1px solid rgba(201, 147, 69, 0.5);
       transition: color 0.15s ease, border-color 0.15s ease;
     }
 
@@ -350,11 +352,14 @@
     .galeria-tit {
       font-family: "Montserrat", sans-serif;
       font-size: 0.58rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0.35em;
       text-transform: uppercase;
       color: var(--ouro);
       margin-bottom: 0.75rem;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
 
     .galeria {
@@ -376,7 +381,7 @@
       height: 100%;
       object-fit: cover;
       display: block;
-      filter: saturate(0.97);
+      filter: saturate(1.08) contrast(1.04);
     }
 
     @media print {
@@ -464,7 +469,7 @@
     }
 
     .barra-edicao button.primario {
-      background: linear-gradient(135deg, var(--ouro), #a67c52);
+      background: linear-gradient(135deg, var(--ouro), var(--ouro-escuro));
       color: var(--branco);
       border-color: transparent;
     }
@@ -484,7 +489,7 @@
     }
 
     .modo-edicao-ativo main {
-      outline: 1px dashed rgba(184, 149, 106, 0.6);
+      outline: 1px dashed rgba(201, 147, 69, 0.65);
       outline-offset: 8px;
     }
 
@@ -503,7 +508,7 @@
   <div class="barra-edicao no-print" role="region" aria-label="Ferramentas">
     <span class="hint">
       <strong style="color: var(--ouro-claro);">Edição:</strong> ative o modo, altere os textos na página, depois <strong>PDF</strong> ou <strong>HTML</strong>.
-      Fotos: pasta <code style="color:#c4a574;">galeria/</code> ou ajuste no código.
+      Fotos: pasta <code style="color:var(--champagne);">galeria/</code> ou ajuste no código.
     </span>
     <label style="display:flex;align-items:center;gap:0.45rem;color:#e8d5b8;font-size:0.68rem;">
       <input type="checkbox" id="toggle-edicao" /> Editar textos
@@ -519,13 +524,13 @@
         <svg class="logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <defs>
             <linearGradient id="goldStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#e8d5b8" />
-              <stop offset="50%" style="stop-color:#c4a574" />
-              <stop offset="100%" style="stop-color:#9a7a52" />
+              <stop offset="0%" style="stop-color:#edd4b4" />
+              <stop offset="50%" style="stop-color:#d4a968" />
+              <stop offset="100%" style="stop-color:#a6742e" />
             </linearGradient>
             <linearGradient id="goldFill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:#f2e6d4" />
-              <stop offset="100%" style="stop-color:#b8956a" />
+              <stop offset="0%" style="stop-color:#f5ead8" />
+              <stop offset="100%" style="stop-color:#c99345" />
             </linearGradient>
           </defs>
           <rect class="logo-frame" x="4" y="4" width="92" height="92" rx="2" />
