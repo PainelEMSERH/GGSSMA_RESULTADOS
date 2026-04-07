@@ -3,595 +3,591 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bianca Brito — Beauty &amp; Hair</title>
+  <title>Bianca Brito — Beauty &amp; Hair Atelier</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --noite: #0f0c0b;
-      --carvao: #1a1614;
-      --café: #2c221e;
-      --terroso: #4a3b34;
-      --muted: #7a6a62;
-      --champagne: #d4a968;
-      --ouro: #c99345;
-      --ouro-escuro: #a6742e;
-      --ouro-claro: #edd4b4;
-      --blush: #f0e6df;
-      --papel: #faf6f1;
-      --branco: #fffcf9;
-      /* Zonas semânticas (olho segue a cor) */
-      --z-local: #e8f0ec;
-      --z-local-borda: #7a9e8c;
-      --z-contato: #f3ebe6;
-      --z-contato-borda: var(--ouro);
-      --z-agenda: #eef1f6;
-      --z-agenda-borda: #8b93a8;
-      --z-cabelo: #f7efe8;
-      --z-cabelo-borda: #c4a090;
-      --z-pele: #f0f4f2;
-      --z-pele-borda: #8fa89a;
-      --z-preco: #fffaf5;
-      --z-regra: #fdf6ed;
-      --z-regra-borda: #d4a968;
+      --ink: #161311;
+      --ink-soft: #3d3834;
+      --muted: #6b6560;
+      --line: #e0d9d0;
+      --line-gold: rgba(174, 138, 82, 0.45);
+      --gold: #ae8a52;
+      --gold-deep: #8a6b3f;
+      --gold-mist: rgba(174, 138, 82, 0.12);
+      --cream: #f7f4ef;
+      --ivory: #fdfcfa;
+      --noir: #0e0c0b;
+      --noir-soft: #1a1715;
     }
 
     * {
       box-sizing: border-box;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       margin: 0;
-      font-family: "Montserrat", system-ui, sans-serif;
-      font-size: 10pt;
-      line-height: 1.55;
-      color: var(--café);
-      background: var(--noite);
+      font-family: "Outfit", system-ui, sans-serif;
+      font-size: 10.5pt;
+      font-weight: 400;
+      line-height: 1.65;
+      letter-spacing: 0.02em;
+      color: var(--ink-soft);
+      background: var(--noir);
+      -webkit-font-smoothing: antialiased;
     }
 
-    .doc {
+    /* Papel editorial + textura */
+    .bb-doc {
       max-width: 210mm;
       margin: 0 auto;
-      background: var(--papel);
+      background: var(--cream);
+      background-image:
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      min-height: 100vh;
     }
 
-    /* ----- Capa ----- */
-    .capa {
+    .bb-inner {
+      max-width: 38rem;
+      margin: 0 auto;
+      padding: 0 1.35rem 2.5rem;
+    }
+
+    /* ——— Capa / hero ——— */
+    .bb-hero {
       position: relative;
-      padding: 2rem 1.25rem 1.75rem;
       text-align: center;
+      padding: 2.75rem 1.5rem 2.25rem;
       background:
-        radial-gradient(ellipse 100% 70% at 50% -15%, rgba(212, 169, 104, 0.2), transparent 50%),
-        linear-gradient(165deg, var(--carvao) 0%, var(--noite) 100%);
-      color: var(--blush);
+        radial-gradient(ellipse 90% 60% at 50% 0%, rgba(174, 138, 82, 0.14), transparent 55%),
+        linear-gradient(168deg, var(--noir-soft) 0%, var(--noir) 100%);
+      color: var(--cream);
       overflow: hidden;
     }
 
-    .capa::before {
+    .bb-hero::after {
       content: "";
       position: absolute;
-      inset: 0;
-      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background: linear-gradient(to top, var(--cream), transparent);
       pointer-events: none;
     }
 
-    .logo-svg {
-      width: 72px;
-      height: 72px;
-      color: var(--champagne);
+    .bb-hero-inner {
       position: relative;
       z-index: 1;
+    }
+
+    .logo-svg {
+      width: 78px;
+      height: 78px;
+      margin: 0 auto;
     }
 
     .logo-svg .logo-frame {
       fill: none;
       stroke: url(#goldStroke);
-      stroke-width: 1.05;
+      stroke-width: 1;
     }
 
     .logo-svg .logo-monogram {
       font-family: "Cormorant Garamond", Georgia, serif;
-      font-weight: 500;
-      font-size: 32px;
-      fill: url(#goldFill);
-      letter-spacing: -0.05em;
-    }
-
-    .capa h1 {
-      position: relative;
-      z-index: 1;
-      font-family: "Cormorant Garamond", Georgia, serif;
       font-weight: 400;
-      font-size: clamp(1.75rem, 4vw, 2.2rem);
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      margin: 0.75rem 0 0;
-      color: var(--branco);
+      font-size: 34px;
+      fill: url(#goldFill);
+      letter-spacing: -0.04em;
     }
 
-    .capa .kicker {
-      position: relative;
-      z-index: 1;
-      margin: 0.5rem 0 0;
+    .bb-hero h1 {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 300;
+      font-size: clamp(2rem, 6vw, 2.65rem);
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      margin: 1rem 0 0;
+      color: var(--ivory);
+    }
+
+    .bb-hero .tag {
+      margin: 0.65rem 0 0;
       font-size: 0.58rem;
-      font-weight: 600;
-      letter-spacing: 0.45em;
+      font-weight: 500;
+      letter-spacing: 0.5em;
       text-transform: uppercase;
-      color: var(--ouro-claro);
+      color: rgba(230, 220, 208, 0.85);
     }
 
-    .capa .sub {
-      position: relative;
-      z-index: 1;
+    .bb-hero .rule {
+      width: 72px;
+      height: 1px;
+      margin: 1.25rem auto 0;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      opacity: 0.85;
+    }
+
+    .bb-hero .lead {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-style: italic;
+      font-weight: 400;
+      font-size: 1.05rem;
+      line-height: 1.55;
+      max-width: 20rem;
       margin: 1rem auto 0;
-      max-width: 18rem;
-      font-size: 0.82rem;
-      line-height: 1.5;
-      color: rgba(240, 230, 223, 0.9);
+      color: rgba(245, 240, 233, 0.88);
     }
 
-    /* Mapa do olho — navegação rápida */
-    .mapa-olho {
+    /* Navegação minimal */
+    .bb-nav {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 0.4rem;
-      padding: 0.85rem 0.75rem;
-      background: var(--papel);
-      border-bottom: 1px solid rgba(44, 34, 30, 0.08);
-    }
-
-    .mapa-olho a {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.4rem 0.65rem;
-      font-size: 0.62rem;
-      font-weight: 600;
-      letter-spacing: 0.06em;
+      gap: 0.35rem 0.85rem;
+      padding: 1rem 1rem 0.25rem;
+      font-size: 0.58rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .bb-nav a {
+      color: var(--ink-soft);
       text-decoration: none;
-      color: var(--terroso);
-      border-radius: 999px;
-      border: 1px solid rgba(44, 34, 30, 0.1);
-      background: var(--branco);
-      transition: background 0.15s, border-color 0.15s;
+      border: none;
+      transition: color 0.2s;
     }
 
-    .mapa-olho a:hover {
-      border-color: var(--ouro);
-      background: rgba(201, 147, 69, 0.08);
+    .bb-nav a:hover {
+      color: var(--gold);
     }
 
-    .mapa-olho .ico {
-      font-size: 0.95rem;
-      line-height: 1;
-      opacity: 0.9;
+    .bb-nav span {
+      color: var(--line);
+      user-select: none;
     }
 
-    /* Resumo — 3 segundos */
-    .resumo {
+    /* At a glance */
+    .bb-glance {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 0.5rem;
-      padding: 1rem 0.85rem;
-      background: linear-gradient(180deg, rgba(201, 147, 69, 0.07), transparent);
+      gap: 1px;
+      margin: 1.75rem 0 0;
+      background: var(--line);
+      border: 1px solid var(--line);
     }
 
-    @media (max-width: 520px) {
-      .resumo {
+    @media (max-width: 560px) {
+      .bb-glance {
         grid-template-columns: 1fr;
       }
     }
 
-    .resumo-card {
-      padding: 0.65rem 0.7rem;
-      border-radius: 6px;
+    .bb-glance > div {
+      padding: 0.85rem 0.75rem;
       text-align: center;
-      border: 1px solid rgba(44, 34, 30, 0.08);
-      background: var(--branco);
+      background: var(--ivory);
     }
 
-    .resumo-card strong {
+    .bb-glance .g-label {
       display: block;
-      font-size: 0.55rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
+      font-size: 0.52rem;
+      font-weight: 600;
+      letter-spacing: 0.28em;
       text-transform: uppercase;
-      color: var(--ouro);
-      margin-bottom: 0.35rem;
+      color: var(--gold);
+      margin-bottom: 0.4rem;
     }
 
-    .resumo-card span {
+    .bb-glance .g-text {
       font-size: 0.78rem;
-      color: var(--café);
-      line-height: 1.4;
+      line-height: 1.45;
+      color: var(--ink-soft);
     }
 
-    .corpo {
-      padding: 0 0.85rem 1.5rem;
+    /* Seções */
+    .bb-section {
+      margin-top: 2.25rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--line);
     }
 
-    /* Blocos temáticos */
-    .bloco {
-      margin-bottom: 0.85rem;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid rgba(44, 34, 30, 0.08);
-      background: var(--branco);
-      box-shadow: 0 2px 12px rgba(15, 12, 11, 0.04);
+    .bb-section:first-of-type {
+      margin-top: 1.5rem;
+      padding-top: 0;
+      border-top: none;
     }
 
-    .bloco-cab {
+    .bb-sec-head {
       display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      padding: 0.55rem 0.85rem;
-      font-size: 0.58rem;
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--café);
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
     }
 
-    .bloco-cab .sim {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.65rem;
-      height: 1.65rem;
-      border-radius: 8px;
-      font-size: 0.95rem;
+    .bb-roman {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 300;
+      font-size: 2.35rem;
+      line-height: 0.85;
+      color: rgba(174, 138, 82, 0.28);
       flex-shrink: 0;
     }
 
-    .bloco-corpo {
-      padding: 0.75rem 0.9rem 0.9rem;
-      border-top: 1px solid rgba(44, 34, 30, 0.06);
+    .bb-sec-title {
+      flex: 1;
     }
 
-    .bloco.local .bloco-cab {
-      background: var(--z-local);
-      border-left: 4px solid var(--z-local-borda);
-    }
-
-    .bloco.local .sim {
-      background: rgba(122, 158, 140, 0.25);
-    }
-
-    .bloco.contato .bloco-cab {
-      background: var(--z-contato);
-      border-left: 4px solid var(--z-contato-borda);
-    }
-
-    .bloco.contato .sim {
-      background: rgba(201, 147, 69, 0.2);
-    }
-
-    .bloco.agenda .bloco-cab {
-      background: var(--z-agenda);
-      border-left: 4px solid var(--z-agenda-borda);
-    }
-
-    .bloco.agenda .sim {
-      background: rgba(139, 147, 168, 0.25);
-    }
-
-    .bloco.prep-duo {
-      border: none;
-      background: transparent;
-      box-shadow: none;
-    }
-
-    .prep-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.65rem;
-    }
-
-    @media (max-width: 600px) {
-      .prep-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .bloco.prep-cabelo .bloco-cab {
-      background: var(--z-cabelo);
-      border-left: 4px solid var(--z-cabelo-borda);
-    }
-
-    .bloco.prep-cabelo .sim {
-      background: rgba(196, 160, 144, 0.35);
-    }
-
-    .bloco.prep-pele .bloco-cab {
-      background: var(--z-pele);
-      border-left: 4px solid var(--z-pele-borda);
-    }
-
-    .bloco.prep-pele .sim {
-      background: rgba(143, 168, 154, 0.3);
-    }
-
-    .bloco.preco .bloco-cab {
-      background: var(--z-preco);
-      border-left: 4px solid var(--ouro);
-    }
-
-    .bloco.preco .sim {
-      background: rgba(201, 147, 69, 0.22);
-    }
-
-    .bloco.regras .bloco-cab {
-      background: var(--z-regra);
-      border-left: 4px solid var(--z-regra-borda);
-    }
-
-    .bloco.regras .sim {
-      background: rgba(212, 169, 104, 0.3);
-    }
-
-    .bloco.sobre .bloco-cab {
-      background: linear-gradient(90deg, rgba(44, 34, 30, 0.06), transparent);
-      border-left: 4px solid var(--café);
-    }
-
-    .bloco.sobre .sim {
-      background: rgba(44, 34, 30, 0.08);
-    }
-
-    .txt-curto {
-      margin: 0;
-      font-size: 0.88rem;
-      color: var(--café);
-    }
-
-    .lista-check {
-      margin: 0.5rem 0 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .lista-check li {
-      position: relative;
-      padding-left: 1.35rem;
-      margin: 0.35rem 0;
-      font-size: 0.82rem;
-      line-height: 1.45;
-    }
-
-    .lista-check li::before {
-      content: "✓";
-      position: absolute;
-      left: 0;
-      top: 0;
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--ouro);
-    }
-
-    .lista-num {
-      margin: 0.4rem 0 0;
-      padding: 0;
-      list-style: none;
-      counter-reset: passo;
-    }
-
-    .lista-num li {
-      counter-increment: passo;
-      position: relative;
-      padding: 0.4rem 0 0.4rem 2.1rem;
-      min-height: 2rem;
-      font-size: 0.82rem;
-      border-bottom: 1px dashed rgba(44, 34, 30, 0.1);
-    }
-
-    .lista-num li:last-child {
-      border-bottom: none;
-    }
-
-    .lista-num li::before {
-      content: counter(passo);
-      position: absolute;
-      left: 0;
-      top: 0.35rem;
-      width: 1.45rem;
-      height: 1.45rem;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--ouro), var(--ouro-escuro));
-      color: var(--branco);
-      font-size: 0.65rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .linha-contato {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.35rem 0.75rem;
-      margin: 0.35rem 0;
-      font-size: 0.88rem;
-    }
-
-    .linha-contato .tag {
-      font-size: 0.55rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      color: var(--ouro);
-    }
-
-    a {
-      color: var(--terroso);
-      font-weight: 500;
-      text-decoration: none;
-      border-bottom: 1px solid rgba(201, 147, 69, 0.45);
-    }
-
-    a:hover {
-      color: var(--café);
-      border-bottom-color: var(--ouro);
-    }
-
-    /* Preços — grade rápida */
-    .preco-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-    }
-
-    @media (max-width: 480px) {
-      .preco-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .preco-mini {
-      padding: 0.65rem 0.7rem;
-      border-radius: 6px;
-      background: var(--papel);
-      border: 1px solid rgba(44, 34, 30, 0.08);
-    }
-
-    .preco-mini .nome {
-      font-size: 0.68rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      margin-bottom: 0.2rem;
-    }
-
-    .preco-mini .valor {
+    .bb-sec-title h2 {
       font-family: "Cormorant Garamond", Georgia, serif;
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: var(--ouro);
-      line-height: 1.1;
+      font-weight: 500;
+      font-size: 1.35rem;
+      letter-spacing: 0.08em;
+      color: var(--ink);
+      margin: 0;
+      line-height: 1.2;
     }
 
-    .preco-mini .meta {
-      font-size: 0.72rem;
+    .bb-sec-title .en {
+      display: block;
+      margin-top: 0.25rem;
+      font-family: "Outfit", sans-serif;
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
       color: var(--muted);
-      margin-top: 0.35rem;
-      line-height: 1.35;
     }
 
-    .aviso-compacto {
-      margin: 0.65rem 0 0;
-      padding: 0.5rem 0.65rem;
+    .bb-prose {
+      font-size: 0.92rem;
+      line-height: 1.7;
+    }
+
+    .bb-prose strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* Faixa contato */
+    .bb-contact-strip {
+      margin: 0 -1.35rem;
+      padding: 1.35rem 1.5rem;
+      background: var(--noir);
+      color: var(--cream);
+      text-align: center;
+    }
+
+    @media print {
+      .bb-contact-strip {
+        margin: 0;
+      }
+    }
+
+    .bb-contact-strip .strip-label {
+      font-size: 0.52rem;
+      font-weight: 600;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: rgba(230, 220, 208, 0.55);
+      margin-bottom: 0.85rem;
+    }
+
+    .bb-contact-strip a {
+      display: inline-block;
+      margin: 0.25rem 0.65rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--ivory);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(174, 138, 82, 0.5);
+      letter-spacing: 0.04em;
+    }
+
+    .bb-contact-strip a:hover {
+      color: #e8d5be;
+      border-bottom-color: var(--gold);
+    }
+
+    .bb-contact-note {
+      margin: 0.85rem auto 0;
       font-size: 0.72rem;
-      line-height: 1.45;
-      color: var(--terroso);
-      background: rgba(212, 169, 104, 0.12);
-      border-radius: 6px;
-      border-left: 3px solid var(--ouro);
+      line-height: 1.5;
+      color: rgba(220, 210, 198, 0.65);
+      max-width: 22rem;
     }
 
-    /* Imagem editorial — penteado / maquiagem */
-    .prep-visual {
-      margin: -0.75rem -0.9rem 0.85rem;
-      width: calc(100% + 1.8rem);
+    /* Timeline agendamento */
+    .bb-timeline {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border-left: 1px solid var(--line-gold);
+      margin-left: 0.5rem;
+      padding-left: 1.15rem;
+    }
+
+    .bb-timeline li {
       position: relative;
-      overflow: hidden;
-      background: linear-gradient(145deg, rgba(44, 34, 30, 0.06), rgba(201, 147, 69, 0.06));
+      padding: 0.5rem 0 0.5rem 0;
+      font-size: 0.88rem;
+      line-height: 1.5;
     }
 
-    .prep-visual::after {
+    .bb-timeline li::before {
       content: "";
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      height: 40%;
-      background: linear-gradient(to top, rgba(15, 12, 11, 0.35), transparent);
-      pointer-events: none;
+      left: -1.15rem;
+      top: 0.85rem;
+      width: 7px;
+      height: 7px;
+      margin-left: -3.5px;
+      border-radius: 50%;
+      background: var(--ivory);
+      border: 2px solid var(--gold);
+    }
+
+    .bb-callout {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      background: var(--ivory);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--gold);
+      font-size: 0.82rem;
+      line-height: 1.55;
+    }
+
+    /* Prep + imagens */
+    .bb-prep-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 640px) {
+      .bb-prep-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .bb-prep-card {
+      background: var(--ivory);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .bb-prep-card .ph {
+      padding: 0.65rem 0.85rem 0.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .bb-prep-card .ph h3 {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 500;
+      font-size: 1.05rem;
+      letter-spacing: 0.06em;
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .bb-prep-card .ph .sub {
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+
+    .prep-visual {
+      position: relative;
+      margin: 0;
+      background: #ebe6df;
     }
 
     .prep-visual img {
       display: block;
       width: 100%;
-      aspect-ratio: 16 / 11;
+      aspect-ratio: 5 / 4;
       object-fit: cover;
-      vertical-align: middle;
-      filter: saturate(1.04) contrast(1.02);
+      filter: saturate(1.03) contrast(1.02);
     }
 
     .prep-visual figcaption {
       position: absolute;
-      left: 0.65rem;
-      bottom: 0.5rem;
-      z-index: 1;
+      right: 0.65rem;
+      bottom: 0.55rem;
       font-family: "Cormorant Garamond", Georgia, serif;
       font-style: italic;
-      font-size: 0.78rem;
-      letter-spacing: 0.12em;
-      color: rgba(255, 252, 249, 0.95);
-      text-shadow: 0 1px 8px rgba(15, 12, 11, 0.5);
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      color: var(--ivory);
+      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
     }
 
-    .prep-visual.prep-visual--cabelo {
-      border-bottom: 2px solid rgba(196, 160, 144, 0.65);
+    .bb-prep-card .body {
+      padding: 0.75rem 0.85rem 0.95rem;
     }
 
-    .prep-visual.prep-visual--maquiagem {
-      border-bottom: 2px solid rgba(143, 168, 154, 0.55);
-    }
-
-    @media print {
-      .prep-visual img {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      .prep-visual,
-      .bloco.prep-cabelo,
-      .bloco.prep-pele {
-        break-inside: avoid;
-      }
-    }
-
-    .nota-mini {
-      font-size: 0.7rem;
-      color: var(--muted);
-      margin: 0.5rem 0 0;
-    }
-
-    .rodape {
+    .bb-prep-card .body ul {
       margin: 0;
-      padding: 1rem 0.85rem 1.25rem;
+      padding: 0;
+      list-style: none;
+    }
+
+    .bb-prep-card .body li {
+      position: relative;
+      padding-left: 0.95rem;
+      margin: 0.4rem 0;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .bb-prep-card .body li::before {
+      content: "·";
+      position: absolute;
+      left: 0;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    /* Tabela de preços — menu fino */
+    .bb-price {
+      border: 1px solid var(--line);
+      background: var(--ivory);
+    }
+
+    .bb-price-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem 1rem;
+      align-items: baseline;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .bb-price-row:last-child {
+      border-bottom: none;
+    }
+
+    .bb-price-row .svc {
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--ink-soft);
+    }
+
+    .bb-price-row .amt {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 1.45rem;
+      font-weight: 500;
+      color: var(--gold-deep);
+      white-space: nowrap;
+    }
+
+    .bb-price-row .note {
+      grid-column: 1 / -1;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .bb-footnote {
+      margin-top: 0.75rem;
+      font-size: 0.7rem;
+      font-style: italic;
+      color: var(--muted);
       text-align: center;
-      font-size: 0.55rem;
-      font-weight: 600;
-      letter-spacing: 0.2em;
+    }
+
+    /* Regras */
+    .bb-rules {
+      padding: 1rem 1.1rem;
+      background: linear-gradient(135deg, rgba(174, 138, 82, 0.06), transparent);
+      border: 1px solid var(--line);
+    }
+
+    .bb-rules ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .bb-rules li {
+      padding: 0.45rem 0;
+      padding-left: 1.1rem;
+      font-size: 0.86rem;
+      line-height: 1.55;
+      border-bottom: 1px solid rgba(224, 217, 208, 0.6);
+      position: relative;
+    }
+
+    .bb-rules li:last-child {
+      border-bottom: none;
+    }
+
+    .bb-rules li::before {
+      content: "—";
+      position: absolute;
+      left: 0;
+      color: var(--gold);
+      font-weight: 300;
+    }
+
+    .bb-footer {
+      margin-top: 2.5rem;
+      padding: 1.5rem 1rem 2rem;
+      text-align: center;
+      font-size: 0.52rem;
+      font-weight: 500;
+      letter-spacing: 0.28em;
       text-transform: uppercase;
       color: var(--muted);
-      border-top: 1px solid rgba(44, 34, 30, 0.08);
-      line-height: 1.9;
+      border-top: 1px solid var(--line);
+      line-height: 2;
+    }
+
+    a {
+      color: inherit;
     }
 
     @media print {
       body {
-        background: var(--papel);
+        background: var(--cream);
       }
-      .doc {
-        max-width: none;
+      .bb-doc {
+        background: var(--cream);
       }
-      .mapa-olho a {
-        border: 1px solid #ccc;
+      .bb-hero {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .bb-contact-strip {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .prep-visual img {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .bb-prep-card,
+      .bb-price,
+      .bb-rules {
+        break-inside: avoid;
       }
       a {
-        color: inherit;
-        border: none;
+        text-decoration: none;
       }
       .no-print {
         display: none !important;
-      }
-      .capa {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
       }
     }
 
@@ -607,41 +603,42 @@
       justify-content: center;
       gap: 0.5rem;
       padding: 0.65rem 0.75rem;
-      background: rgba(15, 12, 11, 0.95);
-      border-top: 1px solid rgba(212, 169, 104, 0.3);
-      font-size: 0.68rem;
+      background: rgba(14, 12, 11, 0.96);
+      border-top: 1px solid rgba(174, 138, 82, 0.25);
+      font-size: 0.65rem;
+      font-family: "Outfit", sans-serif;
     }
 
     .barra-edicao button {
       font-family: inherit;
-      font-size: 0.65rem;
+      font-size: 0.62rem;
       font-weight: 600;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      padding: 0.45rem 0.85rem;
-      border-radius: 4px;
-      border: 1px solid var(--champagne);
-      background: var(--branco);
+      padding: 0.45rem 0.9rem;
+      border-radius: 2px;
+      border: 1px solid var(--gold);
+      background: var(--ivory);
       cursor: pointer;
     }
 
     .barra-edicao button.primario {
-      background: linear-gradient(135deg, var(--ouro), var(--ouro-escuro));
-      color: var(--branco);
+      background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+      color: var(--ivory);
       border-color: transparent;
     }
 
     .barra-edicao .hint {
       flex: 1 1 100%;
       text-align: center;
-      color: rgba(240, 230, 223, 0.85);
+      color: rgba(230, 220, 208, 0.82);
       max-width: 520px;
       margin: 0 auto;
     }
 
     .modo-edicao-ativo main {
-      outline: 2px dashed rgba(201, 147, 69, 0.5);
-      outline-offset: 4px;
+      outline: 2px dashed rgba(174, 138, 82, 0.45);
+      outline-offset: 6px;
     }
 
     body.has-barra {
@@ -658,215 +655,225 @@
 <body class="has-barra">
   <div class="barra-edicao no-print" role="region" aria-label="Ferramentas">
     <span class="hint">
-      <strong style="color: var(--ouro-claro);">Edição:</strong> ative abaixo, edite na página → <strong>PDF</strong> ou <strong>HTML</strong>.
-      Imagens: coloque <code style="color:var(--champagne);">galeria/cabelo.jpg</code> e <code style="color:var(--champagne);">galeria/maquiagem.jpg</code> (mesma pasta deste HTML).
+      <strong style="color:#e8d5be;">Edição:</strong> ative → <strong>PDF</strong> ou <strong>HTML</strong>.
+      Imagens: <code style="color:#c9a86c;">galeria/cabelo.jpg</code> · <code style="color:#c9a86c;">galeria/maquiagem.jpg</code>
     </span>
-    <label style="display:flex;align-items:center;gap:0.4rem;color:#e8d5b8;">
+    <label style="display:flex;align-items:center;gap:0.4rem;color:#d4c4b0;">
       <input type="checkbox" id="toggle-edicao" /> Editar
     </label>
     <button type="button" class="primario" id="btn-pdf">PDF</button>
     <button type="button" id="btn-html">HTML</button>
   </div>
 
-  <div class="doc">
-    <header class="capa">
-      <svg class="logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <linearGradient id="goldStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#edd4b4" />
-            <stop offset="50%" style="stop-color:#d4a968" />
-            <stop offset="100%" style="stop-color:#a6742e" />
-          </linearGradient>
-          <linearGradient id="goldFill" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:#f5ead8" />
-            <stop offset="100%" style="stop-color:#c99345" />
-          </linearGradient>
-        </defs>
-        <rect class="logo-frame" x="4" y="4" width="92" height="92" rx="2" />
-        <text class="logo-monogram" x="50" y="64" text-anchor="middle">BB</text>
-      </svg>
-      <h1>Bianca Brito</h1>
-      <p class="kicker">Makeup · Hair · Social</p>
-      <p class="sub">Maquiagem e penteado para eventos — pele, cor e cabelo em harmonia.</p>
+  <div class="bb-doc">
+    <header class="bb-hero">
+      <div class="bb-hero-inner">
+        <svg class="logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="goldStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#e5d4bc" />
+              <stop offset="50%" style="stop-color:#c9a86c" />
+              <stop offset="100%" style="stop-color:#8a6b3f" />
+            </linearGradient>
+            <linearGradient id="goldFill" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#f2e8d8" />
+              <stop offset="100%" style="stop-color:#ae8a52" />
+            </linearGradient>
+          </defs>
+          <rect class="logo-frame" x="4" y="4" width="92" height="92" rx="2" />
+          <text class="logo-monogram" x="50" y="64" text-anchor="middle">BB</text>
+        </svg>
+        <h1>Bianca Brito</h1>
+        <p class="tag">Makeup · Hair · Atelier</p>
+        <div class="rule" aria-hidden="true"></div>
+        <p class="lead">Beleza editorial para o seu evento — maquiagem e penteado com acabamento impecável.</p>
+      </div>
     </header>
 
-    <nav class="mapa-olho no-print" aria-label="Ir direto ao que precisa">
-      <a href="#local"><span class="ico" aria-hidden="true">◇</span> Onde</a>
-      <a href="#contato"><span class="ico" aria-hidden="true">☎</span> Contato</a>
-      <a href="#agendar"><span class="ico" aria-hidden="true">→</span> Agendar</a>
-      <a href="#preparo"><span class="ico" aria-hidden="true">✦</span> Dia do evento</a>
-      <a href="#valores"><span class="ico" aria-hidden="true">$</span> Valores</a>
-      <a href="#regras"><span class="ico" aria-hidden="true">!</span> Regras</a>
+    <nav class="bb-nav no-print" aria-label="Navegação">
+      <a href="#i">Sobre</a><span>·</span>
+      <a href="#ii">Estúdio</a><span>·</span>
+      <a href="#iii">Contato</a><span>·</span>
+      <a href="#iv">Agendar</a><span>·</span>
+      <a href="#v">O grande dia</a><span>·</span>
+      <a href="#vi">Investimento</a><span>·</span>
+      <a href="#vii">Políticas</a>
     </nav>
 
-    <div class="resumo" aria-label="Em resumo">
-      <div class="resumo-card">
-        <strong>O quê</strong>
-        <span>Maquiagem &amp; penteado para formaturas, casamentos e festas.</span>
-      </div>
-      <div class="resumo-card">
-        <strong>Onde</strong>
-        <span>Estúdio na Rua Guarani, 556 — Vila Redenção II.</span>
-      </div>
-      <div class="resumo-card">
-        <strong>Como</strong>
-        <span>Agendamento pelo WhatsApp · sinal 30% para reservar.</span>
-      </div>
-    </div>
-
-    <div class="corpo">
-      <main id="area-edicao">
-        <article class="bloco sobre" id="sobre">
-          <div class="bloco-cab">
-            <span class="sim" aria-hidden="true">★</span>
-            Bianca Brito
-          </div>
-          <div class="bloco-corpo">
-            <p class="txt-curto">Maquiadora e penteadista focada em <strong>eventos sociais</strong>. Trabalho com produtos profissionais, escuta do que você imagina para o dia e acabamento que dura até o fim da festa.</p>
-          </div>
-        </article>
-
-        <article class="bloco local" id="local">
-          <div class="bloco-cab">
-            <span class="sim" aria-hidden="true">⌖</span>
-            Estúdio
-          </div>
-          <div class="bloco-corpo">
-            <p class="txt-curto"><strong>Rua Guarani, 556 — Vila Redenção II.</strong><br />Iluminação e estrutura pensadas para maquiagem. Dúvida de chegada? Pergunte no WhatsApp antes.</p>
-          </div>
-        </article>
-
-        <article class="bloco contato" id="contato">
-          <div class="bloco-cab">
-            <span class="sim" aria-hidden="true">@</span>
-            Fale com a Bianca
-          </div>
-          <div class="bloco-corpo">
-            <div class="linha-contato">
-              <span class="tag">WhatsApp</span>
-              <a href="https://wa.me/5599981452008">(99) 98145-2008</a>
-            </div>
-            <div class="linha-contato">
-              <span class="tag">Instagram</span>
-              <a href="https://www.instagram.com/biancabrito.makeup/">@biancabrito.makeup</a>
-            </div>
-            <p class="nota-mini">WhatsApp = agendamento e dúvidas · Instagram = portfólio completo e referências.</p>
-          </div>
-        </article>
-
-        <article class="bloco agenda" id="agendar">
-          <div class="bloco-cab">
-            <span class="sim" aria-hidden="true">1–6</span>
-            Para agendar, envie
-          </div>
-          <div class="bloco-corpo">
-            <ol class="lista-num">
-              <li>Nome completo</li>
-              <li>Data do evento + horário que precisa estar pronta</li>
-              <li>O que vai fazer: maquiagem, penteado ou os dois · estúdio ou domicílio</li>
-              <li>Se for em casa: endereço e referência</li>
-              <li>Fotos de referência (se tiver)</li>
-              <li>Alergias ou algo importante sobre pele e cabelo</li>
-            </ol>
-            <p class="aviso-compacto">Depois do combinado você recebe o valor e o <strong>PIX / forma do sinal (30%)</strong>. Só confirma agenda após o sinal.</p>
-          </div>
-        </article>
-
-        <div class="bloco prep-duo" id="preparo">
-          <div class="prep-grid">
-            <article class="bloco prep-cabelo">
-              <div class="bloco-cab">
-                <span class="sim" aria-hidden="true">〰</span>
-                No dia — cabelo
-              </div>
-              <div class="bloco-corpo">
-                <figure class="prep-visual prep-visual--cabelo">
-                  <img src="galeria/cabelo.jpg" alt="Referência visual — penteado" width="800" height="550" loading="lazy" />
-                  <figcaption>Penteado</figcaption>
-                </figure>
-                <ul class="lista-check">
-                  <li>Lavar, em geral, no <strong>dia anterior</strong> (exceto se ela orientar outra coisa).</li>
-                  <li>Chegar com cabelo <strong>seco</strong> · sem chapinha pesada no dia.</li>
-                  <li>Sem óleo pesado na raiz.</li>
-                  <li>Trazer grampo / tiara / flores se já souber o que usar.</li>
-                  <li>Mega hair: avisar antes.</li>
-                  <li><strong>Ondas + cabelão:</strong> pode ter acréscimo — combinar na reserva.</li>
-                </ul>
-              </div>
-            </article>
-            <article class="bloco prep-pele">
-              <div class="bloco-cab">
-                <span class="sim" aria-hidden="true">○</span>
-                No dia — pele &amp; maquiagem
-              </div>
-              <div class="bloco-corpo">
-                <figure class="prep-visual prep-visual--maquiagem">
-                  <img src="galeria/maquiagem.jpg" alt="Referência visual — maquiagem" width="800" height="550" loading="lazy" />
-                  <figcaption>Maquiagem</figcaption>
-                </figure>
-                <ul class="lista-check">
-                  <li>Hidratar nos dias anteriores · esfoliar <strong>1–2 dias antes</strong>, não no dia.</li>
-                  <li>Sem produto novo na véspera.</li>
-                  <li>Chegar com rosto <strong>limpo</strong>, sem base. Hidratante leve se for de costume.</li>
-                  <li>Depilação / sobrancelha: melhor com <strong>48h</strong> de antecedência.</li>
-                  <li>Avise alergias, tratamentos recentes e <strong>lentes</strong>.</li>
-                </ul>
-              </div>
-            </article>
-          </div>
+    <div class="bb-inner">
+      <div class="bb-glance" aria-label="Visão geral">
+        <div>
+          <span class="g-label">Serviço</span>
+          <span class="g-text">Maquiagem &amp; penteado para eventos sociais</span>
         </div>
+        <div>
+          <span class="g-label">Estúdio</span>
+          <span class="g-text">Rua Guarani, 556 — Vila Redenção II</span>
+        </div>
+        <div>
+          <span class="g-label">Reserva</span>
+          <span class="g-text">WhatsApp · sinal 30%</span>
+        </div>
+      </div>
 
-        <article class="bloco preco" id="valores">
-          <div class="bloco-cab">
-            <span class="sim" aria-hidden="true">R$</span>
-            Investimento
-          </div>
-          <div class="bloco-corpo">
-            <div class="preco-grid">
-              <div class="preco-mini">
-                <div class="nome">Maquiagem no estúdio</div>
-                <div class="valor">R$ 130</div>
-                <div class="meta">~1 hora de produção</div>
-              </div>
-              <div class="preco-mini">
-                <div class="nome">Maquiagem domicílio</div>
-                <div class="valor">R$ 170</div>
-                <div class="meta">Deslocamento conforme combinado</div>
-              </div>
-              <div class="preco-mini">
-                <div class="nome">Penteado</div>
-                <div class="valor">R$ 90</div>
-                <div class="meta">~1h a 1h30</div>
-              </div>
-              <div class="preco-mini">
-                <div class="nome">Só ondas</div>
-                <div class="valor">R$ 60</div>
-                <div class="meta">Cabelo muito longo pode ter extra</div>
-              </div>
+      <main id="area-edicao">
+        <section class="bb-section" id="i">
+          <div class="bb-sec-head">
+            <span class="bb-roman" aria-hidden="true">I</span>
+            <div class="bb-sec-title">
+              <h2>A artista</h2>
+              <span class="en">About</span>
             </div>
-            <p class="nota-mini">Valores podem mudar — confirme no agendamento.</p>
           </div>
-        </article>
+          <p class="bb-prose">Maquiadora e penteadista dedicada a <strong>eventos sociais</strong> — formaturas, casamentos e celebrações. Protocolo profissional, escuta atenta e resultado que acompanha você até o último clique.</p>
+        </section>
 
-        <article class="bloco regras" id="regras">
-          <div class="bloco-cab">
-            <span class="sim" aria-hidden="true">!</span>
-            Pagamento &amp; horário
+        <section class="bb-section" id="ii">
+          <div class="bb-sec-head">
+            <span class="bb-roman" aria-hidden="true">II</span>
+            <div class="bb-sec-title">
+              <h2>O estúdio</h2>
+              <span class="en">Location</span>
+            </div>
           </div>
-          <div class="bloco-corpo">
-            <ul class="lista-check">
-              <li><strong>Sinal 30%</strong> para reservar · <strong>70%</strong> no dia do serviço (forma combinada no WhatsApp).</li>
-              <li>Atendimento social = <strong>horário fechado</strong>. Sem tolerância para atraso — respeita você e a agenda das outras clientes.</li>
-              <li>Imprevisto? Avise o quanto antes pelo WhatsApp.</li>
+          <p class="bb-prose"><strong>Rua Guarani, 556 — Vila Redenção II.</strong> Espaço com iluminação pensada para maquiagem e todo o material necessário. Dúvida de acesso? Chame no WhatsApp antes do dia.</p>
+        </section>
+
+        <section class="bb-section" id="iii" style="margin-top: 2rem;">
+          <div class="bb-contact-strip">
+            <div class="strip-label">Contato</div>
+            <a href="https://wa.me/5599981452008">(99) 98145-2008</a>
+            <a href="https://www.instagram.com/biancabrito.makeup/">@biancabrito.makeup</a>
+            <p class="bb-contact-note">WhatsApp para agendamento e dúvidas · Instagram para portfólio completo e referências visuais.</p>
+          </div>
+        </section>
+
+        <section class="bb-section" id="iv">
+          <div class="bb-sec-head">
+            <span class="bb-roman" aria-hidden="true">IV</span>
+            <div class="bb-sec-title">
+              <h2>Reserva</h2>
+              <span class="en">Booking</span>
+            </div>
+          </div>
+          <p class="bb-prose" style="margin-bottom: 0.75rem;">Envie no WhatsApp, nesta ordem:</p>
+          <ol class="bb-timeline">
+            <li>Nome completo</li>
+            <li>Data do evento e horário em que precisa estar pronta</li>
+            <li>Maquiagem, penteado ou ambos · estúdio ou domicílio</li>
+            <li>Se for em casa: endereço e ponto de referência</li>
+            <li>Referências de estilo (fotos), se tiver</li>
+            <li>Alergias ou informações sobre pele e cabelo</li>
+          </ol>
+          <div class="bb-callout">Após o combinado, você recebe o valor e a forma do <strong>sinal de 30%</strong>. A data só fica reservada após a confirmação do pagamento.</div>
+        </section>
+
+        <section class="bb-section" id="v">
+          <div class="bb-sec-head">
+            <span class="bb-roman" aria-hidden="true">V</span>
+            <div class="bb-sec-title">
+              <h2>O grande dia</h2>
+              <span class="en">Your appointment</span>
+            </div>
+          </div>
+          <div class="bb-prep-grid">
+            <article class="bb-prep-card prep-cabelo">
+              <div class="ph">
+                <h3>Cabelo</h3>
+                <div class="sub">Hair</div>
+              </div>
+              <figure class="prep-visual">
+                <img src="galeria/cabelo.jpg" alt="Referência — penteado" width="800" height="640" loading="lazy" />
+                <figcaption>Penteado</figcaption>
+              </figure>
+              <div class="body">
+                <ul>
+                  <li>Lavar, em geral, no <strong>dia anterior</strong> (salvo outra orientação).</li>
+                  <li>Chegar com fios <strong>secos</strong> · sem chapinha pesada no dia.</li>
+                  <li>Evitar óleo pesado na raiz.</li>
+                  <li>Trazer acessórios que for usar (grampos, tiara, flores).</li>
+                  <li>Mega hair: avisar com antecedência.</li>
+                  <li><strong>Ondas + cabelo muito longo:</strong> pode haver acréscimo — combinar na reserva.</li>
+                </ul>
+              </div>
+            </article>
+            <article class="bb-prep-card prep-pele">
+              <div class="ph">
+                <h3>Pele &amp; maquiagem</h3>
+                <div class="sub">Skin &amp; makeup</div>
+              </div>
+              <figure class="prep-visual">
+                <img src="galeria/maquiagem.jpg" alt="Referência — maquiagem" width="800" height="640" loading="lazy" />
+                <figcaption>Maquiagem</figcaption>
+              </figure>
+              <div class="body">
+                <ul>
+                  <li>Hidratar nos dias anteriores · esfoliar <strong>1–2 dias antes</strong>, não no dia.</li>
+                  <li>Sem produtos novos na véspera.</li>
+                  <li>Rosto <strong>limpo</strong>, sem maquiagem; hidratante leve se for de costume.</li>
+                  <li>Depilação / sobrancelha: ideal com <strong>48h</strong> de antecedência.</li>
+                  <li>Informar alergias, tratamentos recentes e uso de <strong>lentes</strong>.</li>
+                </ul>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="bb-section" id="vi">
+          <div class="bb-sec-head">
+            <span class="bb-roman" aria-hidden="true">VI</span>
+            <div class="bb-sec-title">
+              <h2>Investimento</h2>
+              <span class="en">Services &amp; rates</span>
+            </div>
+          </div>
+          <div class="bb-price">
+            <div class="bb-price-row">
+              <span class="svc">Maquiagem no estúdio</span>
+              <span class="amt">R$&nbsp;130</span>
+              <span class="note">Produção em torno de 1 hora</span>
+            </div>
+            <div class="bb-price-row">
+              <span class="svc">Maquiagem a domicílio</span>
+              <span class="amt">R$&nbsp;170</span>
+              <span class="note">Deslocamento conforme combinado</span>
+            </div>
+            <div class="bb-price-row">
+              <span class="svc">Penteado</span>
+              <span class="amt">R$&nbsp;90</span>
+              <span class="note">Entre 1h e 1h30, conforme complexidade</span>
+            </div>
+            <div class="bb-price-row">
+              <span class="svc">Somente ondas</span>
+              <span class="amt">R$&nbsp;60</span>
+              <span class="note">Cabelos muito longos podem ter acréscimo</span>
+            </div>
+          </div>
+          <p class="bb-footnote">Valores sujeitos a atualização — confirme no momento do agendamento.</p>
+        </section>
+
+        <section class="bb-section" id="vii">
+          <div class="bb-sec-head">
+            <span class="bb-roman" aria-hidden="true">VII</span>
+            <div class="bb-sec-title">
+              <h2>Políticas</h2>
+              <span class="en">Policies</span>
+            </div>
+          </div>
+          <div class="bb-rules">
+            <ul>
+              <li><strong>Sinal de 30%</strong> para confirmar reserva · <strong>70%</strong> no dia do serviço (forma combinada no WhatsApp).</li>
+              <li>Atendimentos sociais seguem <strong>horário reservado</strong>, sem tolerância para atraso — em respeito à sua produção e à agenda das demais clientes.</li>
+              <li>Imprevistos: avise o quanto antes pelo WhatsApp.</li>
             </ul>
           </div>
-        </article>
+        </section>
       </main>
     </div>
 
-    <footer class="rodape">
-      Bianca Brito · Rua Guarani, 556 · Vila Redenção II<br />
-      (99) 98145-2008 · @biancabrito.makeup
+    <footer class="bb-footer">
+      Bianca Brito — Beauty &amp; Hair Atelier<br />
+      Rua Guarani, 556 · Vila Redenção II · (99) 98145-2008 · @biancabrito.makeup
     </footer>
   </div>
 
