@@ -413,6 +413,70 @@
       background: #ebe6df;
     }
 
+    .prep-visual.is-empty {
+      background:
+        radial-gradient(ellipse 120% 80% at 20% 10%, rgba(174, 138, 82, 0.12), transparent 55%),
+        linear-gradient(135deg, rgba(22, 19, 17, 0.06), rgba(174, 138, 82, 0.06));
+    }
+
+    .prep-visual .drop-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      text-align: center;
+      color: rgba(253, 252, 250, 0.92);
+      background: linear-gradient(to bottom, rgba(14, 12, 11, 0.22), rgba(14, 12, 11, 0.55));
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+
+    .prep-visual.is-empty .drop-overlay {
+      opacity: 1;
+    }
+
+    .drop-overlay .drop-title {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-style: italic;
+      font-size: 1.05rem;
+      letter-spacing: 0.14em;
+      margin: 0 0 0.35rem;
+    }
+
+    .drop-overlay .drop-sub {
+      font-family: "Outfit", sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(245, 240, 233, 0.78);
+      margin: 0;
+      line-height: 1.45;
+    }
+
+    .drop-overlay .drop-btn {
+      margin-top: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid rgba(174, 138, 82, 0.55);
+      background: rgba(253, 252, 250, 0.92);
+      color: var(--ink);
+      font-family: "Outfit", sans-serif;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .drop-overlay .drop-btn:hover {
+      background: #fff;
+    }
+
     .prep-visual img {
       display: block;
       width: 100%;
@@ -577,6 +641,9 @@
       .prep-visual img {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+      }
+      .prep-visual .drop-overlay {
+        display: none !important;
       }
       .bb-prep-card,
       .bb-price,
@@ -783,8 +850,16 @@
                 <div class="sub">Hair</div>
               </div>
               <figure class="prep-visual">
-                <img src="galeria/cabelo.jpg" alt="Referência — penteado" width="800" height="640" loading="lazy" />
+                <img id="img-cabelo" src="" alt="Foto de cabelo (adicione uma imagem)" width="800" height="640" loading="lazy" />
                 <figcaption>Penteado</figcaption>
+                <div class="drop-overlay no-print">
+                  <div>
+                    <p class="drop-title">Adicionar foto</p>
+                    <p class="drop-sub">Clique ou arraste<br />Foto de cabelo</p>
+                    <button class="drop-btn" type="button" data-upload="cabelo">Selecionar imagem</button>
+                    <input class="upload-input" data-upload-input="cabelo" type="file" accept="image/*" style="display:none" />
+                  </div>
+                </div>
               </figure>
               <div class="body">
                 <ul>
@@ -803,8 +878,16 @@
                 <div class="sub">Skin &amp; makeup</div>
               </div>
               <figure class="prep-visual">
-                <img src="galeria/maquiagem.jpg" alt="Referência — maquiagem" width="800" height="640" loading="lazy" />
+                <img id="img-maquiagem" src="" alt="Foto de maquiagem (adicione uma imagem)" width="800" height="640" loading="lazy" />
                 <figcaption>Maquiagem</figcaption>
+                <div class="drop-overlay no-print">
+                  <div>
+                    <p class="drop-title">Adicionar foto</p>
+                    <p class="drop-sub">Clique ou arraste<br />Foto de maquiagem</p>
+                    <button class="drop-btn" type="button" data-upload="maquiagem">Selecionar imagem</button>
+                    <input class="upload-input" data-upload-input="maquiagem" type="file" accept="image/*" style="display:none" />
+                  </div>
+                </div>
               </figure>
               <div class="body">
                 <ul>
@@ -881,6 +964,91 @@
     (function () {
       var main = document.getElementById("area-edicao");
       var toggle = document.getElementById("toggle-edicao");
+      var imgCabelo = document.getElementById("img-cabelo");
+      var imgMaquiagem = document.getElementById("img-maquiagem");
+
+      function setEmptyState(imgEl) {
+        var fig = imgEl && imgEl.closest ? imgEl.closest(".prep-visual") : null;
+        if (!fig) return;
+        var empty = !imgEl.getAttribute("src");
+        fig.classList.toggle("is-empty", empty);
+      }
+
+      function fileToDataUrl(file) {
+        return new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () { resolve(String(reader.result || "")); };
+          reader.onerror = function () { reject(new Error("Falha ao ler imagem")); };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function setImage(kind, dataUrl) {
+        if (kind === "cabelo") {
+          imgCabelo.src = dataUrl || "";
+          setEmptyState(imgCabelo);
+          try { localStorage.setItem("bb_img_cabelo", imgCabelo.src); } catch (e) {}
+          return;
+        }
+        if (kind === "maquiagem") {
+          imgMaquiagem.src = dataUrl || "";
+          setEmptyState(imgMaquiagem);
+          try { localStorage.setItem("bb_img_maquiagem", imgMaquiagem.src); } catch (e) {}
+        }
+      }
+
+      function hydrateImagesFromStorage() {
+        try {
+          var c = localStorage.getItem("bb_img_cabelo");
+          var m = localStorage.getItem("bb_img_maquiagem");
+          if (c) imgCabelo.src = c;
+          if (m) imgMaquiagem.src = m;
+        } catch (e) {}
+        setEmptyState(imgCabelo);
+        setEmptyState(imgMaquiagem);
+      }
+
+      function wireUpload(kind) {
+        var btn = document.querySelector("[data-upload=\"" + kind + "\"]");
+        var input = document.querySelector("[data-upload-input=\"" + kind + "\"]");
+        var imgEl = kind === "cabelo" ? imgCabelo : imgMaquiagem;
+        var fig = imgEl.closest(".prep-visual");
+
+        if (!btn || !input || !fig) return;
+
+        btn.addEventListener("click", function () {
+          input.click();
+        });
+
+        input.addEventListener("change", function () {
+          if (!input.files || !input.files[0]) return;
+          fileToDataUrl(input.files[0]).then(function (dataUrl) {
+            setImage(kind, dataUrl);
+            input.value = "";
+          });
+        });
+
+        function onDrop(files) {
+          var f = files && files[0];
+          if (!f) return;
+          if (!String(f.type || "").startsWith("image/")) return;
+          fileToDataUrl(f).then(function (dataUrl) {
+            setImage(kind, dataUrl);
+          });
+        }
+
+        fig.addEventListener("dragover", function (e) {
+          e.preventDefault();
+        });
+        fig.addEventListener("drop", function (e) {
+          e.preventDefault();
+          onDrop(e.dataTransfer && e.dataTransfer.files);
+        });
+      }
+
+      hydrateImagesFromStorage();
+      wireUpload("cabelo");
+      wireUpload("maquiagem");
       document.getElementById("btn-pdf").addEventListener("click", function () {
         window.print();
       });
@@ -889,6 +1057,19 @@
         clone.querySelectorAll(".no-print").forEach(function (n) {
           n.remove();
         });
+        // Garante que o HTML baixado já leve as imagens embutidas (dataURL).
+        try {
+          var c = localStorage.getItem("bb_img_cabelo");
+          var m = localStorage.getItem("bb_img_maquiagem");
+          if (c) {
+            var ic = clone.querySelector("#img-cabelo");
+            if (ic) ic.setAttribute("src", c);
+          }
+          if (m) {
+            var im = clone.querySelector("#img-maquiagem");
+            if (im) im.setAttribute("src", m);
+          }
+        } catch (e) {}
         clone.querySelectorAll("[contenteditable]").forEach(function (el) {
           el.removeAttribute("contenteditable");
         });
